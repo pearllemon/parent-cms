@@ -12,8 +12,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ['"Fraunces"', "ui-serif", "Georgia", "serif"],
+        sans: ['"Poppins"', "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Poppins"', "ui-sans-serif", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
