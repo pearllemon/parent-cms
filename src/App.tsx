@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SiteProvider } from "@/providers/SiteProvider";
 import Index from "./pages/Index.tsx";
 import About from "./pages/About.tsx";
 import Blog from "./pages/Blog.tsx";
@@ -15,6 +16,16 @@ import Books from "./pages/Books.tsx";
 import Service from "./pages/Service.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
+import PopupManager from "./components/PopupManager.tsx";
+
+import AdminShell from "./pages/admin/AdminShell.tsx";
+import AdminLogin from "./pages/admin/AdminLogin.tsx";
+import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
+import AdminPosts from "./pages/admin/AdminPosts.tsx";
+import AdminPostEditor from "./pages/admin/AdminPostEditor.tsx";
+import AdminMedia from "./pages/admin/AdminMedia.tsx";
+import AdminSettings from "./pages/admin/AdminSettings.tsx";
+import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
 
@@ -24,21 +35,36 @@ const App = () => (
       <Toaster />
       <Sonner position="top-center" richColors />
       <BrowserRouter>
-        <PageTracker />
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/book-a-call" element={<BookACall />} />
-          <Route path="/press" element={<Press />} />
-          <Route path="/books" element={<Books />} />
-          <Route path="/services/:slug" element={<Service />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<Terms />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SiteProvider>
+          <PageTracker />
+          <PopupManager />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/book-a-call" element={<BookACall />} />
+            <Route path="/press" element={<Press />} />
+            <Route path="/books" element={<Books />} />
+            <Route path="/services/:slug" element={<Service />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+
+            {/* Admin CMS */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminShell />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="posts" element={<AdminPosts />} />
+              <Route path="posts/:id" element={<AdminPostEditor />} />
+              <Route path="media" element={<AdminMedia />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="data/:table" element={<GenericCRUD />} />
+            </Route>
+
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SiteProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
