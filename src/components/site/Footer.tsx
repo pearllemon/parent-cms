@@ -66,9 +66,11 @@ const Footer = () => {
         <div className="lg:col-span-2">
           <h4 className="font-display text-lg mb-4">Quick Links</h4>
           <ul className="space-y-2.5 text-sm text-white/80">
-            <li><Link to="/about" className="hover:text-primary">About Us</Link></li>
+            <li><Link to="/about" className="hover:text-primary">About Me</Link></li>
             <li><Link to="/blog" className="hover:text-primary">Blog</Link></li>
-            <li><a href="https://deepakshukla.com/all-services/" className="hover:text-primary" target="_blank" rel="noreferrer">Services</a></li>
+            <li><Link to="/press" className="hover:text-primary">Press & Media</Link></li>
+            <li><Link to="/books" className="hover:text-primary">Reading List</Link></li>
+            <li><Link to="/services/sales-expert-london" className="hover:text-primary">Services</Link></li>
             <li><Link to="/contact" className="hover:text-primary">Contact Me</Link></li>
             <li><Link to="/book-a-call" className="hover:text-primary">Book A Call</Link></li>
           </ul>

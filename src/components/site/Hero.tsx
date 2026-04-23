@@ -1,15 +1,32 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const portrait = "https://deepakshukla.com/wp-content/uploads/2024/08/Heading-4.png";
 
 const Hero = () => {
+  const [y, setY] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => setY(Math.min(window.scrollY, 400));
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <section className="relative overflow-hidden bg-gradient-hero">
-      {/* decorative blobs */}
-      <div aria-hidden className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-32 -right-32 h-[28rem] w-[28rem] rounded-full bg-forest/10 blur-3xl" />
+      {/* parallax decorative blobs */}
+      <div
+        aria-hidden
+        style={{ transform: `translate3d(${y * 0.08}px, ${y * 0.18}px, 0)` }}
+        className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/15 blur-3xl will-change-transform"
+      />
+      <div
+        aria-hidden
+        style={{ transform: `translate3d(${-y * 0.06}px, ${y * -0.12}px, 0)` }}
+        className="pointer-events-none absolute -bottom-32 -right-32 h-[28rem] w-[28rem] rounded-full bg-forest/15 blur-3xl will-change-transform"
+      />
 
       <div className="container relative py-16 md:py-24 lg:py-28 grid lg:grid-cols-12 gap-12 items-center">
         <div className="lg:col-span-7 space-y-7 animate-fade-up">
@@ -59,7 +76,7 @@ const Hero = () => {
         </div>
 
         <div className="lg:col-span-5 relative animate-scale-in">
-          <div className="relative">
+          <div className="relative" style={{ transform: `translate3d(0, ${y * -0.08}px, 0)` }}>
             <div className="absolute -inset-4 rounded-[2rem] bg-gradient-leaf opacity-25 blur-2xl" />
             <div className="relative rounded-[2rem] overflow-hidden border-4 border-white shadow-pop bg-mint">
               <img src={portrait} alt="Deepak Shukla" className="w-full h-auto object-cover" loading="eager" />

@@ -10,6 +10,9 @@ import Contact from "./pages/Contact.tsx";
 import BookACall from "./pages/BookACall.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import Terms from "./pages/Terms.tsx";
+import Press from "./pages/Press.tsx";
+import Books from "./pages/Books.tsx";
+import Service from "./pages/Service.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
 
@@ -28,6 +31,9 @@ const App = () => (
           <Route path="/blog" element={<Blog />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/book-a-call" element={<BookACall />} />
+          <Route path="/press" element={<Press />} />
+          <Route path="/books" element={<Books />} />
+          <Route path="/services/:slug" element={<Service />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

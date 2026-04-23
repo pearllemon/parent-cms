@@ -1,25 +1,24 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
 
 type Service = {
   title: string;
-  href: string;
+  to: string;
   img: string;
   tint: string;
 };
 
 const services: Service[] = [
-  { title: "Sales Expert London", href: "https://deepakshukla.com/sales-expert-london/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/sales-expert.png", tint: "from-emerald-700/80 to-emerald-900/90" },
-  { title: "Relationship Advice", href: "https://deepakshukla.com/relationship-advice/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/Relationship-advice.png", tint: "from-orange-600/80 to-rose-800/90" },
-  { title: "Growth Hacking Expert London", href: "https://deepakshukla.com/growth-hacking-expert-london/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/JSHFJS.png", tint: "from-emerald-600/80 to-teal-900/90" },
-  { title: "Heatmaps Expert", href: "https://deepakshukla.com/heatmaps-expert/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/BLUE.png", tint: "from-sky-700/80 to-indigo-900/90" },
-  { title: "Negative SEO Removal", href: "https://deepakshukla.com/negative-seo-removal/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/Negative-Seo.png", tint: "from-stone-700/80 to-stone-900/90" },
-  { title: "Communications Consultant", href: "https://deepakshukla.com/communications-consultant/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/1sr.png", tint: "from-amber-700/80 to-rose-900/90" },
-  { title: "Conversion Rate Optimization", href: "https://deepakshukla.com/all-services/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/2nd-by-me.png", tint: "from-pink-700/80 to-purple-900/90" },
-  { title: "Digital Marketing Expert", href: "https://deepakshukla.com/digital-marketing-expert/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/3rd-by-me.png", tint: "from-emerald-600/80 to-emerald-900/90" },
-  { title: "Google Analytics Expert", href: "https://deepakshukla.com/google-analytics-expert/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/4th-11.png", tint: "from-cyan-700/80 to-blue-900/90" },
-  { title: "Sales Trainer London", href: "https://deepakshukla.com/sales-trainer-london/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/5th-11.png", tint: "from-lime-700/80 to-emerald-900/90" },
-  { title: "Google Search Console", href: "https://deepakshukla.com/google-search-console-expert/", img: "https://deepakshukla.com/wp-content/uploads/2024/08/6th-11.png", tint: "from-violet-700/80 to-fuchsia-900/90" },
+  { title: "Sales Expert London", to: "/services/sales-expert-london", img: "https://deepakshukla.com/wp-content/uploads/2024/08/sales-expert.png", tint: "from-emerald-700/80 to-emerald-900/90" },
+  { title: "Growth Hacking Expert London", to: "/services/growth-hacking-expert-london", img: "https://deepakshukla.com/wp-content/uploads/2024/08/JSHFJS.png", tint: "from-emerald-600/80 to-teal-900/90" },
+  { title: "Heatmaps Expert", to: "/services/heatmaps-expert", img: "https://deepakshukla.com/wp-content/uploads/2024/08/BLUE.png", tint: "from-sky-700/80 to-indigo-900/90" },
+  { title: "Negative SEO Removal", to: "/services/negative-seo-removal", img: "https://deepakshukla.com/wp-content/uploads/2024/08/Negative-Seo.png", tint: "from-stone-700/80 to-stone-900/90" },
+  { title: "Communications Consultant", to: "/services/communications-consultant", img: "https://deepakshukla.com/wp-content/uploads/2024/08/1sr.png", tint: "from-amber-700/80 to-rose-900/90" },
+  { title: "Digital Marketing Expert", to: "/services/digital-marketing-expert", img: "https://deepakshukla.com/wp-content/uploads/2024/08/3rd-by-me.png", tint: "from-emerald-600/80 to-emerald-900/90" },
+  { title: "Google Analytics Expert", to: "/services/google-analytics-expert", img: "https://deepakshukla.com/wp-content/uploads/2024/08/4th-11.png", tint: "from-cyan-700/80 to-blue-900/90" },
+  { title: "Sales Trainer London", to: "/services/sales-trainer-london", img: "https://deepakshukla.com/wp-content/uploads/2024/08/5th-11.png", tint: "from-lime-700/80 to-emerald-900/90" },
+  { title: "Google Search Console", to: "/services/google-search-console-expert", img: "https://deepakshukla.com/wp-content/uploads/2024/08/6th-11.png", tint: "from-violet-700/80 to-fuchsia-900/90" },
 ];
 
 const ProServices = () => {
@@ -65,13 +64,11 @@ const ProServices = () => {
           </div>
         </div>
 
-        <div className={`grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`}>
+        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {visible.map((s) => (
-            <a
+            <Link
               key={s.title}
-              href={s.href}
-              target="_blank"
-              rel="noopener noreferrer"
+              to={s.to}
               className="group relative aspect-[4/5] rounded-2xl overflow-hidden lift shadow-card"
             >
               <img src={s.img} alt={s.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
@@ -82,7 +79,7 @@ const ProServices = () => {
                   Explore <ArrowUpRight className="h-4 w-4" />
                 </span>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
 

@@ -6,17 +6,20 @@ import { Button } from "@/components/ui/button";
 const HEADER_LOGO = "https://deepakshukla.com/wp-content/uploads/2024/08/Deepak-Shukla.png";
 
 const services = [
-  { label: "Growth Hacking Expert", href: "https://deepakshukla.com/growth-hacking-expert-london/" },
-  { label: "Communications Consultant", href: "https://deepakshukla.com/communications-consultant/" },
-  { label: "Digital Entrepreneur", href: "https://deepakshukla.com/digital-entrepreneur-london/" },
-  { label: "Digital Marketing Expert", href: "https://deepakshukla.com/digital-marketing-expert/" },
-  { label: "Sales Trainer", href: "https://deepakshukla.com/sales-trainer-london/" },
-  { label: "Sales Expert", href: "https://deepakshukla.com/sales-expert-london/" },
+  { label: "Growth Hacking Expert", to: "/services/growth-hacking-expert-london" },
+  { label: "Communications Consultant", to: "/services/communications-consultant" },
+  { label: "Digital Marketing Expert", to: "/services/digital-marketing-expert" },
+  { label: "Sales Trainer", to: "/services/sales-trainer-london" },
+  { label: "Sales Expert", to: "/services/sales-expert-london" },
+  { label: "Negative SEO Removal", to: "/services/negative-seo-removal" },
+  { label: "Heatmaps Expert", to: "/services/heatmaps-expert" },
+  { label: "Google Analytics Expert", to: "/services/google-analytics-expert" },
 ];
 
 const aboutItems = [
-  { label: "In The Press", href: "https://deepakshukla.com/press-and-media/" },
   { label: "My Life", to: "/about" },
+  { label: "In The Press", to: "/press" },
+  { label: "Reading List", to: "/books" },
 ];
 
 const pingItems = [
@@ -71,10 +74,7 @@ const Header = () => {
 
           <nav className="hidden lg:flex items-center gap-1">
             <DropdownNav label="All Services" items={services} />
-            <DropdownNav
-              label="About Me"
-              items={aboutItems.map((i) => ({ label: i.label, href: i.href, to: i.to }))}
-            />
+            <DropdownNav label="About Me" items={aboutItems} />
             <NavLink
               to="/blog"
               className={({ isActive }) =>
