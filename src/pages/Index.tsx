@@ -1,16 +1,36 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import Layout from "@/components/site/Layout";
+import Hero from "@/components/site/Hero";
+import TeamAndPress from "@/components/site/TeamAndPress";
+import YouTubeSection from "@/components/site/YouTubeSection";
+import TedxBento from "@/components/site/TedxBento";
+import ContactBlock from "@/components/site/ContactBlock";
+import SplitMediaCTA from "@/components/site/SplitMediaCTA";
+import Testimonials from "@/components/site/Testimonials";
+import ProServices from "@/components/site/ProServices";
+import StoriesOfMyLife from "@/components/site/StoriesOfMyLife";
+import Adventure from "@/components/site/Adventure";
+import EntrepreneurshipWealth from "@/components/site/EntrepreneurshipWealth";
+import LearnMoreCTA from "@/components/site/LearnMoreCTA";
+import LatestBlogs from "@/components/site/LatestBlogs";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
-    </div>
+    <Layout>
+      <Hero />
+      <TeamAndPress />
+      <YouTubeSection />
+      <TedxBento />
+      <ContactBlock />
+      <SplitMediaCTA />
+      <Testimonials />
+      <ProServices />
+      <StoriesOfMyLife />
+      <Adventure />
+      <EntrepreneurshipWealth />
+      <LearnMoreCTA />
+      <LatestBlogs />
+    </Layout>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
