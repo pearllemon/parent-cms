@@ -74,10 +74,7 @@ const Header = () => {
 
           <nav className="hidden lg:flex items-center gap-1">
             <DropdownNav label="All Services" items={services} />
-            <DropdownNav
-              label="About Me"
-              items={aboutItems.map((i) => ({ label: i.label, href: i.href, to: i.to }))}
-            />
+            <DropdownNav label="About Me" items={aboutItems} />
             <NavLink
               to="/blog"
               className={({ isActive }) =>
