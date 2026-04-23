@@ -84,14 +84,15 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (!config?.site?.id) return;
     const channel = supabase.channel(`pl-sync-${config.site.id}`);
     SYNC_TABLES.forEach((table) => {
-      channel.on(
-        // @ts-expect-error supabase generic typing for postgres_changes
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        () => {
-          refresh();
-        },
-      );
+      (channel as unknown as {
+        on: (
+          ev: string,
+          filter: { event: string; schema: string; table: string },
+          cb: () => void,
+        ) => unknown;
+      }).on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        refresh();
+      });
     });
     channel.subscribe();
     return () => {
