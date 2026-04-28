@@ -59,8 +59,6 @@ const App = () => (
             <Route path="/terms" element={<Terms />} />
             {/* Imported WordPress pages — keep last before admin/catch-all */}
             <Route path="/p/:slug" element={<DynamicPage />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
 
             {/* Admin CMS */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -69,6 +67,8 @@ const App = () => (
               <Route path="posts" element={<AdminPosts />} />
               <Route path="posts/:id" element={<AdminPostEditor />} />
               <Route path="media" element={<AdminMedia />} />
+              <Route path="import" element={<AdminImport />} />
+              <Route path="sync" element={<AdminSync />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
