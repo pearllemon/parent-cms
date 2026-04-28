@@ -3,13 +3,15 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { supabase, getSchema, type Schema } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, FileText, Image, Settings, LogOut, Database } from "lucide-react";
+import { LayoutDashboard, FileText, Image, Settings, LogOut, Database, Upload, Cloud } from "lucide-react";
 
 export type AdminRoute = { path: string; label: string; table?: string; icon?: string };
 
 const KNOWN: AdminRoute[] = [
   { path: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
   { path: "/admin/posts", label: "Posts", icon: "FileText" },
+  { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
+  { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
   { path: "/admin/media", label: "Media", icon: "Image" },
   { path: "/admin/settings", label: "Settings", icon: "Settings" },
 ];
@@ -86,6 +88,8 @@ const AdminShell = () => {
               {r.icon === "LayoutDashboard" && <LayoutDashboard className="w-4 h-4" />}
               {r.icon === "FileText" && <FileText className="w-4 h-4" />}
               {r.icon === "Image" && <Image className="w-4 h-4" />}
+              {r.icon === "Upload" && <Upload className="w-4 h-4" />}
+              {r.icon === "Cloud" && <Cloud className="w-4 h-4" />}
               {r.icon === "Settings" && <Settings className="w-4 h-4" />}
               {r.icon === "Database" && <Database className="w-4 h-4" />}
               {r.label}

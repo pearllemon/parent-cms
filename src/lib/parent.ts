@@ -182,8 +182,36 @@ export async function getSchema(): Promise<Schema | null> {
   }
 }
 
-// ----- Posts -----------------------------------------------------------------
-export async function fetchPosts(opts: { page?: number; limit?: number; slug?: string; type?: string } = {}) {
+// ----- Posts (live from parent — single source of truth) --------------------
+export type ParentPost = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  body?: string;
+  content?: string;
+  featured_image_url?: string;
+  author?: string | { name?: string };
+  published_at?: string;
+  publish_date?: string;
+  status?: string;
+  type?: "post" | "page" | string;
+  categories?: { slug: string; name: string }[];
+  tags?: { slug: string; name: string }[];
+  meta_title?: string;
+  meta_description?: string;
+  canonical_url?: string;
+};
+
+export type PostsResponse = {
+  posts: ParentPost[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export async function fetchPosts(opts: { page?: number; limit?: number; slug?: string; type?: string; category?: string; tag?: string } = {}): Promise<PostsResponse | null> {
   const site_id = await getSiteId();
   if (!site_id) return null;
   const params = new URLSearchParams({ action: "posts", site_id });
@@ -191,7 +219,27 @@ export async function fetchPosts(opts: { page?: number; limit?: number; slug?: s
   if (opts.limit) params.set("limit", String(opts.limit));
   if (opts.slug) params.set("slug", opts.slug);
   if (opts.type) params.set("type", opts.type);
+  if (opts.category) params.set("category", opts.category);
+  if (opts.tag) params.set("tag", opts.tag);
   const res = await fetch(`${API}?${params.toString()}`, { headers: HEADERS });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchPostBySlug(slug: string): Promise<ParentPost | null> {
+  const data = await fetchPosts({ slug });
+  if (!data) return null;
+  // API may return { post } or { posts: [..] }
+  const maybe = data as unknown as { post?: ParentPost; posts?: ParentPost[] };
+  if (maybe.post) return maybe.post;
+  if (maybe.posts?.length) return maybe.posts[0];
+  return null;
+}
+
+export async function fetchTaxonomies(): Promise<{ categories: { slug: string; name: string; count?: number }[]; tags: { slug: string; name: string; count?: number }[] } | null> {
+  const site_id = await getSiteId();
+  if (!site_id) return null;
+  const res = await fetch(`${API}?action=taxonomies&site_id=${site_id}`, { headers: HEADERS });
   if (!res.ok) return null;
   return res.json();
 }
