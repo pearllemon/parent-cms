@@ -48,10 +48,138 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+// Strip illegal XML 1.0 control chars and try to repair common WXR issues
+// (unterminated CData, stray ]]> inside CData, BOM, NULs).
+function sanitizeWxr(xml: string): string {
+  let out = xml;
+  // Strip BOM
+  if (out.charCodeAt(0) === 0xfeff) out = out.slice(1);
+  // Remove illegal XML chars (keep \t \n \r)
+  out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // Repair nested ]]> inside CData by escaping inner occurrences.
+  // Walk each <![CDATA[ ... ]]> and ensure we keep only the first closing.
+  out = out.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_m, inner: string) => {
+    // re-escape any ]]> the parser would have swallowed mid-stream
+    const safe = inner.replace(/\]\]>/g, "]]]]><![CDATA[>");
+    return `<![CDATA[${safe}]]>`;
+  });
+  // Close any dangling <![CDATA[ that never got a ]]>
+  // Find lone openers (no matching close before next opener / EOF) and patch.
+  const openIdx: number[] = [];
+  const re = /<!\[CDATA\[|\]\]>/g;
+  let m: RegExpExecArray | null;
+  const stack: number[] = [];
+  while ((m = re.exec(out)) !== null) {
+    if (m[0] === "<![CDATA[") stack.push(m.index);
+    else stack.pop();
+  }
+  if (stack.length) {
+    // append closers at EOF for each dangling opener
+    out = out + "]]>".repeat(stack.length);
+  }
+  return out;
+}
+
+// Fallback tolerant parser: extract <item>…</item> blocks via regex and
+// pull fields from CData. Works even when the XML as a whole is malformed.
+function parseWxrTolerant(xml: string): WPItem[] {
+  const items: WPItem[] = [];
+  const attachments: Record<string, string> = {};
+
+  const itemRe = /<item\b[\s\S]*?<\/item>/g;
+  const blocks = xml.match(itemRe) || [];
+
+  const grab = (block: string, tag: string): string => {
+    const re = new RegExp(
+      `<${tag}[^>]*>\\s*(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))\\s*</${tag}>`,
+      "i",
+    );
+    const mm = block.match(re);
+    return (mm?.[1] ?? mm?.[2] ?? "").trim();
+  };
+
+  // First pass: collect attachments
+  blocks.forEach((b) => {
+    if (grab(b, "wp:post_type") === "attachment") {
+      const id = grab(b, "wp:post_id");
+      const url = grab(b, "wp:attachment_url");
+      if (id && url) attachments[id] = url;
+    }
+  });
+
+  blocks.forEach((b) => {
+    const postType = grab(b, "wp:post_type");
+    if (!["post", "page"].includes(postType)) return;
+
+    // postmeta
+    const meta: Record<string, string> = {};
+    let featured = "";
+    const metaRe = /<wp:postmeta\b[\s\S]*?<\/wp:postmeta>/g;
+    const metas = b.match(metaRe) || [];
+    metas.forEach((mb) => {
+      const k = grab(mb, "wp:meta_key");
+      const v = grab(mb, "wp:meta_value");
+      if (k) meta[k] = v;
+      if (k === "_thumbnail_id" && attachments[v]) featured = attachments[v];
+    });
+
+    // categories / tags
+    const cats: { slug: string; name: string }[] = [];
+    const tags: { slug: string; name: string }[] = [];
+    const catRe = /<category\b([^>]*)>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/category>/g;
+    let cm: RegExpExecArray | null;
+    while ((cm = catRe.exec(b)) !== null) {
+      const attrs = cm[1] || "";
+      const name = (cm[2] ?? cm[3] ?? "").trim();
+      const domain = /domain="([^"]*)"/.exec(attrs)?.[1] || "";
+      const slug = /nicename="([^"]*)"/.exec(attrs)?.[1] || slugify(name);
+      if (!name) continue;
+      if (domain === "category") cats.push({ slug, name });
+      else if (domain === "post_tag") tags.push({ slug, name });
+    }
+
+    const title = grab(b, "title");
+    const content = grab(b, "content:encoded");
+    let featuredImg = featured;
+    if (!featuredImg) {
+      const im = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (im) featuredImg = im[1];
+    }
+
+    items.push({
+      title,
+      slug: grab(b, "wp:post_name") || slugify(title),
+      link: grab(b, "link"),
+      pubDate: grab(b, "pubDate"),
+      postType,
+      status: grab(b, "wp:status"),
+      content,
+      excerpt: grab(b, "excerpt:encoded"),
+      author: grab(b, "dc:creator"),
+      categories: cats,
+      tags,
+      featuredImageUrl: featuredImg,
+      meta,
+    });
+  });
+
+  return items;
+}
+
 function parseWPXML(xml: string): WPItem[] {
-  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  const cleaned = sanitizeWxr(xml);
+  const doc = new DOMParser().parseFromString(cleaned, "application/xml");
   const errNode = doc.querySelector("parsererror");
-  if (errNode) throw new Error("Invalid XML: " + errNode.textContent?.slice(0, 200));
+
+  // If DOMParser still fails, fall back to tolerant regex parser
+  if (errNode) {
+    const tolerant = parseWxrTolerant(cleaned);
+    if (tolerant.length > 0) return tolerant;
+    throw new Error(
+      "Invalid XML and tolerant parse found 0 items: " +
+        (errNode.textContent?.slice(0, 200) || ""),
+    );
+  }
 
   const items: WPItem[] = [];
   // Build attachment lookup (id -> url) for featured image resolution
@@ -140,7 +268,12 @@ const AdminImport = () => {
     setParsed(null);
     setDone({ inserted: 0, updated: 0, skipped: 0, failed: 0 });
     try {
+      // Read file in a non-blocking way; toast size for visibility
+      const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+      toast.info(`Reading ${file.name} (${sizeMb} MB)…`);
       const xml = await file.text();
+      // Yield to UI before heavy parse
+      await new Promise((r) => setTimeout(r, 0));
       const items = parseWPXML(xml);
       setParsed(items);
       toast.success(`Parsed ${items.length} items`);
@@ -164,7 +297,9 @@ const AdminImport = () => {
     setImporting(true);
     setProgress(0);
     const stats = { inserted: 0, updated: 0, skipped: 0, failed: 0 };
-    const BATCH = 25;
+    // Smaller batches + yield between batches keep the server & UI responsive
+    const BATCH = 10;
+
 
     for (let i = 0; i < toImport.length; i += BATCH) {
       const chunk = toImport.slice(i, i + BATCH);
@@ -212,7 +347,10 @@ const AdminImport = () => {
 
       setProgress(Math.round(((i + chunk.length) / toImport.length) * 100));
       setDone({ ...stats });
+      // Yield to UI + give DB a breather to avoid rate-limit/overload
+      await new Promise((r) => setTimeout(r, 150));
     }
+
 
     setImporting(false);
     toast.success(`Import complete: ${stats.inserted} inserted, ${stats.failed} failed`);
