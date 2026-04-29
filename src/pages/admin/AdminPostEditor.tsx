@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ const AdminPostEditor = () => {
   const { id } = useParams();
   const isNew = !id || id === "new";
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get("type") || "post";
   const { config } = useSiteConfig();
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -27,6 +29,7 @@ const AdminPostEditor = () => {
     excerpt: "",
     body: "",
     status: "draft",
+    type: initialType,
     featured_image_url: "",
   });
 
@@ -46,6 +49,7 @@ const AdminPostEditor = () => {
             excerpt: data.excerpt || "",
             body: data.body || "",
             status: data.status || "draft",
+            type: data.type || "post",
             featured_image_url: data.featured_image_url || "",
           });
         setLoading(false);
@@ -114,11 +118,18 @@ const AdminPostEditor = () => {
           onChange={(e) => setForm({ ...form, title: e.target.value })}
           className="text-xl"
         />
-        <Input
-          placeholder="slug-here (auto from title)"
-          value={form.slug}
-          onChange={(e) => setForm({ ...form, slug: e.target.value })}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-2">
+          <Input
+            placeholder="slug-here (auto from title)"
+            value={form.slug}
+            onChange={(e) => setForm({ ...form, slug: e.target.value })}
+          />
+          <Input
+            placeholder="type (post, page, …)"
+            value={form.type}
+            onChange={(e) => setForm({ ...form, type: e.target.value.trim() || "post" })}
+          />
+        </div>
         <Textarea
           rows={2}
           placeholder="Excerpt / summary"
