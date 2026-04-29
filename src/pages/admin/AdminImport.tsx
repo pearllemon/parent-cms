@@ -268,7 +268,12 @@ const AdminImport = () => {
     setParsed(null);
     setDone({ inserted: 0, updated: 0, skipped: 0, failed: 0 });
     try {
+      // Read file in a non-blocking way; toast size for visibility
+      const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+      toast.info(`Reading ${file.name} (${sizeMb} MB)…`);
       const xml = await file.text();
+      // Yield to UI before heavy parse
+      await new Promise((r) => setTimeout(r, 0));
       const items = parseWPXML(xml);
       setParsed(items);
       toast.success(`Parsed ${items.length} items`);
@@ -292,7 +297,9 @@ const AdminImport = () => {
     setImporting(true);
     setProgress(0);
     const stats = { inserted: 0, updated: 0, skipped: 0, failed: 0 };
-    const BATCH = 25;
+    // Smaller batches + yield between batches keep the server & UI responsive
+    const BATCH = 10;
+
 
     for (let i = 0; i < toImport.length; i += BATCH) {
       const chunk = toImport.slice(i, i + BATCH);
