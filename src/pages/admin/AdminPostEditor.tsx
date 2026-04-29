@@ -18,6 +18,8 @@ const AdminPostEditor = () => {
   const { id } = useParams();
   const isNew = !id || id === "new";
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get("type") || "post";
   const { config } = useSiteConfig();
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -27,6 +29,7 @@ const AdminPostEditor = () => {
     excerpt: "",
     body: "",
     status: "draft",
+    type: initialType,
     featured_image_url: "",
   });
 
