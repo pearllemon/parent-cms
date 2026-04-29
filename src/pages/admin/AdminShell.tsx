@@ -136,27 +136,44 @@ const AdminShell = () => {
           {config?.site?.name?.toString().slice(0, 22) || "CMS"}
         </Link>
         <nav className="space-y-1 text-sm">
-          {allRoutes.map((r) => (
-            <NavLink
-              key={r.path}
-              to={r.path}
-              end={r.path === "/admin"}
-              className={({ isActive }) =>
-                `flex items-center gap-2 py-2 px-3 rounded ${
-                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-background/10"
-                }`
-              }
-            >
-              {r.icon === "LayoutDashboard" && <LayoutDashboard className="w-4 h-4" />}
-              {r.icon === "FileText" && <FileText className="w-4 h-4" />}
-              {r.icon === "Image" && <Image className="w-4 h-4" />}
-              {r.icon === "Upload" && <Upload className="w-4 h-4" />}
-              {r.icon === "Cloud" && <Cloud className="w-4 h-4" />}
-              {r.icon === "Settings" && <Settings className="w-4 h-4" />}
-              {r.icon === "Database" && <Database className="w-4 h-4" />}
-              {r.label}
-            </NavLink>
-          ))}
+          {allRoutes.map((r) => {
+            const [rPath, rQuery] = r.path.split("?");
+            const isContentLink = rPath === "/admin/posts" && !!rQuery;
+            const currentType = new URLSearchParams(location.search).get("type");
+            const linkType = new URLSearchParams(rQuery || "").get("type");
+            const customActive = isContentLink
+              ? location.pathname.startsWith("/admin/posts") && currentType === linkType
+              : undefined;
+            return (
+              <NavLink
+                key={r.path}
+                to={r.path}
+                end={r.path === "/admin"}
+                className={({ isActive }) => {
+                  const active =
+                    customActive !== undefined
+                      ? customActive
+                      : isActive &&
+                        // prevent default /admin/posts highlight when on a typed variant
+                        !(rPath === "/admin/posts" && !rQuery && currentType);
+                  return `flex items-center gap-2 py-2 px-3 rounded ${
+                    active ? "bg-primary text-primary-foreground" : "hover:bg-background/10"
+                  }`;
+                }}
+              >
+                {r.icon === "LayoutDashboard" && <LayoutDashboard className="w-4 h-4" />}
+                {r.icon === "FileText" && <FileText className="w-4 h-4" />}
+                {r.icon === "File" && <File className="w-4 h-4" />}
+                {r.icon === "Layers" && <Layers className="w-4 h-4" />}
+                {r.icon === "Image" && <Image className="w-4 h-4" />}
+                {r.icon === "Upload" && <Upload className="w-4 h-4" />}
+                {r.icon === "Cloud" && <Cloud className="w-4 h-4" />}
+                {r.icon === "Settings" && <Settings className="w-4 h-4" />}
+                {r.icon === "Database" && <Database className="w-4 h-4" />}
+                {r.label}
+              </NavLink>
+            );
+          })}
         </nav>
         <div className="mt-auto pt-6 text-xs opacity-60 space-y-1">
           {schema && (
