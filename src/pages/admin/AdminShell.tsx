@@ -46,6 +46,7 @@ const SECTION_TABLES: Record<string, string> = {
 
 const AdminShell = () => {
   const nav = useNavigate();
+  const location = useLocation();
   const { config } = useSiteConfig();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [schema, setSchema] = useState<Schema | null>(null);
