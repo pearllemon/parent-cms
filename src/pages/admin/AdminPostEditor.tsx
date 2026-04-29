@@ -49,6 +49,7 @@ const AdminPostEditor = () => {
             excerpt: data.excerpt || "",
             body: data.body || "",
             status: data.status || "draft",
+            type: data.type || "post",
             featured_image_url: data.featured_image_url || "",
           });
         setLoading(false);
