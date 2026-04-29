@@ -62,9 +62,40 @@ const AdminShell = () => {
     return () => sub.subscription.unsubscribe();
   }, [nav]);
 
+  const [postTypes, setPostTypes] = useState<string[]>(["post", "page"]);
+
   useEffect(() => {
     getSchema().then(setSchema);
   }, []);
+
+  // Discover post types (post, page, custom CPTs) for the current site
+  useEffect(() => {
+    if (!config?.site?.id) return;
+    let cancelled = false;
+    supabase
+      .from("posts")
+      .select("type")
+      .eq("site_id", config.site.id)
+      .limit(2000)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const types = Array.from(
+          new Set(
+            (data as { type: string | null }[])
+              .map((r) => r.type || "post")
+              .filter(Boolean),
+          ),
+        );
+        // Always surface post + page even if empty
+        ["post", "page"].forEach((t) => {
+          if (!types.includes(t)) types.push(t);
+        });
+        setPostTypes(types);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [config?.site?.id]);
 
   const dynamicRoutes: AdminRoute[] = (schema?.tables || [])
     .filter((t) => t in SECTION_TABLES)
@@ -74,6 +105,24 @@ const AdminShell = () => {
       table: t,
       icon: "Database",
     }));
+
+  // Sidebar entries for each content type
+  const contentRoutes: AdminRoute[] = postTypes.map((t) => ({
+    path: `/admin/posts?type=${t}`,
+    label: t === "post" ? "Posts" : t === "page" ? "Pages" : titleCase(t),
+    icon: TYPE_ICON[t] || "Layers",
+  }));
+
+  const KNOWN_TOP: AdminRoute[] = [
+    { path: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
+  ];
+  const KNOWN_BOTTOM: AdminRoute[] = [
+    { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
+    { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
+    { path: "/admin/media", label: "Media", icon: "Image" },
+    { path: "/admin/settings", label: "Settings", icon: "Settings" },
+  ];
+  const allRoutes = [...KNOWN_TOP, ...contentRoutes, ...KNOWN_BOTTOM, ...dynamicRoutes];
 
   if (authed === null) {
     return <div className="min-h-screen flex items-center justify-center">Loading admin…</div>;
