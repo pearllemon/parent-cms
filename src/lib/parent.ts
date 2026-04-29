@@ -2,6 +2,7 @@
 // Resolves the *real* site row by domain (heartbeat IDs are unstable),
 // caches the full config, and exposes lead/page-view helpers.
 import { createClient } from "@supabase/supabase-js";
+import { cachedFetch } from "./cache";
 
 export const SUPABASE_URL = "https://zvaiqrewtqvsokzbxnxt.supabase.co";
 export const SUPABASE_ANON_KEY =
@@ -221,9 +222,16 @@ export async function fetchPosts(opts: { page?: number; limit?: number; slug?: s
   if (opts.type) params.set("type", opts.type);
   if (opts.category) params.set("category", opts.category);
   if (opts.tag) params.set("tag", opts.tag);
-  const res = await fetch(`${API}?${params.toString()}`, { headers: HEADERS });
-  if (!res.ok) return null;
-  return res.json();
+  const url = `${API}?${params.toString()}`;
+  return cachedFetch<PostsResponse | null>(
+    `posts::${url}`,
+    async () => {
+      const res = await fetch(url, { headers: HEADERS });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    5 * 60 * 1000, // 5 min
+  );
 }
 
 export async function fetchPostBySlug(slug: string): Promise<ParentPost | null> {
@@ -239,7 +247,14 @@ export async function fetchPostBySlug(slug: string): Promise<ParentPost | null> 
 export async function fetchTaxonomies(): Promise<{ categories: { slug: string; name: string; count?: number }[]; tags: { slug: string; name: string; count?: number }[] } | null> {
   const site_id = await getSiteId();
   if (!site_id) return null;
-  const res = await fetch(`${API}?action=taxonomies&site_id=${site_id}`, { headers: HEADERS });
-  if (!res.ok) return null;
-  return res.json();
+  const url = `${API}?action=taxonomies&site_id=${site_id}`;
+  return cachedFetch(
+    `tax::${url}`,
+    async () => {
+      const res = await fetch(url, { headers: HEADERS });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    15 * 60 * 1000,
+  );
 }

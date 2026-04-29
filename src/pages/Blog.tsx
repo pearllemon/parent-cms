@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import Layout from "@/components/site/Layout";
 import { Calendar, ArrowRight } from "lucide-react";
 import { fetchPosts, type ParentPost } from "@/lib/parent";
+import CachedImage from "@/components/CachedImage";
 
 const PAGE_SIZE = 30;
 
@@ -67,10 +68,9 @@ const Blog = () => {
                 >
                   <div className="aspect-[16/10] overflow-hidden bg-muted">
                     {p.featured_image_url ? (
-                      <img
+                      <CachedImage
                         src={p.featured_image_url}
                         alt={p.title}
-                        loading="lazy"
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
                     ) : (
