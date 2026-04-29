@@ -347,7 +347,10 @@ const AdminImport = () => {
 
       setProgress(Math.round(((i + chunk.length) / toImport.length) * 100));
       setDone({ ...stats });
+      // Yield to UI + give DB a breather to avoid rate-limit/overload
+      await new Promise((r) => setTimeout(r, 150));
     }
+
 
     setImporting(false);
     toast.success(`Import complete: ${stats.inserted} inserted, ${stats.failed} failed`);
