@@ -118,11 +118,18 @@ const AdminPostEditor = () => {
           onChange={(e) => setForm({ ...form, title: e.target.value })}
           className="text-xl"
         />
-        <Input
-          placeholder="slug-here (auto from title)"
-          value={form.slug}
-          onChange={(e) => setForm({ ...form, slug: e.target.value })}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-2">
+          <Input
+            placeholder="slug-here (auto from title)"
+            value={form.slug}
+            onChange={(e) => setForm({ ...form, slug: e.target.value })}
+          />
+          <Input
+            placeholder="type (post, page, …)"
+            value={form.type}
+            onChange={(e) => setForm({ ...form, type: e.target.value.trim() || "post" })}
+          />
+        </div>
         <Textarea
           rows={2}
           placeholder="Excerpt / summary"
