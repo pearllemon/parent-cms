@@ -5,9 +5,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { clearAllCache, getCacheStats, type CacheStats } from "@/lib/cache";
+import { Trash2, RefreshCw } from "lucide-react";
 
 const AdminSettings = () => {
   const { config, refresh } = useSiteConfig();
+  const siteId = config?.site?.id;
+  const [seo, setSeo] = useState({ meta_title: "", meta_description: "", canonical_url: "" });
+  const [permalink, setPermalink] = useState("/%postname%/");
+  const [cacheTtl, setCacheTtl] = useState(3600);
+  const [saving, setSaving] = useState(false);
+  const [stats, setStats] = useState<CacheStats | null>(null);
+  const [clearing, setClearing] = useState(false);
+
+  const loadStats = () => getCacheStats().then(setStats);
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const handleClear = async () => {
+    setClearing(true);
+    try {
+      await clearAllCache();
+      await refresh(); // re-fetch parent config from network
+      await loadStats();
+      toast.success("Cache cleared. Fresh data loaded from parent.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to clear cache");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const siteId = config?.site?.id;
   const [seo, setSeo] = useState({ meta_title: "", meta_description: "", canonical_url: "" });
   const [permalink, setPermalink] = useState("/%postname%/");
@@ -101,6 +130,43 @@ const AdminSettings = () => {
       <Button disabled={saving} onClick={save}>
         {saving ? "Saving…" : "Save settings"}
       </Button>
+
+      <section className="bg-background border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="font-display text-xl">Cache</h2>
+            <p className="text-xs text-muted-foreground">
+              Posts, taxonomies, parent config, and images are cached locally for speed.
+              Clear if content looks stale.
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={loadStats}>
+            <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div className="bg-muted/40 rounded-lg p-3">
+            <div className="text-xs text-muted-foreground">JSON entries</div>
+            <div className="font-display text-2xl">{stats?.jsonEntries ?? "—"}</div>
+          </div>
+          <div className="bg-muted/40 rounded-lg p-3">
+            <div className="text-xs text-muted-foreground">JSON size</div>
+            <div className="font-display text-2xl">
+              {stats ? `${(stats.jsonBytes / 1024).toFixed(1)} KB` : "—"}
+            </div>
+          </div>
+          <div className="bg-muted/40 rounded-lg p-3">
+            <div className="text-xs text-muted-foreground">Cached images</div>
+            <div className="font-display text-2xl">{stats?.imageEntries ?? "—"}</div>
+          </div>
+        </div>
+
+        <Button variant="destructive" disabled={clearing} onClick={handleClear}>
+          <Trash2 className="w-4 h-4 mr-1" />
+          {clearing ? "Clearing…" : "Clear all cache"}
+        </Button>
+      </section>
 
       <section className="text-xs text-muted-foreground">
         Site ID: <code className="font-mono">{siteId}</code>
