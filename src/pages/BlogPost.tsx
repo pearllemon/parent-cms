@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import Layout from "@/components/site/Layout";
 import { Calendar, ArrowLeft, Tag as TagIcon } from "lucide-react";
 import { fetchPostBySlug, type ParentPost } from "@/lib/parent";
+import CachedImage from "@/components/CachedImage";
 import NotFound from "./NotFound";
 
 const BlogPost = () => {
@@ -117,10 +118,9 @@ const BlogPost = () => {
 
         {post.featured_image_url && (
           <div className="container max-w-4xl -mt-8 md:-mt-12 relative z-10">
-            <img
+            <CachedImage
               src={post.featured_image_url}
               alt={post.title}
-              loading="lazy"
               className="w-full aspect-[16/9] object-cover rounded-2xl shadow-soft border border-border"
             />
           </div>
