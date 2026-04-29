@@ -293,20 +293,54 @@ const AdminImport = () => {
   const runImport = async (publishOnly = false) => {
     if (!parsed || !config?.site?.id) return;
     const site_id = config.site.id;
+
+    // Must be signed in for RLS to allow inserts on parent
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess?.session?.user?.id) {
+      toast.error("You must be signed in to the parent CMS to import. Open /admin/login.");
+      return;
+    }
+    const userId = sess.session.user.id;
+
+    // Verify the user is linked to this site (parent RLS requires site_users membership)
+    const { data: link, error: linkErr } = await supabase
+      .from("site_users")
+      .select("id, role")
+      .eq("site_id", site_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (linkErr) {
+      console.warn("site_users probe error:", linkErr.message);
+    }
+    if (!link) {
+      // Try to self-link as editor so RLS lets us write. If parent disallows
+      // anon link creation this will fail and we'll surface a clear message.
+      const { error: addErr } = await supabase
+        .from("site_users")
+        .insert({ site_id, user_id: userId, role: "editor" });
+      if (addErr) {
+        toast.error(
+          `Your account is not authorised to write to this site. Ask the parent admin to add you to site_users for site ${site_id}. (${addErr.message})`,
+        );
+        return;
+      }
+      toast.success("Linked your account to this site as editor.");
+    }
+
     const toImport = parsed.filter((i) => (publishOnly ? i.status === "publish" : true));
     setImporting(true);
     setProgress(0);
     const stats = { inserted: 0, updated: 0, skipped: 0, failed: 0 };
+    const errorSamples: string[] = [];
     // Smaller batches + yield between batches keep the server & UI responsive
     const BATCH = 10;
 
-
     for (let i = 0; i < toImport.length; i += BATCH) {
       const chunk = toImport.slice(i, i + BATCH);
-      const rows = chunk.map((it) => ({
+      const rows = chunk.map((it, idx) => ({
         site_id,
         title: it.title || "(untitled)",
-        slug: it.slug || slugify(it.title) || `wp-${Date.now()}-${i}`,
+        slug: (it.slug || slugify(it.title) || `wp-${Date.now()}-${i}-${idx}`).slice(0, 200),
         excerpt: it.excerpt || "",
         body: it.content || "",
         status:
@@ -314,7 +348,9 @@ const AdminImport = () => {
             ? "published"
             : it.status === "draft"
               ? "draft"
-              : it.status,
+              : it.status === "future"
+                ? "scheduled"
+                : "draft",
         publish_date: it.pubDate ? new Date(it.pubDate).toISOString() : null,
         featured_image_url: it.featuredImageUrl || null,
         type: it.postType, // 'post' or 'page'
@@ -325,35 +361,56 @@ const AdminImport = () => {
           it.meta?.["_yoast_wpseo_canonical"] || it.meta?.["rank_math_canonical_url"] || it.link,
       }));
 
-      // upsert by (site_id, slug) — fall back to insert if no unique constraint
-      const { error, count } = await supabase
+      // upsert by (site_id, slug)
+      let inserted = 0;
+      let lastErr: string | null = null;
+      const { data: upserted, error } = await supabase
         .from("posts")
-        .upsert(rows, { onConflict: "site_id,slug", ignoreDuplicates: false, count: "exact" });
+        .upsert(rows, { onConflict: "site_id,slug", ignoreDuplicates: false })
+        .select("id");
 
       if (error) {
-        // fallback to plain insert ignoring conflicts
-        const { error: e2, count: c2 } = await supabase
-          .from("posts")
-          .insert(rows, { count: "exact" });
-        if (e2) {
-          stats.failed += rows.length;
-          console.error("Import batch failed:", e2.message);
-        } else {
-          stats.inserted += c2 || rows.length;
+        lastErr = error.message;
+        // Fallback: insert one-by-one so a single bad row doesn't kill the batch
+        for (const row of rows) {
+          const { data: ins, error: e2 } = await supabase
+            .from("posts")
+            .upsert(row, { onConflict: "site_id,slug" })
+            .select("id")
+            .maybeSingle();
+          if (e2) {
+            stats.failed += 1;
+            lastErr = e2.message;
+            if (errorSamples.length < 3) errorSamples.push(e2.message);
+            console.error("Import row failed:", e2.message, row.slug);
+          } else if (ins) {
+            inserted += 1;
+          }
         }
       } else {
-        stats.inserted += count || rows.length;
+        inserted = upserted?.length ?? rows.length;
+      }
+      stats.inserted += inserted;
+
+      if (lastErr && inserted === 0 && errorSamples.length < 3) {
+        errorSamples.push(lastErr);
       }
 
       setProgress(Math.round(((i + chunk.length) / toImport.length) * 100));
       setDone({ ...stats });
-      // Yield to UI + give DB a breather to avoid rate-limit/overload
       await new Promise((r) => setTimeout(r, 150));
     }
 
-
     setImporting(false);
-    toast.success(`Import complete: ${stats.inserted} inserted, ${stats.failed} failed`);
+    if (stats.inserted > 0 && stats.failed === 0) {
+      toast.success(`Import complete: ${stats.inserted} saved.`);
+    } else if (stats.inserted > 0) {
+      toast.warning(`Saved ${stats.inserted}, ${stats.failed} failed. ${errorSamples[0] || ""}`);
+    } else {
+      toast.error(
+        `Nothing was saved. ${errorSamples[0] || "Check console for details."}`,
+      );
+    }
   };
 
   return (
