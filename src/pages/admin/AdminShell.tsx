@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { supabase, getSchema, type Schema } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
