@@ -3,18 +3,31 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { supabase, getSchema, type Schema } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, FileText, Image, Settings, LogOut, Database, Upload, Cloud } from "lucide-react";
+import {
+  LayoutDashboard,
+  FileText,
+  File,
+  Layers,
+  Image,
+  Settings,
+  LogOut,
+  Database,
+  Upload,
+  Cloud,
+} from "lucide-react";
 
 export type AdminRoute = { path: string; label: string; table?: string; icon?: string };
 
-const KNOWN: AdminRoute[] = [
-  { path: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
-  { path: "/admin/posts", label: "Posts", icon: "FileText" },
-  { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
-  { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
-  { path: "/admin/media", label: "Media", icon: "Image" },
-  { path: "/admin/settings", label: "Settings", icon: "Settings" },
-];
+const titleCase = (s: string) =>
+  s
+    .split(/[_-]/)
+    .map((w) => w[0]?.toUpperCase() + w.slice(1))
+    .join(" ");
+
+const TYPE_ICON: Record<string, string> = {
+  post: "FileText",
+  page: "File",
+};
 
 const SECTION_TABLES: Record<string, string> = {
   testimonial_items: "Testimonials",
