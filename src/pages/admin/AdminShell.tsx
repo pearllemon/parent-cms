@@ -136,7 +136,7 @@ const AdminShell = () => {
           {config?.site?.name?.toString().slice(0, 22) || "CMS"}
         </Link>
         <nav className="space-y-1 text-sm">
-          {[...KNOWN, ...dynamicRoutes].map((r) => (
+          {allRoutes.map((r) => (
             <NavLink
               key={r.path}
               to={r.path}
