@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
