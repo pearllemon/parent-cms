@@ -37,11 +37,8 @@ const AdminSettings = () => {
     }
   };
 
-  const siteId = config?.site?.id;
-  const [seo, setSeo] = useState({ meta_title: "", meta_description: "", canonical_url: "" });
-  const [permalink, setPermalink] = useState("/%postname%/");
-  const [cacheTtl, setCacheTtl] = useState(3600);
-  const [saving, setSaving] = useState(false);
+
+
 
   useEffect(() => {
     if (!siteId) return;
