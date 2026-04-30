@@ -297,7 +297,7 @@ const AdminImport = () => {
   useEffect(() => {
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.site?.id]);
+  }, []);
 
   const deleteHistory = async (id: string) => {
     const { error } = await supabase.from("import_history").delete().eq("id", id);
