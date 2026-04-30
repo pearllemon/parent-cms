@@ -301,6 +301,11 @@ const AdminImport = () => {
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // ---- Image import state ----
+  const [imageJob, setImageJob] = useState<ImageJobRow | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
+
   const loadHistory = async () => {
     setLoadingHistory(true);
     // History is shared across all users / dashboards (WordPress-style)
@@ -314,10 +319,110 @@ const AdminImport = () => {
     setLoadingHistory(false);
   };
 
+  // Load most recent image-import job and subscribe to realtime updates
+  const loadLatestImageJob = async () => {
+    const { data } = await supabase
+      .from("image_import_jobs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setImageJob((data as ImageJobRow) ?? null);
+  };
+
   useEffect(() => {
     loadHistory();
+    loadLatestImageJob();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Realtime: keep imageJob fresh as the worker updates it
+  useEffect(() => {
+    if (!imageJob?.id) return;
+    const channel = supabase
+      .channel(`image-job-${imageJob.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "image_import_jobs",
+          filter: `id=eq.${imageJob.id}`,
+        },
+        (payload) => {
+          setImageJob((prev) => ({ ...(prev as ImageJobRow), ...(payload.new as ImageJobRow) }));
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [imageJob?.id]);
+
+  const startImageImport = async () => {
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess?.session?.user?.id) {
+      toast.error("Please sign in again to start an image import.");
+      return;
+    }
+    setScanning(true);
+    try {
+      toast.info("Scanning posts for images…");
+      const refs = await collectUsedImagesFromImportedPosts();
+      if (refs.length === 0) {
+        toast.warning(
+          "No images found in imported posts. Run the WP XML import first, then try again.",
+        );
+        return;
+      }
+      toast.info(`Found ${refs.length} unique images. Queuing…`);
+      const { jobId, queued, alreadyDone } = await queueImageImportJob(refs);
+      toast.success(
+        `Queued ${queued} new images${alreadyDone ? ` (${alreadyDone} already optimized)` : ""}. Working in the background…`,
+      );
+      // Load the new job and subscribe
+      const { data } = await supabase
+        .from("image_import_jobs")
+        .select("*")
+        .eq("id", jobId)
+        .maybeSingle();
+      setImageJob((data as ImageJobRow) ?? null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Image import failed");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const applyOptimizedToPosts = async () => {
+    setRewriting(true);
+    try {
+      const { postsUpdated, rewrites } = await rewritePostImageUrls();
+      toast.success(
+        `Rewrote ${rewrites} image URL${rewrites === 1 ? "" : "s"} across ${postsUpdated} post${postsUpdated === 1 ? "" : "s"}.`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rewrite failed");
+    } finally {
+      setRewriting(false);
+    }
+  };
+
+  const cancelImageImport = async () => {
+    if (!imageJob?.id) return;
+    await supabase
+      .from("image_import_jobs")
+      .update({ status: "cancelled", finished_at: new Date().toISOString() })
+      .eq("id", imageJob.id);
+    // Mark remaining pending assets as skipped so worker stops picking them up
+    await supabase
+      .from("image_assets")
+      .update({ status: "skipped", error: "cancelled" })
+      .eq("job_id", imageJob.id)
+      .eq("status", "pending");
+    loadLatestImageJob();
+    toast.info("Image import cancelled.");
+  };
 
   const deleteHistory = async (id: string) => {
     const { error } = await supabase.from("import_history").delete().eq("id", id);
