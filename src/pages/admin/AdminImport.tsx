@@ -282,12 +282,11 @@ const AdminImport = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const loadHistory = async () => {
-    if (!config?.site?.id) return;
     setLoadingHistory(true);
+    // History is shared across all users / dashboards (WordPress-style)
     const { data, error } = await supabase
       .from("import_history")
       .select("*")
-      .eq("site_id", config.site.id)
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) console.error(error);
