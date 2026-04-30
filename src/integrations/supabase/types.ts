@@ -14,7 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      imported_posts: {
+        Row: {
+          body: string | null
+          canonical_url: string | null
+          created_at: string
+          excerpt: string | null
+          featured_image_url: string | null
+          id: string
+          imported_by: string | null
+          meta_description: string | null
+          meta_title: string | null
+          publish_date: string | null
+          raw: Json | null
+          site_id: string
+          slug: string
+          source: string
+          status: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          canonical_url?: string | null
+          created_at?: string
+          excerpt?: string | null
+          featured_image_url?: string | null
+          id?: string
+          imported_by?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
+          publish_date?: string | null
+          raw?: Json | null
+          site_id: string
+          slug: string
+          source?: string
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          canonical_url?: string | null
+          created_at?: string
+          excerpt?: string | null
+          featured_image_url?: string | null
+          id?: string
+          imported_by?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
+          publish_date?: string | null
+          raw?: Json | null
+          site_id?: string
+          slug?: string
+          source?: string
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
