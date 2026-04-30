@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      import_history: {
+        Row: {
+          created_at: string
+          error_sample: string | null
+          failed_count: number
+          file_name: string | null
+          file_size_bytes: number | null
+          id: string
+          imported_by: string | null
+          inserted_count: number
+          parsed_count: number
+          site_id: string
+          source: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_sample?: string | null
+          failed_count?: number
+          file_name?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          imported_by?: string | null
+          inserted_count?: number
+          parsed_count?: number
+          site_id: string
+          source?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_sample?: string | null
+          failed_count?: number
+          file_name?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          imported_by?: string | null
+          inserted_count?: number
+          parsed_count?: number
+          site_id?: string
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       imported_posts: {
         Row: {
           body: string | null
