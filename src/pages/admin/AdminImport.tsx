@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -6,8 +6,22 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileCode2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+
+type ImportHistoryRow = {
+  id: string;
+  site_id: string;
+  source: string;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  parsed_count: number;
+  inserted_count: number;
+  failed_count: number;
+  status: string;
+  error_sample: string | null;
+  created_at: string;
+};
 
 // ---------- WP XML parser (browser DOMParser, handles large files) -----------
 
