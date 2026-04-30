@@ -616,6 +616,89 @@ const AdminImport = () => {
           </div>
         </div>
       )}
+
+      {/* Import history */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <History className="w-5 h-5 text-primary" />
+            <h2 className="font-display text-xl">Import history</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{history.length} runs</Badge>
+            <Button size="sm" variant="ghost" onClick={loadHistory} disabled={loadingHistory}>
+              {loadingHistory ? "Refreshing…" : "Refresh"}
+            </Button>
+          </div>
+        </div>
+
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No imports yet. Past imports will appear here and persist across page refreshes.
+          </p>
+        ) : (
+          <div className="border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left">
+                <tr>
+                  <th className="p-2">When</th>
+                  <th className="p-2">File</th>
+                  <th className="p-2">Size</th>
+                  <th className="p-2">Parsed</th>
+                  <th className="p-2">Saved</th>
+                  <th className="p-2">Failed</th>
+                  <th className="p-2">Status</th>
+                  <th className="p-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.id} className="border-t align-top">
+                    <td className="p-2 text-muted-foreground whitespace-nowrap">
+                      {new Date(h.created_at).toLocaleString()}
+                    </td>
+                    <td className="p-2 font-medium truncate max-w-[220px]">
+                      {h.file_name || h.source}
+                    </td>
+                    <td className="p-2 text-muted-foreground">{fmtBytes(h.file_size_bytes)}</td>
+                    <td className="p-2">{h.parsed_count}</td>
+                    <td className="p-2">{h.inserted_count}</td>
+                    <td className="p-2">{h.failed_count}</td>
+                    <td className="p-2">
+                      <Badge
+                        variant={
+                          h.status === "completed"
+                            ? "default"
+                            : h.status === "partial"
+                              ? "outline"
+                              : "destructive"
+                        }
+                      >
+                        {h.status}
+                      </Badge>
+                      {h.error_sample && (
+                        <p className="text-xs text-destructive mt-1 truncate max-w-[260px]">
+                          {h.error_sample}
+                        </p>
+                      )}
+                    </td>
+                    <td className="p-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteHistory(h.id)}
+                        title="Delete entry"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
