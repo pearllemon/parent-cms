@@ -6,8 +6,13 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2 } from "lucide-react";
+import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import {
+  collectUsedImagesFromImportedPosts,
+  queueImageImportJob,
+  rewritePostImageUrls,
+} from "@/lib/imageImport";
 
 type ImportHistoryRow = {
   id: string;
@@ -20,6 +25,21 @@ type ImportHistoryRow = {
   failed_count: number;
   status: string;
   error_sample: string | null;
+  created_at: string;
+};
+
+type ImageJobRow = {
+  id: string;
+  status: string;
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  current_url: string | null;
+  log: string | null;
+  started_at: string | null;
+  finished_at: string | null;
   created_at: string;
 };
 
@@ -281,6 +301,11 @@ const AdminImport = () => {
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // ---- Image import state ----
+  const [imageJob, setImageJob] = useState<ImageJobRow | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
+
   const loadHistory = async () => {
     setLoadingHistory(true);
     // History is shared across all users / dashboards (WordPress-style)
@@ -294,10 +319,110 @@ const AdminImport = () => {
     setLoadingHistory(false);
   };
 
+  // Load most recent image-import job and subscribe to realtime updates
+  const loadLatestImageJob = async () => {
+    const { data } = await supabase
+      .from("image_import_jobs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setImageJob((data as ImageJobRow) ?? null);
+  };
+
   useEffect(() => {
     loadHistory();
+    loadLatestImageJob();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Realtime: keep imageJob fresh as the worker updates it
+  useEffect(() => {
+    if (!imageJob?.id) return;
+    const channel = supabase
+      .channel(`image-job-${imageJob.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "image_import_jobs",
+          filter: `id=eq.${imageJob.id}`,
+        },
+        (payload) => {
+          setImageJob((prev) => ({ ...(prev as ImageJobRow), ...(payload.new as ImageJobRow) }));
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [imageJob?.id]);
+
+  const startImageImport = async () => {
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess?.session?.user?.id) {
+      toast.error("Please sign in again to start an image import.");
+      return;
+    }
+    setScanning(true);
+    try {
+      toast.info("Scanning posts for images…");
+      const refs = await collectUsedImagesFromImportedPosts();
+      if (refs.length === 0) {
+        toast.warning(
+          "No images found in imported posts. Run the WP XML import first, then try again.",
+        );
+        return;
+      }
+      toast.info(`Found ${refs.length} unique images. Queuing…`);
+      const { jobId, queued, alreadyDone } = await queueImageImportJob(refs);
+      toast.success(
+        `Queued ${queued} new images${alreadyDone ? ` (${alreadyDone} already optimized)` : ""}. Working in the background…`,
+      );
+      // Load the new job and subscribe
+      const { data } = await supabase
+        .from("image_import_jobs")
+        .select("*")
+        .eq("id", jobId)
+        .maybeSingle();
+      setImageJob((data as ImageJobRow) ?? null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Image import failed");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const applyOptimizedToPosts = async () => {
+    setRewriting(true);
+    try {
+      const { postsUpdated, rewrites } = await rewritePostImageUrls();
+      toast.success(
+        `Rewrote ${rewrites} image URL${rewrites === 1 ? "" : "s"} across ${postsUpdated} post${postsUpdated === 1 ? "" : "s"}.`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rewrite failed");
+    } finally {
+      setRewriting(false);
+    }
+  };
+
+  const cancelImageImport = async () => {
+    if (!imageJob?.id) return;
+    await supabase
+      .from("image_import_jobs")
+      .update({ status: "cancelled", finished_at: new Date().toISOString() })
+      .eq("id", imageJob.id);
+    // Mark remaining pending assets as skipped so worker stops picking them up
+    await supabase
+      .from("image_assets")
+      .update({ status: "skipped", error: "cancelled" })
+      .eq("job_id", imageJob.id)
+      .eq("status", "pending");
+    loadLatestImageJob();
+    toast.info("Image import cancelled.");
+  };
 
   const deleteHistory = async (id: string) => {
     const { error } = await supabase.from("import_history").delete().eq("id", id);
@@ -615,6 +740,115 @@ const AdminImport = () => {
           </div>
         </div>
       )}
+
+      {/* Image import (background worker) */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <ImageIcon className="w-5 h-5 text-primary" />
+            <h2 className="font-display text-xl">Import & optimize images</h2>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={loadLatestImageJob}
+              disabled={scanning}
+            >
+              Refresh
+            </Button>
+            <Button
+              onClick={startImageImport}
+              disabled={
+                scanning ||
+                imageJob?.status === "running" ||
+                imageJob?.status === "pending"
+              }
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {scanning
+                ? "Scanning…"
+                : imageJob?.status === "running"
+                  ? "Working…"
+                  : "Start image import"}
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Scans every imported post + featured image, downloads each unique image,
+          resizes to {`≤1600px`}, converts to WebP at quality 80, and stores the
+          optimized copy in Lovable Cloud. Runs in the background — you can leave
+          this page; progress is saved.
+        </p>
+
+        {imageJob && (
+          <div className="space-y-3 border rounded-xl p-4 bg-muted/20">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={
+                    imageJob.status === "completed"
+                      ? "default"
+                      : imageJob.status === "failed"
+                        ? "destructive"
+                        : "outline"
+                  }
+                >
+                  {imageJob.status}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  Started{" "}
+                  {imageJob.started_at
+                    ? new Date(imageJob.started_at).toLocaleString()
+                    : "—"}
+                </span>
+              </div>
+              {(imageJob.status === "running" || imageJob.status === "pending") && (
+                <Button size="sm" variant="ghost" onClick={cancelImageImport}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+
+            <Progress
+              value={
+                imageJob.total > 0
+                  ? Math.round((imageJob.processed / imageJob.total) * 100)
+                  : 0
+              }
+            />
+            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span>📦 {imageJob.processed} / {imageJob.total} processed</span>
+              <span className="text-primary">✅ {imageJob.succeeded} optimized</span>
+              <span>⏭ {imageJob.skipped} skipped</span>
+              <span className="text-destructive">⚠️ {imageJob.failed} failed</span>
+            </div>
+            {imageJob.current_url && imageJob.status === "running" && (
+              <p className="text-xs text-muted-foreground truncate">
+                Importing: <span className="font-mono">{imageJob.current_url}</span>
+              </p>
+            )}
+
+            {imageJob.status === "completed" && imageJob.succeeded > 0 && (
+              <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2">
+                <p className="text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-primary inline mr-1" />
+                  Images ready. Apply them to your posts now to swap original WP
+                  URLs for the optimized WebP versions.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={applyOptimizedToPosts}
+                  disabled={rewriting}
+                >
+                  {rewriting ? "Applying…" : "Apply to all posts"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Import history */}
       <div className="bg-background border rounded-2xl p-6 space-y-4">
