@@ -298,7 +298,9 @@ const AdminImport = () => {
     // Must be signed in to Lovable Cloud for RLS to allow inserts
     const { data: sess } = await supabase.auth.getSession();
     if (!sess?.session?.user?.id) {
-      toast.error("You must be signed in to import. Open /admin/login.");
+      toast.error(
+        "Cloud session missing. Please sign in again at /admin/login (this links your account to Lovable Cloud).",
+      );
       return;
     }
     const userId = sess.session.user.id;
