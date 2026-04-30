@@ -14,6 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
+      image_assets: {
+        Row: {
+          alt_text: string | null
+          bytes_optimized: number | null
+          bytes_original: number | null
+          created_at: string
+          error: string | null
+          format: string | null
+          height: number | null
+          id: string
+          job_id: string | null
+          public_url: string | null
+          source_url: string
+          status: string
+          storage_path: string | null
+          title: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          alt_text?: string | null
+          bytes_optimized?: number | null
+          bytes_original?: number | null
+          created_at?: string
+          error?: string | null
+          format?: string | null
+          height?: number | null
+          id?: string
+          job_id?: string | null
+          public_url?: string | null
+          source_url: string
+          status?: string
+          storage_path?: string | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          alt_text?: string | null
+          bytes_optimized?: number | null
+          bytes_original?: number | null
+          created_at?: string
+          error?: string | null
+          format?: string | null
+          height?: number | null
+          id?: string
+          job_id?: string | null
+          public_url?: string | null
+          source_url?: string
+          status?: string
+          storage_path?: string | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_assets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "image_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_import_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_url: string | null
+          failed: number
+          finished_at: string | null
+          id: string
+          log: string | null
+          processed: number
+          skipped: number
+          started_at: string | null
+          status: string
+          succeeded: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_url?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          log?: string | null
+          processed?: number
+          skipped?: number
+          started_at?: string | null
+          status?: string
+          succeeded?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_url?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          log?: string | null
+          processed?: number
+          skipped?: number
+          started_at?: string | null
+          status?: string
+          succeeded?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       import_history: {
         Row: {
           created_at: string
