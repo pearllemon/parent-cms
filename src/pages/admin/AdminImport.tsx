@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase as parentSupabase } from "@/lib/parent";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
