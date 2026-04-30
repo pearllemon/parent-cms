@@ -295,38 +295,13 @@ const AdminImport = () => {
     if (!parsed || !config?.site?.id) return;
     const site_id = config.site.id;
 
-    // Must be signed in for RLS to allow inserts on parent
+    // Must be signed in to Lovable Cloud for RLS to allow inserts
     const { data: sess } = await supabase.auth.getSession();
     if (!sess?.session?.user?.id) {
-      toast.error("You must be signed in to the parent CMS to import. Open /admin/login.");
+      toast.error("You must be signed in to import. Open /admin/login.");
       return;
     }
     const userId = sess.session.user.id;
-
-    // Verify the user is linked to this site (parent RLS requires site_users membership)
-    const { data: link, error: linkErr } = await supabase
-      .from("site_users")
-      .select("id, role")
-      .eq("site_id", site_id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (linkErr) {
-      console.warn("site_users probe error:", linkErr.message);
-    }
-    if (!link) {
-      // Try to self-link as editor so RLS lets us write. If parent disallows
-      // anon link creation this will fail and we'll surface a clear message.
-      const { error: addErr } = await supabase
-        .from("site_users")
-        .insert({ site_id, user_id: userId, role: "editor" });
-      if (addErr) {
-        toast.error(
-          `Your account is not authorised to write to this site. Ask the parent admin to add you to site_users for site ${site_id}. (${addErr.message})`,
-        );
-        return;
-      }
-      toast.success("Linked your account to this site as editor.");
-    }
 
     const toImport = parsed.filter((i) => (publishOnly ? i.status === "publish" : true));
     setImporting(true);
@@ -334,7 +309,7 @@ const AdminImport = () => {
     const stats = { inserted: 0, updated: 0, skipped: 0, failed: 0 };
     const errorSamples: string[] = [];
     // Smaller batches + yield between batches keep the server & UI responsive
-    const BATCH = 10;
+    const BATCH = 25;
 
     for (let i = 0; i < toImport.length; i += BATCH) {
       const chunk = toImport.slice(i, i + BATCH);
@@ -360,13 +335,22 @@ const AdminImport = () => {
           it.meta?.["_yoast_wpseo_metadesc"] || it.meta?.["rank_math_description"] || it.excerpt || "",
         canonical_url:
           it.meta?.["_yoast_wpseo_canonical"] || it.meta?.["rank_math_canonical_url"] || it.link,
+        source: "wp-xml",
+        imported_by: userId,
+        raw: {
+          link: it.link,
+          author: it.author,
+          categories: it.categories,
+          tags: it.tags,
+          meta: it.meta,
+        } as unknown as never,
       }));
 
-      // upsert by (site_id, slug)
+      // upsert into Lovable Cloud `imported_posts` by (site_id, slug)
       let inserted = 0;
       let lastErr: string | null = null;
       const { data: upserted, error } = await supabase
-        .from("posts")
+        .from("imported_posts")
         .upsert(rows, { onConflict: "site_id,slug", ignoreDuplicates: false })
         .select("id");
 
@@ -375,7 +359,7 @@ const AdminImport = () => {
         // Fallback: insert one-by-one so a single bad row doesn't kill the batch
         for (const row of rows) {
           const { data: ins, error: e2 } = await supabase
-            .from("posts")
+            .from("imported_posts")
             .upsert(row, { onConflict: "site_id,slug" })
             .select("id")
             .maybeSingle();
