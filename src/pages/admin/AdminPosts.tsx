@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/parent";
+import { supabase as cloud } from "@/integrations/supabase/client";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ type Post = {
   type: string | null;
   publish_date: string | null;
   updated_at: string;
+  source?: "parent" | "imported";
 };
 
 const STATUSES = ["all", "published", "draft", "scheduled", "pending", "private", "trash"];
@@ -46,14 +48,51 @@ const AdminPosts = () => {
   const load = async () => {
     if (!config?.site?.id) return;
     setLoading(true);
-    const { data, error } = await supabase
+
+    // 1) Posts from the parent CMS
+    const parentReq = supabase
       .from("posts")
       .select("id,title,slug,status,type,publish_date,updated_at")
       .eq("site_id", config.site.id)
       .order("updated_at", { ascending: false })
       .limit(500);
-    if (error) toast.error(error.message);
-    setPosts((data as Post[]) || []);
+
+    // 2) Posts imported into Lovable Cloud (WP XML)
+    const cloudReq = cloud
+      .from("imported_posts")
+      .select("id,title,slug,status,type,publish_date,updated_at")
+      .eq("site_id", config.site.id)
+      .order("updated_at", { ascending: false })
+      .limit(1000);
+
+    const [parentRes, cloudRes] = await Promise.all([parentReq, cloudReq]);
+
+    if (parentRes.error) toast.error(parentRes.error.message);
+    if (cloudRes.error) console.error(cloudRes.error.message);
+
+    const parentRows: Post[] = (parentRes.data || []).map((p: any) => ({
+      ...p,
+      source: "parent" as const,
+    }));
+    const cloudRows: Post[] = (cloudRes.data || []).map((p: any) => ({
+      ...p,
+      source: "imported" as const,
+    }));
+
+    // Merge & dedupe by slug+type, preferring parent rows when present
+    const seen = new Set<string>();
+    const merged: Post[] = [];
+    for (const row of [...parentRows, ...cloudRows]) {
+      const key = `${row.type || "post"}::${row.slug}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+    }
+    merged.sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
+
+    setPosts(merged);
     setLoading(false);
   };
 
