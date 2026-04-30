@@ -741,6 +741,115 @@ const AdminImport = () => {
         </div>
       )}
 
+      {/* Image import (background worker) */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <ImageIcon className="w-5 h-5 text-primary" />
+            <h2 className="font-display text-xl">Import & optimize images</h2>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={loadLatestImageJob}
+              disabled={scanning}
+            >
+              Refresh
+            </Button>
+            <Button
+              onClick={startImageImport}
+              disabled={
+                scanning ||
+                imageJob?.status === "running" ||
+                imageJob?.status === "pending"
+              }
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {scanning
+                ? "Scanning…"
+                : imageJob?.status === "running"
+                  ? "Working…"
+                  : "Start image import"}
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Scans every imported post + featured image, downloads each unique image,
+          resizes to {`≤1600px`}, converts to WebP at quality 80, and stores the
+          optimized copy in Lovable Cloud. Runs in the background — you can leave
+          this page; progress is saved.
+        </p>
+
+        {imageJob && (
+          <div className="space-y-3 border rounded-xl p-4 bg-muted/20">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={
+                    imageJob.status === "completed"
+                      ? "default"
+                      : imageJob.status === "failed"
+                        ? "destructive"
+                        : "outline"
+                  }
+                >
+                  {imageJob.status}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  Started{" "}
+                  {imageJob.started_at
+                    ? new Date(imageJob.started_at).toLocaleString()
+                    : "—"}
+                </span>
+              </div>
+              {(imageJob.status === "running" || imageJob.status === "pending") && (
+                <Button size="sm" variant="ghost" onClick={cancelImageImport}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+
+            <Progress
+              value={
+                imageJob.total > 0
+                  ? Math.round((imageJob.processed / imageJob.total) * 100)
+                  : 0
+              }
+            />
+            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span>📦 {imageJob.processed} / {imageJob.total} processed</span>
+              <span className="text-primary">✅ {imageJob.succeeded} optimized</span>
+              <span>⏭ {imageJob.skipped} skipped</span>
+              <span className="text-destructive">⚠️ {imageJob.failed} failed</span>
+            </div>
+            {imageJob.current_url && imageJob.status === "running" && (
+              <p className="text-xs text-muted-foreground truncate">
+                Importing: <span className="font-mono">{imageJob.current_url}</span>
+              </p>
+            )}
+
+            {imageJob.status === "completed" && imageJob.succeeded > 0 && (
+              <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2">
+                <p className="text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-primary inline mr-1" />
+                  Images ready. Apply them to your posts now to swap original WP
+                  URLs for the optimized WebP versions.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={applyOptimizedToPosts}
+                  disabled={rewriting}
+                >
+                  {rewriting ? "Applying…" : "Apply to all posts"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Import history */}
       <div className="bg-background border rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
