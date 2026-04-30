@@ -277,11 +277,43 @@ const AdminImport = () => {
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState({ inserted: 0, updated: 0, skipped: 0, failed: 0 });
   const [filter, setFilter] = useState<"all" | "post" | "page" | "publish" | "draft">("all");
+  const [fileMeta, setFileMeta] = useState<{ name: string; size: number } | null>(null);
+  const [history, setHistory] = useState<ImportHistoryRow[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const loadHistory = async () => {
+    if (!config?.site?.id) return;
+    setLoadingHistory(true);
+    const { data, error } = await supabase
+      .from("import_history")
+      .select("*")
+      .eq("site_id", config.site.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) console.error(error);
+    setHistory((data as ImportHistoryRow[]) || []);
+    setLoadingHistory(false);
+  };
+
+  useEffect(() => {
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.site?.id]);
+
+  const deleteHistory = async (id: string) => {
+    const { error } = await supabase.from("import_history").delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("History entry removed");
+      loadHistory();
+    }
+  };
 
   const onFile = async (file: File) => {
     setParsing(true);
     setParsed(null);
     setDone({ inserted: 0, updated: 0, skipped: 0, failed: 0 });
+    setFileMeta({ name: file.name, size: file.size });
     try {
       // Read file in a non-blocking way; toast size for visibility
       const sizeMb = (file.size / 1024 / 1024).toFixed(1);
