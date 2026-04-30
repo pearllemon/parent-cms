@@ -240,7 +240,16 @@ const AdminPosts = () => {
             )}
             {filtered.map((p) => (
               <tr key={p.id} className="border-t">
-                <td className="p-3 font-medium">{p.title || "(untitled)"}</td>
+                <td className="p-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span>{p.title || "(untitled)"}</span>
+                    {p.source === "imported" && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Imported
+                      </Badge>
+                    )}
+                  </div>
+                </td>
                 <td className="p-3 text-muted-foreground">{p.slug}</td>
                 <td className="p-3">
                   <Badge variant="outline">{p.type || "post"}</Badge>
