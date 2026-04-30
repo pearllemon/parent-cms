@@ -212,6 +212,65 @@ export type PostsResponse = {
   totalPages: number;
 };
 
+// Map an imported_posts row (Lovable Cloud) to the ParentPost shape so the
+// same Blog/BlogPost templates can render it.
+function mapImportedToParent(row: any): ParentPost {
+  const raw = row?.raw || {};
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    excerpt: row.excerpt || "",
+    body: row.body || "",
+    content: row.body || "",
+    featured_image_url: row.featured_image_url || undefined,
+    author: raw.author || undefined,
+    published_at: row.publish_date || undefined,
+    publish_date: row.publish_date || undefined,
+    status: row.status,
+    type: (row.type as ParentPost["type"]) || "post",
+    categories: Array.isArray(raw.categories) ? raw.categories : [],
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
+    meta_title: row.meta_title || undefined,
+    meta_description: row.meta_description || undefined,
+    canonical_url: row.canonical_url || undefined,
+  };
+}
+
+async function fetchImportedPosts(opts: {
+  slug?: string;
+  type?: string;
+  category?: string;
+  tag?: string;
+  publishedOnly?: boolean;
+}): Promise<ParentPost[]> {
+  try {
+    const { supabase: cloud } = await import("@/integrations/supabase/client");
+    const site_id = await getSiteId();
+    if (!site_id) return [];
+    let q = cloud.from("imported_posts").select("*").eq("site_id", site_id);
+    if (opts.slug) q = q.eq("slug", opts.slug);
+    if (opts.type) q = q.eq("type", opts.type);
+    if (opts.publishedOnly) q = q.eq("status", "published");
+    q = q.order("publish_date", { ascending: false }).limit(1000);
+    const { data, error } = await q;
+    if (error) {
+      console.warn("imported_posts fetch failed:", error.message);
+      return [];
+    }
+    let mapped = (data || []).map(mapImportedToParent);
+    if (opts.category)
+      mapped = mapped.filter((p) =>
+        p.categories?.some((c) => c.slug === opts.category),
+      );
+    if (opts.tag)
+      mapped = mapped.filter((p) => p.tags?.some((t) => t.slug === opts.tag));
+    return mapped;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchPosts(opts: { page?: number; limit?: number; slug?: string; type?: string; category?: string; tag?: string } = {}): Promise<PostsResponse | null> {
   const site_id = await getSiteId();
   if (!site_id) return null;
@@ -223,7 +282,8 @@ export async function fetchPosts(opts: { page?: number; limit?: number; slug?: s
   if (opts.category) params.set("category", opts.category);
   if (opts.tag) params.set("tag", opts.tag);
   const url = `${API}?${params.toString()}`;
-  return cachedFetch<PostsResponse | null>(
+
+  const parentRes = await cachedFetch<PostsResponse | null>(
     `posts::${url}`,
     async () => {
       const res = await fetch(url, { headers: HEADERS });
@@ -232,12 +292,54 @@ export async function fetchPosts(opts: { page?: number; limit?: number; slug?: s
     },
     5 * 60 * 1000, // 5 min
   );
+
+  // Always merge in imported (Lovable Cloud) posts so they appear on the site
+  const imported = await fetchImportedPosts({
+    slug: opts.slug,
+    type: opts.type,
+    category: opts.category,
+    tag: opts.tag,
+    publishedOnly: !opts.slug, // when looking up a single slug, allow drafts too
+  });
+
+  const parentPosts = parentRes?.posts || [];
+  // Dedupe by slug+type, parent wins
+  const seen = new Set<string>();
+  const merged: ParentPost[] = [];
+  for (const p of [...parentPosts, ...imported]) {
+    const key = `${p.type || "post"}::${p.slug}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(p);
+  }
+  // Sort newest first
+  merged.sort((a, b) => {
+    const da = new Date(a.published_at || a.publish_date || 0).getTime();
+    const db = new Date(b.published_at || b.publish_date || 0).getTime();
+    return db - da;
+  });
+
+  const limit = opts.limit ?? merged.length;
+  const page = opts.page ?? 1;
+  const start = (page - 1) * limit;
+  const paged = opts.limit ? merged.slice(start, start + limit) : merged;
+
+  return {
+    posts: paged,
+    total: merged.length,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(merged.length / Math.max(1, limit))),
+  };
 }
 
 export async function fetchPostBySlug(slug: string): Promise<ParentPost | null> {
   const data = await fetchPosts({ slug });
-  if (!data) return null;
-  // API may return { post } or { posts: [..] }
+  if (!data) {
+    // Last-chance: pull directly from imported_posts
+    const imp = await fetchImportedPosts({ slug });
+    return imp[0] || null;
+  }
   const maybe = data as unknown as { post?: ParentPost; posts?: ParentPost[] };
   if (maybe.post) return maybe.post;
   if (maybe.posts?.length) return maybe.posts[0];
