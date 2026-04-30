@@ -435,6 +435,29 @@ const AdminImport = () => {
     }
 
     setImporting(false);
+
+    // Persist a row to import_history so the user can see past imports
+    const historyStatus =
+      stats.inserted > 0 && stats.failed === 0
+        ? "completed"
+        : stats.inserted > 0
+          ? "partial"
+          : "failed";
+    const { error: histErr } = await supabase.from("import_history").insert({
+      site_id,
+      source: "wp-xml",
+      file_name: fileMeta?.name ?? null,
+      file_size_bytes: fileMeta?.size ?? null,
+      parsed_count: toImport.length,
+      inserted_count: stats.inserted,
+      failed_count: stats.failed,
+      status: historyStatus,
+      error_sample: errorSamples[0] ?? null,
+      imported_by: userId,
+    });
+    if (histErr) console.error("Failed to record import history:", histErr.message);
+    loadHistory();
+
     if (stats.inserted > 0 && stats.failed === 0) {
       toast.success(`Import complete: ${stats.inserted} saved.`);
     } else if (stats.inserted > 0) {
@@ -444,6 +467,13 @@ const AdminImport = () => {
         `Nothing was saved. ${errorSamples[0] || "Check console for details."}`,
       );
     }
+  };
+
+  const fmtBytes = (n: number | null) => {
+    if (!n) return "—";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
   };
 
   return (
