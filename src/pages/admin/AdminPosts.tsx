@@ -57,11 +57,11 @@ const AdminPosts = () => {
       .order("updated_at", { ascending: false })
       .limit(500);
 
-    // 2) Posts imported into Lovable Cloud (WP XML)
+    // 2) Posts imported into Lovable Cloud (WP XML) — shared across all users
+    //    (WordPress-style), so we don't filter by site_id here.
     const cloudReq = cloud
       .from("imported_posts")
       .select("id,title,slug,status,type,publish_date,updated_at")
-      .eq("site_id", config.site.id)
       .order("updated_at", { ascending: false })
       .limit(1000);
 

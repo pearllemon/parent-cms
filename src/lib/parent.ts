@@ -246,9 +246,9 @@ async function fetchImportedPosts(opts: {
 }): Promise<ParentPost[]> {
   try {
     const { supabase: cloud } = await import("@/integrations/supabase/client");
-    const site_id = await getSiteId();
-    if (!site_id) return [];
-    let q = cloud.from("imported_posts").select("*").eq("site_id", site_id);
+    // Imported content is shared across all users and dashboards (WordPress-style),
+    // so we intentionally do NOT filter by site_id here.
+    let q = cloud.from("imported_posts").select("*");
     if (opts.slug) q = q.eq("slug", opts.slug);
     if (opts.type) q = q.eq("type", opts.type);
     if (opts.publishedOnly) q = q.eq("status", "published");
