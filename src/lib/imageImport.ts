@@ -217,9 +217,9 @@ export async function rewritePostImageUrls(jobId?: string): Promise<{
   postsUpdated: number;
   rewrites: number;
 }> {
-  const { data, error } = await supabase.rpc("apply_image_asset_replacements", {
+  const { data, error } = await (supabase as any).rpc("apply_image_asset_replacements", {
     _job_id: jobId || null,
-  } as never);
+  });
   if (error) throw error;
   return { postsUpdated: Number(data || 0), rewrites: Number(data || 0) };
 }
