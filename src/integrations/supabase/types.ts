@@ -261,7 +261,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      apply_image_asset_replacements: {
+        Args: { _job_id?: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
