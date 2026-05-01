@@ -17,6 +17,7 @@ export type Database = {
       image_assets: {
         Row: {
           alt_text: string | null
+          attempts: number
           bytes_optimized: number | null
           bytes_original: number | null
           created_at: string
@@ -25,7 +26,11 @@ export type Database = {
           height: number | null
           id: string
           job_id: string | null
+          last_attempt_at: string | null
+          mime_type: string | null
           public_url: string | null
+          replaced_at: string | null
+          seo_slug: string | null
           source_url: string
           status: string
           storage_path: string | null
@@ -35,6 +40,7 @@ export type Database = {
         }
         Insert: {
           alt_text?: string | null
+          attempts?: number
           bytes_optimized?: number | null
           bytes_original?: number | null
           created_at?: string
@@ -43,7 +49,11 @@ export type Database = {
           height?: number | null
           id?: string
           job_id?: string | null
+          last_attempt_at?: string | null
+          mime_type?: string | null
           public_url?: string | null
+          replaced_at?: string | null
+          seo_slug?: string | null
           source_url: string
           status?: string
           storage_path?: string | null
@@ -53,6 +63,7 @@ export type Database = {
         }
         Update: {
           alt_text?: string | null
+          attempts?: number
           bytes_optimized?: number | null
           bytes_original?: number | null
           created_at?: string
@@ -61,7 +72,11 @@ export type Database = {
           height?: number | null
           id?: string
           job_id?: string | null
+          last_attempt_at?: string | null
+          mime_type?: string | null
           public_url?: string | null
+          replaced_at?: string | null
+          seo_slug?: string | null
           source_url?: string
           status?: string
           storage_path?: string | null
@@ -89,6 +104,7 @@ export type Database = {
           id: string
           log: string | null
           processed: number
+          replacements: number
           skipped: number
           started_at: string | null
           status: string
@@ -105,6 +121,7 @@ export type Database = {
           id?: string
           log?: string | null
           processed?: number
+          replacements?: number
           skipped?: number
           started_at?: string | null
           status?: string
@@ -121,6 +138,7 @@ export type Database = {
           id?: string
           log?: string | null
           processed?: number
+          replacements?: number
           skipped?: number
           started_at?: string | null
           status?: string
@@ -243,7 +261,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      apply_image_asset_replacements: {
+        Args: { _job_id?: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

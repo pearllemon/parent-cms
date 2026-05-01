@@ -6,11 +6,12 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles } from "lucide-react";
+import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   collectUsedImagesFromImportedPosts,
   queueImageImportJob,
+  resumeImageImportJob,
   rewritePostImageUrls,
 } from "@/lib/imageImport";
 
@@ -38,6 +39,7 @@ type ImageJobRow = {
   skipped: number;
   current_url: string | null;
   log: string | null;
+  replacements?: number;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
@@ -368,7 +370,7 @@ const AdminImport = () => {
     setScanning(true);
     try {
       toast.info("Scanning posts for images…");
-      const refs = await collectUsedImagesFromImportedPosts();
+      const refs = await collectUsedImagesFromImportedPosts({ includeSiteImages: true });
       if (refs.length === 0) {
         toast.warning(
           "No images found in imported posts. Run the WP XML import first, then try again.",
@@ -376,9 +378,11 @@ const AdminImport = () => {
         return;
       }
       toast.info(`Found ${refs.length} unique images. Queuing…`);
-      const { jobId, queued, alreadyDone } = await queueImageImportJob(refs);
+      const { jobId, queued, alreadyDone, resumed } = await queueImageImportJob(refs);
       toast.success(
-        `Queued ${queued} new images${alreadyDone ? ` (${alreadyDone} already optimized)` : ""}. Working in the background…`,
+        resumed
+          ? "Resumed the existing background image import."
+          : `Queued ${queued} new images${alreadyDone ? ` (${alreadyDone} already optimized)` : ""}. Working in the background…`,
       );
       // Load the new job and subscribe
       const { data } = await supabase
@@ -397,7 +401,7 @@ const AdminImport = () => {
   const applyOptimizedToPosts = async () => {
     setRewriting(true);
     try {
-      const { postsUpdated, rewrites } = await rewritePostImageUrls();
+      const { postsUpdated, rewrites } = await rewritePostImageUrls(imageJob?.id);
       toast.success(
         `Rewrote ${rewrites} image URL${rewrites === 1 ? "" : "s"} across ${postsUpdated} post${postsUpdated === 1 ? "" : "s"}.`,
       );
@@ -405,6 +409,17 @@ const AdminImport = () => {
       toast.error(e instanceof Error ? e.message : "Rewrite failed");
     } finally {
       setRewriting(false);
+    }
+  };
+
+  const resumeLatestImageImport = async () => {
+    if (!imageJob?.id) return;
+    try {
+      await resumeImageImportJob(imageJob.id);
+      toast.success("Background image import resumed.");
+      loadLatestImageJob();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Resume failed");
     }
   };
 
@@ -776,10 +791,8 @@ const AdminImport = () => {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Scans every imported post + featured image, downloads each unique image,
-          resizes to {`≤1600px`}, converts to WebP at quality 80, and stores the
-          optimized copy in Lovable Cloud. Runs in the background — you can leave
-          this page; progress is saved.
+          Scans imported posts, pages, featured images, and site images, then stores optimized copies with SEO-friendly file names.
+          The worker continues in the background and automatically swaps old WordPress URLs to hosted optimized links when ready.
         </p>
 
         {imageJob && (
@@ -805,9 +818,15 @@ const AdminImport = () => {
                 </span>
               </div>
               {(imageJob.status === "running" || imageJob.status === "pending") && (
-                <Button size="sm" variant="ghost" onClick={cancelImageImport}>
-                  Cancel
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={resumeLatestImageImport}>
+                    <RotateCw className="w-3.5 h-3.5 mr-1" />
+                    Resume
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={cancelImageImport}>
+                    Cancel
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -823,6 +842,9 @@ const AdminImport = () => {
               <span className="text-primary">✅ {imageJob.succeeded} optimized</span>
               <span>⏭ {imageJob.skipped} skipped</span>
               <span className="text-destructive">⚠️ {imageJob.failed} failed</span>
+              {typeof imageJob.replacements === "number" && (
+                <span>🔁 {imageJob.replacements} URLs replaced</span>
+              )}
             </div>
             {imageJob.current_url && imageJob.status === "running" && (
               <p className="text-xs text-muted-foreground truncate">
@@ -834,15 +856,14 @@ const AdminImport = () => {
               <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2">
                 <p className="text-sm">
                   <CheckCircle2 className="w-4 h-4 text-primary inline mr-1" />
-                  Images ready. Apply them to your posts now to swap original WP
-                  URLs for the optimized WebP versions.
+                  Images are optimized and WordPress URLs are replaced automatically. Use this if you want to re-run the replacement pass.
                 </p>
                 <Button
                   size="sm"
                   onClick={applyOptimizedToPosts}
                   disabled={rewriting}
                 >
-                  {rewriting ? "Applying…" : "Apply to all posts"}
+                  {rewriting ? "Applying…" : "Re-apply replacements"}
                 </Button>
               </div>
             )}
