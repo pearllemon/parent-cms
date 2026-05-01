@@ -158,6 +158,7 @@ async function markAsset(assetId: string, values: Record<string, unknown>) {
 
 async function processOne(asset: AssetRow): Promise<{ ok: boolean; skipped?: boolean; reason?: string }> {
   await markAsset(asset.id, {
+    status: "processing",
     attempts: 1,
     last_attempt_at: new Date().toISOString(),
     error: null,
@@ -383,6 +384,13 @@ async function processJob(jobId: string): Promise<{ done: boolean; processed: nu
     .update({ status: "running", started_at: new Date().toISOString() })
     .eq("id", jobId)
     .is("started_at", null);
+
+  await admin
+    .from("image_assets")
+    .update({ status: "pending", error: null })
+    .eq("job_id", jobId)
+    .eq("status", "processing")
+    .lt("last_attempt_at", new Date(Date.now() - 5 * 60_000).toISOString());
 
   const { data: pending, error: pendErr } = await admin
     .from("image_assets")
