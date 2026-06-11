@@ -124,6 +124,7 @@ const AdminShell = () => {
     { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
     { path: "/admin/sync-control", label: "Sync Control", icon: "Cloud" },
     { path: "/admin/seo-workspace", label: "SEO Workspace", icon: "Search" },
+    { path: "/admin/redirects", label: "Redirects", icon: "Cloud" },
     { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
     { path: "/admin/authors", label: "Authors", icon: "Users" },
     { path: "/admin/media", label: "Media", icon: "Image" },

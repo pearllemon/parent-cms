@@ -14,6 +14,8 @@ import AdminSeoFiles from "./AdminSeoFiles";
 import AdminSeoAudit from "./AdminSeoAudit";
 import AdminSchemaBuilder from "./AdminSchemaBuilder";
 import AdminInternalLinks from "./AdminInternalLinks";
+import AdminRedirects from "./AdminRedirects";
+import AdminSeoOverview from "./AdminSeoOverview";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Gauge },
@@ -60,7 +62,7 @@ export default function AdminSeoWorkspace() {
           })}
         </TabsList>
 
-        <TabsContent value="overview" className="pt-6"><AdminSeoAudit /></TabsContent>
+        <TabsContent value="overview" className="pt-6"><AdminSeoOverview /></TabsContent>
         <TabsContent value="audit" className="pt-6"><AdminSeoAudit /></TabsContent>
         <TabsContent value="metadata" className="pt-6">
           <EmptyTab title="Metadata" hint="Edit per-page meta titles and descriptions from each post's editor (SEO score badge)." />
@@ -76,9 +78,7 @@ export default function AdminSeoWorkspace() {
         <TabsContent value="sitemap" className="pt-6"><AdminSeoFiles /></TabsContent>
         <TabsContent value="robots" className="pt-6"><AdminSeoFiles /></TabsContent>
         <TabsContent value="llms" className="pt-6"><AdminSeoFiles /></TabsContent>
-        <TabsContent value="redirects" className="pt-6">
-          <EmptyTab title="Redirects" hint="Coming soon — manage 301/302 redirects in one place." />
-        </TabsContent>
+        <TabsContent value="redirects" className="pt-6"><AdminRedirects /></TabsContent>
         <TabsContent value="settings" className="pt-6"><AdminSeo /></TabsContent>
       </Tabs>
     </div>
