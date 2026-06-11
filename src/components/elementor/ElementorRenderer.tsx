@@ -414,9 +414,12 @@ function EditableShell({
       onClick={(e) => { e.stopPropagation(); ed.select(fullPath); }}
     >
       {isSelected && (
-        <span className="absolute -top-6 left-0 z-30 text-[10px] uppercase tracking-wide bg-blue-500 text-white px-1.5 py-0.5 rounded-sm pointer-events-none">
-          {kind === "widget" ? (node.widgetType || "widget") : kind}
-        </span>
+        <>
+          <span className="absolute -top-6 left-0 z-30 text-[10px] uppercase tracking-wide bg-blue-500 text-white px-1.5 py-0.5 rounded-sm pointer-events-none">
+            {kind === "widget" ? (node.widgetType || "widget") : kind}
+          </span>
+          <NodeToolbar path={fullPath} />
+        </>
       )}
       {children}
     </div>
