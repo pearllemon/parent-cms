@@ -43,6 +43,7 @@ const AdminPosts = () => {
   const typeFilter = searchParams.get("type") || "post";
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [seoMap, setSeoMap] = useState<Record<string, { score: number }>>({});
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [loading, setLoading] = useState(true);
