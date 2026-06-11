@@ -18,6 +18,7 @@ import SnippetEditorModal from "./SnippetEditorModal";
 import type { PostSeo } from "@/lib/postSeo";
 import { scoreSeo, type Check } from "@/lib/seoScoring";
 import { analyzeKeywords, gradeClass, parseKeywords } from "@/lib/keywordRelevance";
+import { recommendForPage } from "@/lib/seoRecommendations";
 
 type Tab = "general" | "advanced" | "schema" | "social";
 const TABS: { id: Tab; label: string; icon: any }[] = [
@@ -241,6 +242,45 @@ export default function SeoPanel({ open, onOpenChange, seo, onChange, ctx, siteU
                 </Accordion>
 
                 <div className="text-xs text-muted-foreground border-t pt-2">Overall SEO score: <b>{seoResult.score} / 100</b></div>
+
+                {/* Actionable recommendations */}
+                {(() => {
+                  const recs = recommendForPage({
+                    url: ctx.url, title: effTitle, description: effDesc, slug: ctx.slug,
+                    html: ctx.html, canonical: seo.canonical_url || ctx.url,
+                    ogImage: ctx.featured_image || seo.social.og_image,
+                    schemaJson: seo.schema_json,
+                  }).slice(0, 6);
+                  if (recs.length === 0) return (
+                    <div className="border rounded-md p-3 text-sm text-green-600 bg-green-50 dark:bg-green-950/30">
+                      ✓ No recommendations — this page looks great.
+                    </div>
+                  );
+                  return (
+                    <div className="border rounded-md">
+                      <div className="px-3 py-2 text-sm font-semibold border-b flex items-center justify-between">
+                        Recommendations
+                        <span className="text-xs text-muted-foreground">{recs.length} actionable</span>
+                      </div>
+                      <ul className="divide-y">
+                        {recs.map((r) => (
+                          <li key={r.id} className="px-3 py-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "text-[10px] uppercase font-bold px-1.5 py-0.5 rounded",
+                                r.severity === "high" ? "bg-red-500/15 text-red-600" :
+                                r.severity === "med" ? "bg-yellow-500/15 text-yellow-700" :
+                                "bg-blue-500/15 text-blue-600"
+                              )}>{r.area}</span>
+                              <span className="font-medium">{r.title}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{r.fix}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
               </>
             )}
 
