@@ -4,6 +4,7 @@ import Layout from "@/components/site/Layout";
 import { fetchPostBySlug, fetchPosts, type ParentPost } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
 import { useSEO } from "@/lib/seo";
+import { usePostSeoOverride } from "@/lib/usePostSeoOverride";
 import NotFound from "./NotFound";
 
 const DynamicPage = () => {
