@@ -249,11 +249,18 @@ const AdminPosts = () => {
                 </td>
               </tr>
             )}
-            {filtered.map((p) => (
+            {filtered.map((p) => {
+              const editHref = `/admin/posts/${p.id}${p.source === "imported" ? "?scope=imported" : ""}`;
+              const seoKey = `${p.source === "imported" ? "imported" : "parent"}::${p.id}`;
+              const seoEntry = seoMap[seoKey];
+              return (
               <tr key={p.id} className="border-t">
                 <td className="p-3 font-medium">
                   <div className="flex items-center gap-2">
-                    <span>{p.title || "(untitled)"}</span>
+                    {seoEntry ? <SeoScoreDot score={seoEntry.score} /> : <span className="inline-block w-2.5 h-2.5 rounded-full bg-muted ring-2 ring-background" title="No SEO data" />}
+                    <Link to={editHref} className="hover:underline">
+                      {p.title || "(untitled)"}
+                    </Link>
                     {p.source === "imported" && (
                       <Badge variant="secondary" className="text-[10px]">
                         Imported
