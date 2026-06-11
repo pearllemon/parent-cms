@@ -26,6 +26,7 @@ import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminPosts from "./pages/admin/AdminPosts.tsx";
 import AdminPostEditor from "./pages/admin/AdminPostEditor.tsx";
+import AdminPageEditor from "./pages/admin/AdminPageEditor.tsx";
 import AdminMedia from "./pages/admin/AdminMedia.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminImport from "./pages/admin/AdminImport.tsx";
