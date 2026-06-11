@@ -422,18 +422,49 @@ export type SiteOverride = {
   updated_at?: string;
 };
 
+// Some parent deployments don't yet have the site_overrides table.
+// First 500 / missing-table error flips this flag so we stop calling
+// the endpoint (avoids spamming the runtime-error overlay).
+const OVERRIDES_DISABLED_KEY = "pl_overrides_disabled";
+const isOverridesDisabled = () => {
+  try { return sessionStorage.getItem(OVERRIDES_DISABLED_KEY) === "1"; } catch { return false; }
+};
+const disableOverrides = () => {
+  try { sessionStorage.setItem(OVERRIDES_DISABLED_KEY, "1"); } catch { /* ignore */ }
+};
+
 export async function fetchOverrides(): Promise<SiteOverride[]> {
+  if (isOverridesDisabled()) return [];
   const site_id = await getSiteId();
   if (!site_id) return [];
-  const data = await getJSON<{ overrides?: SiteOverride[] } | SiteOverride[]>("overrides", { site_id });
-  if (!data) return [];
-  return Array.isArray(data) ? data : (data.overrides || []);
+  try {
+    const url = `${API}?action=overrides&site_id=${encodeURIComponent(site_id)}`;
+    const res = await fetch(url, { headers: HEADERS });
+    if (!res.ok) {
+      // Drain body, mark feature unsupported on this parent, return empty.
+      const txt = await res.text().catch(() => "");
+      if (res.status >= 500 || /site_overrides/i.test(txt)) disableOverrides();
+      return [];
+    }
+    const data = (await res.json()) as { overrides?: SiteOverride[] } | SiteOverride[];
+    return Array.isArray(data) ? data : (data.overrides || []);
+  } catch {
+    return [];
+  }
 }
 
 export async function saveOverride(o: Omit<SiteOverride, "id" | "updated_at">) {
+  if (isOverridesDisabled()) {
+    throw new Error("Overrides are not enabled on the parent platform yet.");
+  }
   const site_id = await getSiteId();
   if (!site_id) throw new Error("No site_id");
-  return postJSON("save_override", { site_id, ...o });
+  try {
+    return await postJSON("save_override", { site_id, ...o });
+  } catch (e) {
+    disableOverrides();
+    throw e;
+  }
 }
 
 export async function fetchSiteUsers() {
