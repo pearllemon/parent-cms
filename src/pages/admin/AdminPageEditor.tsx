@@ -11,7 +11,10 @@ import {
   EditorProvider,
   findNode,
   patchTree,
+  applyStructural,
+  applyInsert,
   type Path,
+  type StructuralOp,
 } from "@/components/editor/EditorContext";
 import EditorPanel from "@/components/editor/EditorPanel";
 import EditableHtml from "@/components/editor/EditableHtml";
