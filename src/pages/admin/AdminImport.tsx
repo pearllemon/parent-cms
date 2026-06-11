@@ -557,11 +557,27 @@ const AdminImport = () => {
         publish_date: it.pubDate ? new Date(it.pubDate).toISOString() : null,
         featured_image_url: it.featuredImageUrl || null,
         type: it.postType, // 'post' or 'page'
-        meta_title: it.meta?.["_yoast_wpseo_title"] || it.meta?.["rank_math_title"] || it.title,
+        meta_title:
+          it.meta?.["_yoast_wpseo_title"] ||
+          it.meta?.["rank_math_title"] ||
+          it.meta?.["_aioseo_title"] ||
+          it.meta?.["_aioseop_title"] ||
+          it.meta?.["_seopress_titles_title"] ||
+          it.title,
         meta_description:
-          it.meta?.["_yoast_wpseo_metadesc"] || it.meta?.["rank_math_description"] || it.excerpt || "",
+          it.meta?.["_yoast_wpseo_metadesc"] ||
+          it.meta?.["rank_math_description"] ||
+          it.meta?.["_aioseo_description"] ||
+          it.meta?.["_aioseop_description"] ||
+          it.meta?.["_seopress_titles_desc"] ||
+          it.excerpt ||
+          "",
         canonical_url:
-          it.meta?.["_yoast_wpseo_canonical"] || it.meta?.["rank_math_canonical_url"] || it.link,
+          it.meta?.["_yoast_wpseo_canonical"] ||
+          it.meta?.["rank_math_canonical_url"] ||
+          it.meta?.["_aioseo_canonical_url"] ||
+          it.meta?.["_seopress_robots_canonical"] ||
+          it.link,
         source: "wp-xml",
         imported_by: userId,
         raw: {

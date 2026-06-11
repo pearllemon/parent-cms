@@ -239,6 +239,12 @@ function SitemapTab({ baseUrl, row, content, onChanged }: { baseUrl: string; row
     onChanged();
   };
 
+  const counts = {
+    posts: content.imported.filter((r: any) => r.type !== "page").length + content.parent.filter((r: any) => r.type !== "page").length,
+    pages: content.imported.filter((r: any) => r.type === "page").length + content.parent.filter((r: any) => r.type === "page").length,
+    total: urls,
+  };
+
   return (
     <Card className="p-4 space-y-4 mt-4">
       <FileHeader
@@ -253,6 +259,13 @@ function SitemapTab({ baseUrl, row, content, onChanged }: { baseUrl: string; row
         baseUrl={baseUrl}
         generatedContent={output}
       />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="rounded-lg border bg-muted/20 p-3"><div className="text-xs text-muted-foreground">Total URLs</div><div className="text-2xl font-semibold">{counts.total}</div></div>
+        <div className="rounded-lg border bg-muted/20 p-3"><div className="text-xs text-muted-foreground">Posts</div><div className="text-2xl font-semibold">{counts.posts}</div></div>
+        <div className="rounded-lg border bg-muted/20 p-3"><div className="text-xs text-muted-foreground">Pages</div><div className="text-2xl font-semibold">{counts.pages}</div></div>
+        <div className="rounded-lg border bg-muted/20 p-3"><div className="text-xs text-muted-foreground">Mode</div><div className="text-sm font-medium mt-1">{auto ? "Auto-generated" : "Manual override"}</div></div>
+      </div>
 
       <div className="grid md:grid-cols-2 gap-3 text-sm">
         {[
