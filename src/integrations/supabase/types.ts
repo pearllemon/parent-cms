@@ -397,6 +397,201 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_conflicts: {
+        Row: {
+          created_at: string
+          id: string
+          local_snapshot: Json | null
+          parent_snapshot: Json | null
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          resource_id: string
+          resource_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          local_snapshot?: Json | null
+          parent_snapshot?: Json | null
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resource_id: string
+          resource_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          local_snapshot?: Json | null
+          parent_snapshot?: Json | null
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resource_id?: string
+          resource_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_events: {
+        Row: {
+          action: string
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          payload: Json | null
+          resource_id: string | null
+          resource_type: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          payload?: Json | null
+          resource_id?: string | null
+          resource_type: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          payload?: Json | null
+          resource_id?: string | null
+          resource_type?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
+      sync_health: {
+        Row: {
+          avg_latency_ms: number | null
+          consecutive_failures: number
+          id: string
+          last_failure_at: string | null
+          last_success_at: string | null
+          resource_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          avg_latency_ms?: number | null
+          consecutive_failures?: number
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          resource_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          avg_latency_ms?: number | null
+          consecutive_failures?: number
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          resource_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_queue: {
+        Row: {
+          created_at: string
+          decision_at: string | null
+          decision_by: string | null
+          decision_note: string | null
+          id: string
+          payload: Json
+          resource_id: string | null
+          resource_type: string
+          scheduled_for: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decision_at?: string | null
+          decision_by?: string | null
+          decision_note?: string | null
+          id?: string
+          payload: Json
+          resource_id?: string | null
+          resource_type: string
+          scheduled_for?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decision_at?: string | null
+          decision_by?: string | null
+          decision_note?: string | null
+          id?: string
+          payload?: Json
+          resource_id?: string | null
+          resource_type?: string
+          scheduled_for?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_settings: {
+        Row: {
+          auto_accept: boolean
+          created_at: string
+          direction: string
+          enabled: boolean
+          id: string
+          notes: string | null
+          resource_type: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_accept?: boolean
+          created_at?: string
+          direction?: string
+          enabled?: boolean
+          id?: string
+          notes?: string | null
+          resource_type: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_accept?: boolean
+          created_at?: string
+          direction?: string
+          enabled?: boolean
+          id?: string
+          notes?: string | null
+          resource_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
