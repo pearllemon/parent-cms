@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Save, Trash2, ArrowLeft, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { FIELD_TYPES, slugify, type CPT, type CustomField, type FieldType } from "@/lib/cpt";
+import { ensureCloudSession } from "@/lib/cloudSession";
 
 const TBL_CPT = "custom_post_types" as any;
 const TBL_FIELD = "custom_fields" as any;
@@ -35,6 +36,7 @@ export default function AdminCPTs() {
   const create = async () => {
     const label = newLabel.trim();
     if (!label) return;
+    if (!(await ensureCloudSession())) return;
     const slug = slugify(label);
     const plural = label.endsWith("s") ? label : label + "s";
     const { data, error } = await (supabase.from(TBL_CPT) as any)

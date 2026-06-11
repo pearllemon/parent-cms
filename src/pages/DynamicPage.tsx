@@ -4,6 +4,7 @@ import Layout from "@/components/site/Layout";
 import { fetchPostBySlug, fetchPosts, type ParentPost } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
 import { useSEO } from "@/lib/seo";
+import { usePostSeoOverride } from "@/lib/usePostSeoOverride";
 import NotFound from "./NotFound";
 
 const DynamicPage = () => {
@@ -37,14 +38,16 @@ const DynamicPage = () => {
     return () => { cancel = true; };
   }, [slug]);
 
+  const seoOverride = usePostSeoOverride(post?.slug);
   useSEO(
     post
       ? {
-          title: post.meta_title || post.title,
-          description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240) || undefined,
-          canonical: post.canonical_url || `/p/${post.slug}`,
+          title: seoOverride?.seo_title || post.meta_title || post.title,
+          description: seoOverride?.seo_description || post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240) || undefined,
+          canonical: seoOverride?.canonical_url || post.canonical_url || `/p/${post.slug}`,
           type: "website",
-          image: post.featured_image_url || undefined,
+          image: seoOverride?.social?.og_image || post.featured_image_url || undefined,
+          jsonLd: (seoOverride?.schema_json && seoOverride.schema_json.length) ? seoOverride.schema_json : undefined,
         }
       : null,
   );

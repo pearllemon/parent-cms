@@ -5,6 +5,7 @@ import { Calendar, ArrowLeft, Tag as TagIcon } from "lucide-react";
 import { fetchPostBySlug, type ParentPost } from "@/lib/parent";
 import CachedImage from "@/components/CachedImage";
 import { useSEO } from "@/lib/seo";
+import { usePostSeoOverride } from "@/lib/usePostSeoOverride";
 import NotFound from "./NotFound";
 
 const BlogPost = () => {
@@ -29,29 +30,33 @@ const BlogPost = () => {
     };
   }, [slug]);
 
-  // SEO — apply once `post` is loaded.
+  const seoOverride = usePostSeoOverride(post?.slug);
+
+  // SEO — apply once `post` is loaded. Rank Math override layered on top.
   useSEO(
     post
       ? {
-          title: post.meta_title || post.title,
-          description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240),
-          canonical: post.canonical_url || `/blog/${post.slug}`,
+          title: seoOverride?.seo_title || post.meta_title || post.title,
+          description: seoOverride?.seo_description || post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240),
+          canonical: seoOverride?.canonical_url || post.canonical_url || `/blog/${post.slug}`,
           type: "article",
-          image: post.featured_image_url || undefined,
-          jsonLd: {
-            "@context": "https://schema.org",
-            "@type": "Article",
-            headline: post.title,
-            image: post.featured_image_url || undefined,
-            datePublished: post.published_at || post.publish_date || undefined,
-            dateModified: (post as any).updated_at || undefined,
-            author: {
-              "@type": "Person",
-              name: typeof post.author === "string" ? post.author : (post.author as any)?.name || "Deepak Shukla",
-            },
-            description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240),
-            mainEntityOfPage: typeof window !== "undefined" ? `${window.location.origin}/blog/${post.slug}` : `/blog/${post.slug}`,
-          },
+          image: seoOverride?.social?.og_image || post.featured_image_url || undefined,
+          jsonLd: (seoOverride?.schema_json && seoOverride.schema_json.length)
+            ? seoOverride.schema_json
+            : {
+                "@context": "https://schema.org",
+                "@type": "Article",
+                headline: post.title,
+                image: post.featured_image_url || undefined,
+                datePublished: post.published_at || post.publish_date || undefined,
+                dateModified: (post as any).updated_at || undefined,
+                author: {
+                  "@type": "Person",
+                  name: typeof post.author === "string" ? post.author : (post.author as any)?.name || "Deepak Shukla",
+                },
+                description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240),
+                mainEntityOfPage: typeof window !== "undefined" ? `${window.location.origin}/blog/${post.slug}` : `/blog/${post.slug}`,
+              },
         }
       : null,
   );

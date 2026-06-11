@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { Eye, Pencil, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { SeoScoreDot } from "@/components/admin/seo/SeoScoreBadge";
+import { loadPostSeoMany } from "@/lib/postSeo";
 
 type Post = {
   id: string;
@@ -41,6 +43,7 @@ const AdminPosts = () => {
   const typeFilter = searchParams.get("type") || "post";
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [seoMap, setSeoMap] = useState<Record<string, { score: number }>>({});
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -94,6 +97,14 @@ const AdminPosts = () => {
 
     setPosts(merged);
     setLoading(false);
+
+    // Fetch SEO scores in the background for overlay dots
+    const refs = merged.map((p) => ({ scope: (p.source === "imported" ? "imported" : "parent") as any, post_id: p.id }));
+    loadPostSeoMany(refs).then((map) => {
+      const out: Record<string, { score: number }> = {};
+      Object.entries(map).forEach(([k, v]: any) => { if (typeof v.last_score === "number") out[k] = { score: v.last_score }; });
+      setSeoMap(out);
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -238,11 +249,18 @@ const AdminPosts = () => {
                 </td>
               </tr>
             )}
-            {filtered.map((p) => (
+            {filtered.map((p) => {
+              const editHref = `/admin/posts/${p.id}${p.source === "imported" ? "?scope=imported" : ""}`;
+              const seoKey = `${p.source === "imported" ? "imported" : "parent"}::${p.id}`;
+              const seoEntry = seoMap[seoKey];
+              return (
               <tr key={p.id} className="border-t">
                 <td className="p-3 font-medium">
                   <div className="flex items-center gap-2">
-                    <span>{p.title || "(untitled)"}</span>
+                    {seoEntry ? <SeoScoreDot score={seoEntry.score} /> : <span className="inline-block w-2.5 h-2.5 rounded-full bg-muted ring-2 ring-background" title="No SEO data" />}
+                    <Link to={editHref} className="hover:underline">
+                      {p.title || "(untitled)"}
+                    </Link>
                     {p.source === "imported" && (
                       <Badge variant="secondary" className="text-[10px]">
                         Imported
@@ -286,7 +304,7 @@ const AdminPosts = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>
