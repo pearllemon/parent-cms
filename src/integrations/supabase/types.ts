@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      elementor_site_settings: {
+        Row: {
+          created_at: string
+          id: string
+          settings: Json
+          source_id: string | null
+          theme: Json
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          source_id?: string | null
+          theme?: Json
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          source_id?: string | null
+          theme?: Json
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      elementor_templates: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          imported_by: string | null
+          kind: string
+          location: string | null
+          settings: Json
+          slug: string | null
+          source: string
+          source_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          imported_by?: string | null
+          kind?: string
+          location?: string | null
+          settings?: Json
+          slug?: string | null
+          source?: string
+          source_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          imported_by?: string | null
+          kind?: string
+          location?: string | null
+          settings?: Json
+          slug?: string | null
+          source?: string
+          source_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       image_assets: {
         Row: {
           alt_text: string | null
@@ -198,6 +273,7 @@ export type Database = {
           body: string | null
           canonical_url: string | null
           created_at: string
+          elementor_data: Json | null
           excerpt: string | null
           featured_image_url: string | null
           id: string
@@ -206,6 +282,7 @@ export type Database = {
           meta_title: string | null
           publish_date: string | null
           raw: Json | null
+          render_mode: string
           site_id: string
           slug: string
           source: string
@@ -218,6 +295,7 @@ export type Database = {
           body?: string | null
           canonical_url?: string | null
           created_at?: string
+          elementor_data?: Json | null
           excerpt?: string | null
           featured_image_url?: string | null
           id?: string
@@ -226,6 +304,7 @@ export type Database = {
           meta_title?: string | null
           publish_date?: string | null
           raw?: Json | null
+          render_mode?: string
           site_id: string
           slug: string
           source?: string
@@ -238,6 +317,7 @@ export type Database = {
           body?: string | null
           canonical_url?: string | null
           created_at?: string
+          elementor_data?: Json | null
           excerpt?: string | null
           featured_image_url?: string | null
           id?: string
@@ -246,6 +326,7 @@ export type Database = {
           meta_title?: string | null
           publish_date?: string | null
           raw?: Json | null
+          render_mode?: string
           site_id?: string
           slug?: string
           source?: string

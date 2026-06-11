@@ -202,6 +202,8 @@ export type ParentPost = {
   meta_title?: string;
   meta_description?: string;
   canonical_url?: string;
+  elementor_data?: unknown;
+  render_mode?: string;
 };
 
 export type PostsResponse = {
@@ -234,6 +236,8 @@ function mapImportedToParent(row: any): ParentPost {
     meta_title: row.meta_title || undefined,
     meta_description: row.meta_description || undefined,
     canonical_url: row.canonical_url || undefined,
+    elementor_data: row.elementor_data || undefined,
+    render_mode: row.render_mode || undefined,
   };
 }
 

@@ -6,7 +6,7 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles, RotateCw } from "lucide-react";
+import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles, RotateCw, Package } from "lucide-react";
 import { toast } from "sonner";
 import {
   collectUsedImagesFromImportedPosts,
@@ -14,6 +14,7 @@ import {
   resumeImageImportJob,
   rewritePostImageUrls,
 } from "@/lib/imageImport";
+import { importElementorZip, type ElementorImportResult } from "@/lib/elementorImport";
 
 type ImportHistoryRow = {
   id: string;
@@ -307,6 +308,45 @@ const AdminImport = () => {
   const [imageJob, setImageJob] = useState<ImageJobRow | null>(null);
   const [scanning, setScanning] = useState(false);
   const [rewriting, setRewriting] = useState(false);
+
+  // ---- Elementor ZIP import state ----
+  const [elementorImporting, setElementorImporting] = useState(false);
+  const [elementorResult, setElementorResult] = useState<ElementorImportResult | null>(null);
+  const [elementorStatus, setElementorStatus] = useState<string>("");
+
+  const onElementorZip = async (file: File) => {
+    setElementorImporting(true);
+    setElementorResult(null);
+    setElementorStatus("Reading ZIP…");
+    try {
+      const res = await importElementorZip(file, (m) => setElementorStatus(m));
+      setElementorResult(res);
+      const total = res.pages + res.posts + res.templates + res.sectionsLibrary;
+      const site_id = config?.site?.id;
+      if (site_id) {
+        await supabase.from("import_history").insert({
+          site_id,
+          source: "elementor-zip",
+          file_name: file.name,
+          file_size_bytes: file.size,
+          parsed_count: total + res.failed,
+          inserted_count: total,
+          failed_count: res.failed,
+          status: res.failed === 0 ? "completed" : total > 0 ? "partial" : "failed",
+          error_sample: res.errors[0] ?? null,
+        });
+        loadHistory();
+      }
+      if (res.failed === 0) toast.success(`Elementor import complete: ${res.pages} pages, ${res.posts} posts, ${res.templates + res.sectionsLibrary} templates.`);
+      else toast.warning(`Imported ${total}, ${res.failed} failed. First error: ${res.errors[0] || ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Elementor import failed");
+    } finally {
+      setElementorImporting(false);
+      setElementorStatus("");
+    }
+  };
+
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -755,6 +795,59 @@ const AdminImport = () => {
           </div>
         </div>
       )}
+
+      {/* Elementor ZIP import */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Package className="w-5 h-5 text-primary" />
+          <h2 className="font-display text-xl">Elementor / Elementor Pro (.zip)</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Import an Elementor "Site Kit" export (ZIP containing <code>manifest.json</code>, <code>templates/</code>,
+          <code>content/</code>, <code>site-settings.json</code>). Pages render with the Elementor renderer; posts
+          use the shared blog template. Existing slugs are <strong>updated in place</strong> — nothing is duplicated.
+          Reusable templates and orphan sections go to the template library for reuse.
+        </p>
+        <label className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:bg-muted/40 transition">
+          <Upload className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+          <span className="text-sm">
+            {elementorImporting
+              ? elementorStatus || "Importing…"
+              : "Click to choose an Elementor .zip export"}
+          </span>
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            className="hidden"
+            disabled={elementorImporting}
+            onChange={(e) => e.target.files?.[0] && onElementorZip(e.target.files[0])}
+          />
+        </label>
+        {elementorResult && (
+          <div className="border rounded-xl p-4 bg-muted/20 text-sm space-y-2">
+            <div className="flex flex-wrap gap-4">
+              <span>📄 {elementorResult.pages} pages</span>
+              <span>📝 {elementorResult.posts} posts</span>
+              <span>🧩 {elementorResult.templates} templates</span>
+              <span>📚 {elementorResult.sectionsLibrary} library items</span>
+              <span>⚙️ {elementorResult.siteSettings ? "site settings saved" : "no site settings"}</span>
+              {elementorResult.failed > 0 && (
+                <span className="text-destructive">⚠️ {elementorResult.failed} failed</span>
+              )}
+            </div>
+            {elementorResult.errors.length > 0 && (
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer">{elementorResult.errors.length} error(s)</summary>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  {elementorResult.errors.slice(0, 8).map((e, i) => (
+                    <li key={i} className="font-mono">{e}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Image import (background worker) */}
       <div className="bg-background border rounded-2xl p-6 space-y-4">

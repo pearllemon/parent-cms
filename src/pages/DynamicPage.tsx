@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import Layout from "@/components/site/Layout";
 import { fetchPostBySlug, fetchPosts, type ParentPost } from "@/lib/parent";
+import ElementorRenderer from "@/components/elementor/ElementorRenderer";
 import NotFound from "./NotFound";
 
 const DynamicPage = () => {
@@ -17,7 +18,6 @@ const DynamicPage = () => {
     setNotFound(false);
 
     (async () => {
-      // Fetch the slug; ensure it's a page (not a post)
       const direct = await fetchPostBySlug(slug);
       if (cancel) return;
       if (direct && direct.type === "page") {
@@ -25,8 +25,7 @@ const DynamicPage = () => {
         setLoading(false);
         return;
       }
-      // Fallback: pull pages list and match
-      const pages = await fetchPosts({ type: "page", limit: 100 });
+      const pages = await fetchPosts({ type: "page", limit: 200 });
       if (cancel) return;
       const match = pages?.posts.find((p) => p.slug === slug);
       if (match) setPost(match);
@@ -34,14 +33,21 @@ const DynamicPage = () => {
       setLoading(false);
     })();
 
-    return () => {
-      cancel = true;
-    };
+    return () => { cancel = true; };
   }, [slug]);
 
   useEffect(() => {
     if (!post) return;
     document.title = post.meta_title || post.title;
+    if (post.meta_description) {
+      let m = document.querySelector('meta[name="description"]');
+      if (!m) {
+        m = document.createElement("meta");
+        m.setAttribute("name", "description");
+        document.head.appendChild(m);
+      }
+      m.setAttribute("content", post.meta_description);
+    }
   }, [post]);
 
   if (notFound) return <NotFound />;
@@ -53,8 +59,20 @@ const DynamicPage = () => {
     );
   }
 
-  const body = post.body || post.content || "";
+  const hasElementor =
+    Array.isArray(post.elementor_data) && (post.elementor_data as unknown[]).length > 0;
 
+  if (hasElementor && post.render_mode !== "template") {
+    return (
+      <Layout>
+        <article>
+          <ElementorRenderer data={post.elementor_data} />
+        </article>
+      </Layout>
+    );
+  }
+
+  const body = post.body || post.content || "";
   return (
     <Layout>
       <section className="bg-gradient-hero border-b">
