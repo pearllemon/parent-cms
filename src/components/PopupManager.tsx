@@ -42,14 +42,24 @@ const PopupManager = () => {
     };
   }, [pc]);
 
+  // Fire impression once when we transition to shown
+  useEffect(() => {
+    if (show && pc?.id) void trackPopupEvent(pc.id, "impression");
+  }, [show, pc?.id]);
+
   if (!show || !pc) return null;
   const bg = pc.bg_color ? `hsl(${pc.bg_color})` : "white";
   const text = pc.text_color ? `hsl(${pc.text_color})` : "black";
   const accent = pc.accent_color ? `hsl(${pc.accent_color})` : "hsl(var(--primary))";
 
   const dismiss = () => {
+    if (pc.id) void trackPopupEvent(pc.id, "dismiss");
     setShow(false);
     sessionStorage.setItem("pl_popup_shown", "1");
+  };
+
+  const onCta = () => {
+    if (pc.id) void trackPopupEvent(pc.id, "click");
   };
 
   return (
