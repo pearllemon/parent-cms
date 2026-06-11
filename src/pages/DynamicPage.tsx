@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import Layout from "@/components/site/Layout";
 import { fetchPostBySlug, fetchPosts, type ParentPost } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
+import { useSEO } from "@/lib/seo";
 import NotFound from "./NotFound";
 
 const DynamicPage = () => {
