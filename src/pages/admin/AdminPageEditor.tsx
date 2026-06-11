@@ -85,7 +85,9 @@ export default function AdminPageEditor() {
   const handleSave = async () => {
     if (!post) return;
     setSaving(true);
-    const payload: Record<string, any> = { updated_at: new Date().toISOString() };
+    const payload: { updated_at: string; elementor_data?: any; body?: string } = {
+      updated_at: new Date().toISOString(),
+    };
     if (hasElementor) payload.elementor_data = tree;
     else payload.body = body;
     const { error } = await supabase.from("imported_posts").update(payload).eq("id", post.id);
