@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSiteConfig } from "@/providers/SiteProvider";
+import { trackPopupEvent } from "@/lib/parent";
 
 type Popup = {
   is_active?: boolean;
