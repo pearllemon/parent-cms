@@ -124,6 +124,7 @@ const AdminShell = () => {
     { path: "/admin/sync-control", label: "Sync Control", icon: "Cloud" },
     { path: "/admin/seo", label: "SEO & Sitemap", icon: "Search" },
     { path: "/admin/seo-files", label: "SEO Files", icon: "Search" },
+    { path: "/admin/seo-audit", label: "SEO Audit", icon: "Search" },
     { path: "/admin/media", label: "Media", icon: "Image" },
     { path: "/admin/settings", label: "Settings", icon: "Settings" },
   ];
