@@ -14,6 +14,7 @@ import {
   Database,
   Upload,
   Cloud,
+  Search,
 } from "lucide-react";
 
 export type AdminRoute = { path: string; label: string; table?: string; icon?: string };
