@@ -1,8 +1,7 @@
-// Rank Math-style SEO side panel with tabs: General, Advanced, Schema, Social.
-// Active tab shows icon + label, inactive tabs show icon only.
-// General tab includes Edit Snippet (opens modal), Focus Keyword,
-// Pillar toggle, Basic SEO / Additional / Title Readability /
-// Content Readability accordions powered by the SEO scoring engine.
+// Built-in SEO side panel with tabs: General, Advanced, Schema, Social.
+// Includes the snippet editor modal, multi-keyword focus field with
+// relevance badges (green/yellow/red), robots controls, schema and
+// social previews. Branding is generic — this is our own SEO engine.
 
 import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -13,11 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Settings, ShieldCheck, Database, Share2, CheckCircle2, XCircle, Sparkles, Pencil, Star } from "lucide-react";
+import { Settings, ShieldCheck, Database, Share2, CheckCircle2, XCircle, Pencil, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SnippetEditorModal from "./SnippetEditorModal";
 import type { PostSeo } from "@/lib/postSeo";
 import { scoreSeo, type Check } from "@/lib/seoScoring";
+import { analyzeKeywords, gradeClass, parseKeywords } from "@/lib/keywordRelevance";
 
 type Tab = "general" | "advanced" | "schema" | "social";
 const TABS: { id: Tab; label: string; icon: any }[] = [
@@ -29,21 +29,23 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
 
 const SCHEMA_TYPES = ["Article", "BlogPosting", "NewsArticle", "Product", "FAQPage", "HowTo", "Event", "LocalBusiness", "Recipe", "Course"];
 
-export type RankMathContext = {
+export type SeoPanelContext = {
   title: string;
   slug: string;
   excerpt: string;
   html: string;
   featured_image?: string | null;
-  url: string; // absolute or path
+  url: string;
 };
+// Back-compat alias for older imports
+export type RankMathContext = SeoPanelContext;
 
 type Props = {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   seo: PostSeo;
   onChange: (next: PostSeo) => void;
-  ctx: RankMathContext;
+  ctx: SeoPanelContext;
   siteUrl?: string;
 };
 
@@ -57,17 +59,18 @@ const CheckRow = ({ c }: { c: Check }) => (
   </div>
 );
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const focusInTitle = (kw: string, title: string) => !!kw && title.toLowerCase().includes(kw.toLowerCase());
 const focusInDesc = (kw: string, d: string) => !!kw && d.toLowerCase().includes(kw.toLowerCase());
 const focusInUrl = (kw: string, slug: string) => !!kw && slug.toLowerCase().includes(kw.toLowerCase().replace(/\s+/g, "-"));
-const focusInHeadings = (kw: string, html: string) => !!kw && new RegExp(`<h[1-6][^>]*>[^<]*${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^<]*</h[1-6]>`, "i").test(html);
+const focusInHeadings = (kw: string, html: string) => !!kw && new RegExp(`<h[1-6][^>]*>[^<]*${escapeRe(kw)}[^<]*</h[1-6]>`, "i").test(html);
 const focusInFirst10 = (kw: string, text: string) => {
   if (!kw) return false;
   const slice = text.slice(0, Math.max(120, Math.floor(text.length * 0.1)));
   return slice.toLowerCase().includes(kw.toLowerCase());
 };
 
-export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, siteUrl }: Props) {
+export default function SeoPanel({ open, onOpenChange, seo, onChange, ctx, siteUrl }: Props) {
   const [tab, setTab] = useState<Tab>("general");
   const [snippetOpen, setSnippetOpen] = useState(false);
 
@@ -75,7 +78,7 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
 
   const effTitle = (seo.seo_title || ctx.title || "").trim();
   const effDesc = (seo.seo_description || ctx.excerpt || "").trim();
-  const kw = (seo.focus_keyword || "").trim();
+  const kwRaw = (seo.focus_keyword || "").trim();
   const text = (ctx.html || "").replace(/<[^>]+>/g, " ");
 
   const seoResult = scoreSeo({
@@ -83,7 +86,11 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
     html: ctx.html, canonical: seo.canonical_url || ctx.url, ogImage: ctx.featured_image || seo.social.og_image,
   });
 
-  // Rank Math-style focused checks
+  // Multi-keyword analyses (badges)
+  const keywordAnalyses = analyzeKeywords(kwRaw, { title: effTitle, description: effDesc, slug: ctx.slug, html: ctx.html });
+  const kw = parseKeywords(kwRaw)[0] || "";
+
+  // Focused checks (use primary keyword)
   const basic: Check[] = [
     { id: "kw-title", label: "Focus keyword in SEO title", weight: 5, passed: focusInTitle(kw, effTitle) },
     { id: "kw-desc", label: "Focus keyword in meta description", weight: 5, passed: focusInDesc(kw, effDesc) },
@@ -93,18 +100,17 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
   ];
   const additional: Check[] = [
     { id: "kw-h", label: "Focus keyword in subheading(s)", weight: 3, passed: focusInHeadings(kw, ctx.html) },
-    { id: "kw-img", label: "An image alt contains focus keyword", weight: 3, passed: !!kw && new RegExp(`alt=["'][^"']*${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^"']*["']`, "i").test(ctx.html) },
+    { id: "kw-img", label: "An image alt contains focus keyword", weight: 3, passed: !!kw && new RegExp(`alt=["'][^"']*${escapeRe(kw)}[^"']*["']`, "i").test(ctx.html) },
     { id: "density", label: "Keyword density 0.5–2.5%", weight: 3, passed: (() => {
       if (!kw) return false;
       const wc = text.split(/\s+/).filter(Boolean).length || 1;
-      const m = text.toLowerCase().match(new RegExp(kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"));
+      const m = text.toLowerCase().match(new RegExp(escapeRe(kw.toLowerCase()), "g"));
       const d = ((m?.length || 0) / wc) * 100;
       return d >= 0.5 && d <= 2.5;
     })() },
     { id: "url-len", label: "URL is short and clean", weight: 2, passed: ctx.slug.length > 0 && ctx.slug.length <= 75 && /^[a-z0-9-]+$/.test(ctx.slug) },
     { id: "external", label: "Linking to external resources", weight: 2, passed: /<a\b[^>]*\shref=["']https?:/i.test(ctx.html) },
     { id: "internal", label: "Linking to internal resources", weight: 2, passed: /<a\b[^>]*\shref=["']\//i.test(ctx.html) },
-    { id: "unique-kw", label: "Focus keyword not used before", weight: 1, passed: true },
   ];
   const titleRead: Check[] = [
     { id: "t-num", label: "Title contains a number (e.g. \"10 best\")", weight: 2, passed: /\d/.test(effTitle) },
@@ -144,8 +150,8 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto p-0">
           <SheetHeader className="px-4 py-3 border-b flex flex-row items-center justify-between space-y-0">
             <SheetTitle className="text-base flex items-center gap-2">
-              Rank Math
-              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+              SEO Editor
+              <Target className="w-4 h-4 text-blue-500" />
             </SheetTitle>
           </SheetHeader>
 
@@ -167,23 +173,37 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
                   </Button>
                 </div>
 
-                {/* Focus keyword */}
+                {/* Focus keywords (comma separated) */}
                 <div>
                   <label className="text-xs font-medium flex items-center gap-1">
-                    Focus Keyword
-                    <Button size="sm" variant="outline" className="h-6 text-[10px] ml-auto" disabled>
-                      <Sparkles className="w-3 h-3 mr-1" /> Content AI
-                    </Button>
+                    Focus Keywords
+                    <span className="ml-auto text-[10px] text-muted-foreground">comma separated</span>
                   </label>
-                  <div className="bg-orange-100 border border-orange-300 rounded-md mt-1 px-3 py-2 flex items-center gap-2">
-                    <Star className="w-3.5 h-3.5 text-orange-500" />
+                  <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-md mt-1 px-3 py-2 flex items-center gap-2">
+                    <Target className="w-3.5 h-3.5 text-blue-500" />
                     <input
-                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-orange-400"
-                      value={kw}
+                      className="flex-1 bg-transparent text-sm outline-none"
+                      value={kwRaw}
                       onChange={(e) => set("focus_keyword", e.target.value)}
-                      placeholder="Example: rank math seo"
+                      placeholder="seo audit, on-page seo, technical seo"
                     />
                   </div>
+                  {keywordAnalyses.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {keywordAnalyses.map((a) => (
+                        <span
+                          key={a.keyword}
+                          title={`${a.score}/100 — ${a.notes.join(" · ") || "Looks good"}`}
+                          className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", gradeClass(a.grade))}
+                        >
+                          {a.keyword} · {a.score}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Green = strong match · Yellow = partial · Red = missing from content.
+                  </p>
                 </div>
 
                 {/* Pillar */}
@@ -196,25 +216,25 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
                 <Accordion type="multiple" defaultValue={["basic"]} className="border rounded-md">
                   <AccordionItem value="basic">
                     <AccordionTrigger className="px-3 py-2 text-sm">
-                      Basic SEO <span className="ml-2 text-xs text-red-500">{basic.filter((c) => !c.passed).length} Errors</span>
+                      Basic SEO <span className="ml-2 text-xs text-red-500">{basic.filter((c) => !c.passed).length} issues</span>
                     </AccordionTrigger>
                     <AccordionContent className="px-3 pb-2">{basic.map((c) => <CheckRow key={c.id} c={c} />)}</AccordionContent>
                   </AccordionItem>
                   <AccordionItem value="add">
                     <AccordionTrigger className="px-3 py-2 text-sm">
-                      Additional <span className="ml-2 text-xs text-red-500">{additional.filter((c) => !c.passed).length} Errors</span>
+                      Additional <span className="ml-2 text-xs text-red-500">{additional.filter((c) => !c.passed).length} issues</span>
                     </AccordionTrigger>
                     <AccordionContent className="px-3 pb-2">{additional.map((c) => <CheckRow key={c.id} c={c} />)}</AccordionContent>
                   </AccordionItem>
                   <AccordionItem value="title">
                     <AccordionTrigger className="px-3 py-2 text-sm">
-                      Title Readability <span className="ml-2 text-xs text-red-500">{titleRead.filter((c) => !c.passed).length} Errors</span>
+                      Title Readability <span className="ml-2 text-xs text-red-500">{titleRead.filter((c) => !c.passed).length} issues</span>
                     </AccordionTrigger>
                     <AccordionContent className="px-3 pb-2">{titleRead.map((c) => <CheckRow key={c.id} c={c} />)}</AccordionContent>
                   </AccordionItem>
                   <AccordionItem value="content">
                     <AccordionTrigger className="px-3 py-2 text-sm">
-                      Content Readability <span className="ml-2 text-xs text-green-600">All Good</span>
+                      Content Readability <span className="ml-2 text-xs text-green-600">All good</span>
                     </AccordionTrigger>
                     <AccordionContent className="px-3 pb-2">{contentRead.map((c) => <CheckRow key={c.id} c={c} />)}</AccordionContent>
                   </AccordionItem>
@@ -317,7 +337,7 @@ export default function RankMathPanel({ open, onOpenChange, seo, onChange, ctx, 
   );
 }
 
-function SchemaTab({ seo, ctx, onChange }: { seo: PostSeo; ctx: RankMathContext; onChange: (s: any[]) => void }) {
+function SchemaTab({ seo, ctx, onChange }: { seo: PostSeo; ctx: SeoPanelContext; onChange: (s: any[]) => void }) {
   const items = seo.schema_json || [];
   const add = (type: string) => {
     const base: any = {
