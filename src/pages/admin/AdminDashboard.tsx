@@ -23,18 +23,18 @@ const AdminDashboard = () => {
     const tasks: Promise<unknown>[] = [];
 
     if (siteId) {
-      tasks.push(parent.from("posts").select("id", { count: "exact", head: true }).eq("site_id", siteId).then(({ count }) => setParentPostCount(count ?? 0)));
-      tasks.push(parent.from("leads").select("id", { count: "exact", head: true }).eq("source_site_id", siteId).then(({ count }) => setLeadCount(count ?? 0)));
+      tasks.push(Promise.resolve(parent.from("posts").select("id", { count: "exact", head: true }).eq("site_id", siteId)).then(({ count }: any) => setParentPostCount(count ?? 0)));
+      tasks.push(Promise.resolve(parent.from("leads").select("id", { count: "exact", head: true }).eq("source_site_id", siteId)).then(({ count }: any) => setLeadCount(count ?? 0)));
     } else {
       setParentPostCount(0); setLeadCount(0);
     }
 
-    tasks.push(cloud.from("imported_posts").select("id", { count: "exact", head: true }).then(({ count }) => setImportedCount(count ?? 0)));
-    tasks.push(cloud.from("cpt_entries").select("id", { count: "exact", head: true }).then(({ count }) => setCptCount(count ?? 0)));
+    tasks.push(Promise.resolve(cloud.from("imported_posts").select("id", { count: "exact", head: true })).then(({ count }: any) => setImportedCount(count ?? 0)));
+    tasks.push(Promise.resolve(cloud.from("cpt_entries").select("id", { count: "exact", head: true })).then(({ count }: any) => setCptCount(count ?? 0)));
 
-    tasks.push((cloud.from("page_view_events" as any) as any).select("id", { count: "exact", head: true }).then(({ count }: any) => setChildViewsTotal(count ?? 0)));
+    tasks.push(Promise.resolve((cloud.from("page_view_events" as any) as any).select("id", { count: "exact", head: true })).then(({ count }: any) => setChildViewsTotal(count ?? 0)));
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    tasks.push((cloud.from("page_view_events" as any) as any).select("id", { count: "exact", head: true }).gte("created_at", since).then(({ count }: any) => setChildViews24h(count ?? 0)));
+    tasks.push(Promise.resolve((cloud.from("page_view_events" as any) as any).select("id", { count: "exact", head: true }).gte("created_at", since)).then(({ count }: any) => setChildViews24h(count ?? 0)));
 
     await Promise.allSettled(tasks);
     setBusy(false);
