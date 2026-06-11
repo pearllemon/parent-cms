@@ -198,8 +198,17 @@ function VersionHistory({ type, onRollback }: { type: FileType; onRollback: (v: 
 }
 
 async function persistRow(type: FileType, patch: Partial<SeoFileRow>, generated?: string) {
+  // Always cache `generated` into manual_content so the public edge endpoint
+  // can serve the latest output without re-running the build pipeline.
+  // When auto_enabled is true, manual_content acts as a cache; when false,
+  // it's the admin's authoritative override.
   const update: any = { ...patch, updated_at: new Date().toISOString() };
-  if (generated !== undefined) update.last_generated_at = new Date().toISOString();
+  if (generated !== undefined) {
+    update.last_generated_at = new Date().toISOString();
+    if (patch.manual_content === undefined || patch.manual_content === null) {
+      update.manual_content = generated;
+    }
+  }
   const { error } = await supabase.from("seo_files" as any).update(update).eq("file_type", type);
   if (error) throw error;
 }
