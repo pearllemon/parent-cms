@@ -98,6 +98,7 @@ export default function AdminSeoFiles() {
           <TabsTrigger value="sitemap">Sitemap</TabsTrigger>
           <TabsTrigger value="robots">Robots</TabsTrigger>
           <TabsTrigger value="llms">LLMs</TabsTrigger>
+          <TabsTrigger value="automation">Automation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sitemap">
@@ -108,6 +109,9 @@ export default function AdminSeoFiles() {
         </TabsContent>
         <TabsContent value="llms">
           <LlmsTab baseUrl={baseUrl} row={rows.llms} content={content} siteName={config?.site?.name as string | undefined} onChanged={reload} />
+        </TabsContent>
+        <TabsContent value="automation">
+          <SeoAutomationPanel baseUrl={baseUrl} siteName={config?.site?.name as string | undefined} />
         </TabsContent>
       </Tabs>
     </div>
