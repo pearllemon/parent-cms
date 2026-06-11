@@ -74,6 +74,7 @@ const App = () => (
               <Route path="import" element={<AdminImport />} />
               <Route path="sync" element={<AdminSync />} />
               <Route path="seo" element={<AdminSeo />} />
+              <Route path="seo-files" element={<AdminSeoFiles />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
