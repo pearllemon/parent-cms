@@ -1,8 +1,17 @@
 import Layout from "@/components/site/Layout";
 import ContactBlock from "@/components/site/ContactBlock";
 import { Mail, Phone, MapPin } from "lucide-react";
+import { useSEO } from "@/lib/seo";
 
-const Contact = () => (
+const Contact = () => {
+  useSEO({
+    title: "Contact Deepak Shukla — Hire for SEO, Growth & Sales",
+    description:
+      "Drop a note, send a message or call my team. We’ve scaled companies from $100k/month to $1M/month.",
+    canonical: "/contact",
+    type: "website",
+  });
+  return (
   <Layout>
     <section className="bg-gradient-hero">
       <div className="container py-20 md:py-24 max-w-4xl">
