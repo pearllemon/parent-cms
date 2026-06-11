@@ -4,12 +4,19 @@ import Layout from "@/components/site/Layout";
 import { Calendar, ArrowRight } from "lucide-react";
 import { fetchPosts, type ParentPost } from "@/lib/parent";
 import CachedImage from "@/components/CachedImage";
+import { useSEO } from "@/lib/seo";
 
 const PAGE_SIZE = 30;
 
 const Blog = () => {
   const [params, setParams] = useSearchParams();
   const page = Math.max(1, Number(params.get("page") || "1"));
+  useSEO({
+    title: page > 1 ? `Blog — Page ${page} | Deepak Shukla` : "Blog | Deepak Shukla",
+    description: "Essays on growth, sales, SEO, and building 7-figure businesses by Deepak Shukla.",
+    canonical: page > 1 ? `/blog?page=${page}` : "/blog",
+    type: "website",
+  });
   const [posts, setPosts] = useState<ParentPost[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
