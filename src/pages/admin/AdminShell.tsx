@@ -121,6 +121,7 @@ const AdminShell = () => {
   const KNOWN_BOTTOM: AdminRoute[] = [
     { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
     { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
+    { path: "/admin/seo", label: "SEO & Sitemap", icon: "Search" },
     { path: "/admin/media", label: "Media", icon: "Image" },
     { path: "/admin/settings", label: "Settings", icon: "Settings" },
   ];
