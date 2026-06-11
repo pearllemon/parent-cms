@@ -1,4 +1,4 @@
-// Loads/saves Rank Math-style SEO data per post.
+// Loads/saves SEO data per post.
 // Storage: child-side `post_seo` table keyed by (scope, post_id).
 // When scope='parent' we also try to mirror writeable fields to the
 // parent CMS posts row (best-effort; ignored if parent schema lacks

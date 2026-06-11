@@ -32,7 +32,7 @@ const BlogPost = () => {
 
   const seoOverride = usePostSeoOverride(post?.slug);
 
-  // SEO — apply once `post` is loaded. Rank Math override layered on top.
+  // SEO — apply once `post` is loaded. Custom SEO override layered on top.
   useSEO(
     post
       ? {

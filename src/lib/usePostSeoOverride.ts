@@ -1,6 +1,6 @@
 // React hook: loads any matching post_seo override row for the given
 // slug and exposes it. Used by BlogPost / DynamicPage to layer
-// Rank Math-style SEO + JSON-LD on top of the parent post's defaults.
+// custom SEO + JSON-LD on top of the parent post's defaults.
 
 import { useEffect, useState } from "react";
 import { supabase as cloud } from "@/integrations/supabase/client";
