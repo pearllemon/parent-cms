@@ -309,6 +309,45 @@ const AdminImport = () => {
   const [scanning, setScanning] = useState(false);
   const [rewriting, setRewriting] = useState(false);
 
+  // ---- Elementor ZIP import state ----
+  const [elementorImporting, setElementorImporting] = useState(false);
+  const [elementorResult, setElementorResult] = useState<ElementorImportResult | null>(null);
+  const [elementorStatus, setElementorStatus] = useState<string>("");
+
+  const onElementorZip = async (file: File) => {
+    setElementorImporting(true);
+    setElementorResult(null);
+    setElementorStatus("Reading ZIP…");
+    try {
+      const res = await importElementorZip(file, (m) => setElementorStatus(m));
+      setElementorResult(res);
+      const total = res.pages + res.posts + res.templates + res.sectionsLibrary;
+      const site_id = config?.site?.id;
+      if (site_id) {
+        await supabase.from("import_history").insert({
+          site_id,
+          source: "elementor-zip",
+          file_name: file.name,
+          file_size_bytes: file.size,
+          parsed_count: total + res.failed,
+          inserted_count: total,
+          failed_count: res.failed,
+          status: res.failed === 0 ? "completed" : total > 0 ? "partial" : "failed",
+          error_sample: res.errors[0] ?? null,
+        });
+        loadHistory();
+      }
+      if (res.failed === 0) toast.success(`Elementor import complete: ${res.pages} pages, ${res.posts} posts, ${res.templates + res.sectionsLibrary} templates.`);
+      else toast.warning(`Imported ${total}, ${res.failed} failed. First error: ${res.errors[0] || ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Elementor import failed");
+    } finally {
+      setElementorImporting(false);
+      setElementorStatus("");
+    }
+  };
+
+
   const loadHistory = async () => {
     setLoadingHistory(true);
     // History is shared across all users / dashboards (WordPress-style)
