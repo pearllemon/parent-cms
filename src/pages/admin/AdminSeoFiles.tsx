@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { RefreshCcw, Save, Download, Copy, History, RotateCcw, Plus, Trash2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { SeoAutomationPanel } from "./seo/SeoAutomationPanel";
 
 type FileType = "sitemap" | "robots" | "llms";
 
