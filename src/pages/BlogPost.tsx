@@ -4,6 +4,7 @@ import Layout from "@/components/site/Layout";
 import { Calendar, ArrowLeft, Tag as TagIcon } from "lucide-react";
 import { fetchPostBySlug, type ParentPost } from "@/lib/parent";
 import CachedImage from "@/components/CachedImage";
+import { useSEO } from "@/lib/seo";
 import NotFound from "./NotFound";
 
 const BlogPost = () => {
