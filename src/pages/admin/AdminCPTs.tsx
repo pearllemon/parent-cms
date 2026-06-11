@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Save, Trash2, ArrowLeft, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { FIELD_TYPES, slugify, type CPT, type CustomField, type FieldType } from "@/lib/cpt";
+import { ensureCloudSession } from "@/lib/cloudSession";
 
 const TBL_CPT = "custom_post_types" as any;
 const TBL_FIELD = "custom_fields" as any;
