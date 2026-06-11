@@ -5,7 +5,7 @@
 //   Right sidebar — Status & Visibility, Publish, Featured image,
 //                   Excerpt, Slug, Author, Template, Parent, Discussion,
 //                   Revisions count, Lock modified date, Move to Bin,
-//                   SEO score badge (opens Rank Math panel).
+//                   SEO score badge (opens built-in SEO editor).
 //
 // Supports both parent-CMS posts (scope=parent, default) and locally
 // imported posts (scope=imported, via ?scope=imported). SEO data
@@ -29,16 +29,18 @@ import {
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
-  ChevronDown, ChevronRight, ExternalLink, Trash2, History, Upload, Image as ImageIcon,
+  ChevronDown, ChevronRight, ExternalLink, Trash2, History, Upload, Image as ImageIcon, LayoutTemplate,
 } from "lucide-react";
 import RichTextEditor from "@/components/editor/RichTextEditor";
 import SeoScoreBadge, { seoColor } from "@/components/admin/seo/SeoScoreBadge";
-import RankMathPanel from "@/components/admin/seo/RankMathPanel";
+import SeoPanel from "@/components/admin/seo/RankMathPanel";
 import { ensureCloudSession } from "@/lib/cloudSession";
 import {
   emptySeo, loadPostSeo, savePostSeo, type PostSeo, type Scope,
 } from "@/lib/postSeo";
 import { scoreSeo } from "@/lib/seoScoring";
+import { analyzeKeywords, gradeClass } from "@/lib/keywordRelevance";
+
 
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 75);
@@ -247,6 +249,9 @@ const AdminPostEditorWP = () => {
           <h1 className="font-display text-2xl">{isNew ? `New ${form.type}` : `Edit ${form.type}`}</h1>
           <div className="flex items-center gap-2">
             <SeoScoreBadge score={liveScore} onClick={() => setSeoOpen(true)} />
+            <Button variant="outline" size="sm" onClick={() => nav(`/admin/edit/${id || "new"}`)}>
+              <LayoutTemplate className="w-4 h-4 mr-1" /> Edit Visually
+            </Button>
             <Button variant="outline" disabled={saving} onClick={() => save()}>Save draft</Button>
             <Button disabled={saving} onClick={() => save("published")} className="bg-green-600 hover:bg-green-700">
               {form.status === "published" ? "Update" : "Publish"}
@@ -354,7 +359,7 @@ const AdminPostEditorWP = () => {
           </div>
         </SideBlock>
 
-        {/* SEO Score box (the Rank Math-style colored card) */}
+        {/* SEO Score card */}
         <button
           type="button"
           onClick={() => setSeoOpen(true)}
@@ -364,11 +369,34 @@ const AdminPostEditorWP = () => {
             <div>
               <div className="text-xs uppercase tracking-wide opacity-80">SEO Score</div>
               <div className="text-2xl font-bold">{liveScore} / 100</div>
-              <div className="text-xs opacity-90">{colors.label} — click to open Rank Math</div>
+              <div className="text-xs opacity-90">{colors.label} — click to open SEO editor</div>
             </div>
             <ChevronRight className="w-5 h-5" />
           </div>
         </button>
+
+        {/* Focus keyword relevance badges */}
+        {seo.focus_keyword && (
+          <div className="bg-background border rounded-2xl p-3 space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">Focus keyword relevance</div>
+            <div className="flex flex-wrap gap-1.5">
+              {analyzeKeywords(seo.focus_keyword, {
+                title: seo.seo_title || form.title,
+                description: seo.seo_description || form.excerpt,
+                slug: fullSlug,
+                html: form.body,
+              }).map((a) => (
+                <span
+                  key={a.keyword}
+                  title={`${a.score}/100 — ${a.notes.join(" · ") || "Looks good"}`}
+                  className={`text-xs px-2 py-0.5 rounded-full border font-medium ${gradeClass(a.grade)}`}
+                >
+                  {a.keyword} · {a.score}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <SideBlock title="Featured Image" defaultOpen>
           {form.featured_image_url ? (
@@ -400,7 +428,7 @@ const AdminPostEditorWP = () => {
         </SideBlock>
       </aside>
 
-      <RankMathPanel
+      <SeoPanel
         open={seoOpen}
         onOpenChange={setSeoOpen}
         seo={seo}

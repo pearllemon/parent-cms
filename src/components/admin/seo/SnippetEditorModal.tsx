@@ -1,4 +1,5 @@
-// Rank Math-style "Edit Snippet" popup. Live Google preview, character
+// "Edit Snippet" popup. Live Google preview, character
+
 // counters, mobile/desktop toggle, Generate-With-AI hook (stub callback).
 
 import { useMemo, useState } from "react";

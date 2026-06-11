@@ -1,5 +1,5 @@
-// Color-graded SEO score chip, modelled on Rank Math's pill.
-// Red <40, Orange <70, Green <90, Blue >=90.
+// Color-graded SEO score chip. Red <40, Orange <70, Green <90, Blue >=90.
+
 
 import { cn } from "@/lib/utils";
 
