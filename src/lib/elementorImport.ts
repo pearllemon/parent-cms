@@ -224,10 +224,27 @@ export async function importElementorZip(
         publish_date: it.pubDate ? new Date(it.pubDate.replace(" ", "T")).toISOString() : null,
         featured_image_url: it.featuredImageUrl || null,
         type: postType,
-        meta_title: it.meta["_yoast_wpseo_title"] || it.meta["rank_math_title"] || it.title,
+        meta_title:
+          it.meta["_yoast_wpseo_title"] ||
+          it.meta["rank_math_title"] ||
+          it.meta["_aioseo_title"] ||
+          it.meta["_aioseop_title"] ||
+          it.meta["_seopress_titles_title"] ||
+          it.title,
         meta_description:
-          it.meta["_yoast_wpseo_metadesc"] || it.meta["rank_math_description"] || it.excerpt || "",
-        canonical_url: it.meta["_yoast_wpseo_canonical"] || it.meta["rank_math_canonical_url"] || it.link,
+          it.meta["_yoast_wpseo_metadesc"] ||
+          it.meta["rank_math_description"] ||
+          it.meta["_aioseo_description"] ||
+          it.meta["_aioseop_description"] ||
+          it.meta["_seopress_titles_desc"] ||
+          it.excerpt ||
+          "",
+        canonical_url:
+          it.meta["_yoast_wpseo_canonical"] ||
+          it.meta["rank_math_canonical_url"] ||
+          it.meta["_aioseo_canonical_url"] ||
+          it.meta["_seopress_robots_canonical"] ||
+          it.link,
         source: "elementor",
         imported_by: userId,
         raw: { wp_post_id: fileId, meta: it.meta, kind: typeDir } as unknown as never,
