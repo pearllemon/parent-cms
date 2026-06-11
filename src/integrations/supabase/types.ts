@@ -623,6 +623,33 @@ export type Database = {
         }
         Relationships: []
       }
+      page_view_events: {
+        Row: {
+          created_at: string
+          id: string
+          path: string
+          referrer: string | null
+          session_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          path: string
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          path?: string
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       post_seo: {
         Row: {
           author_id: string | null
@@ -685,6 +712,48 @@ export type Database = {
           seo_title?: string | null
           slug?: string | null
           social?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      redirects: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          from_path: string
+          hits: number
+          id: string
+          last_hit_at: string | null
+          match_type: string
+          notes: string | null
+          status_code: number
+          to_url: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          from_path: string
+          hits?: number
+          id?: string
+          last_hit_at?: string | null
+          match_type?: string
+          notes?: string | null
+          status_code?: number
+          to_url: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          from_path?: string
+          hits?: number
+          id?: string
+          last_hit_at?: string | null
+          match_type?: string
+          notes?: string | null
+          status_code?: number
+          to_url?: string
           updated_at?: string
         }
         Relationships: []
@@ -776,6 +845,96 @@ export type Database = {
           settings?: Json
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      seo_scores: {
+        Row: {
+          aeo_score: number
+          created_at: string
+          description: string | null
+          details: Json | null
+          geo_score: number
+          id: string
+          key: string
+          last_scanned_at: string
+          scope: string
+          seo_score: number
+          title: string | null
+          total_score: number
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          aeo_score?: number
+          created_at?: string
+          description?: string | null
+          details?: Json | null
+          geo_score?: number
+          id?: string
+          key: string
+          last_scanned_at?: string
+          scope: string
+          seo_score?: number
+          title?: string | null
+          total_score?: number
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          aeo_score?: number
+          created_at?: string
+          description?: string | null
+          details?: Json | null
+          geo_score?: number
+          id?: string
+          key?: string
+          last_scanned_at?: string
+          scope?: string
+          seo_score?: number
+          title?: string | null
+          total_score?: number
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      seo_settings: {
+        Row: {
+          base_url: string | null
+          default_focus_keyword: string | null
+          default_meta_description: string | null
+          default_title_suffix: string | null
+          id: string
+          organization_logo: string | null
+          organization_name: string | null
+          social_image: string | null
+          twitter_handle: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string | null
+          default_focus_keyword?: string | null
+          default_meta_description?: string | null
+          default_title_suffix?: string | null
+          id?: string
+          organization_logo?: string | null
+          organization_name?: string | null
+          social_image?: string | null
+          twitter_handle?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string | null
+          default_focus_keyword?: string | null
+          default_meta_description?: string | null
+          default_title_suffix?: string | null
+          id?: string
+          organization_logo?: string | null
+          organization_name?: string | null
+          social_image?: string | null
+          twitter_handle?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -971,6 +1130,27 @@ export type Database = {
           resource_type?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      user_table_prefs: {
+        Row: {
+          id: string
+          key: string
+          prefs: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          prefs?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          prefs?: Json
+          updated_at?: string
         }
         Relationships: []
       }
