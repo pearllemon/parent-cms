@@ -8,6 +8,7 @@
 
 import { CSSProperties, ReactNode, useMemo } from "react";
 import { useEditor, type Path } from "@/components/editor/EditorContext";
+import NodeToolbar from "@/components/editor/NodeToolbar";
 
 type ElNode = {
   id?: string;
@@ -83,6 +84,11 @@ function Heading({ s }: { s: Record<string, any> }) {
         ...textAlign(s),
         color: s.title_color || undefined,
         fontSize: px(s.typography_font_size) || undefined,
+        fontFamily: s.typography_font_family || undefined,
+        fontWeight: s.typography_font_weight || undefined,
+        lineHeight: px(s.typography_line_height) || (s.typography_line_height?.size ?? undefined),
+        letterSpacing: px(s.typography_letter_spacing) || undefined,
+        textTransform: (s.typography_text_transform || undefined) as any,
         margin: 0,
       }}
       className="font-display"
@@ -413,9 +419,12 @@ function EditableShell({
       onClick={(e) => { e.stopPropagation(); ed.select(fullPath); }}
     >
       {isSelected && (
-        <span className="absolute -top-6 left-0 z-30 text-[10px] uppercase tracking-wide bg-blue-500 text-white px-1.5 py-0.5 rounded-sm pointer-events-none">
-          {kind === "widget" ? (node.widgetType || "widget") : kind}
-        </span>
+        <>
+          <span className="absolute -top-6 left-0 z-30 text-[10px] uppercase tracking-wide bg-blue-500 text-white px-1.5 py-0.5 rounded-sm pointer-events-none">
+            {kind === "widget" ? (node.widgetType || "widget") : kind}
+          </span>
+          <NodeToolbar path={fullPath} />
+        </>
       )}
       {children}
     </div>

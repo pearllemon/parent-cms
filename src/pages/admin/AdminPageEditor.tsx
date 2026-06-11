@@ -11,10 +11,14 @@ import {
   EditorProvider,
   findNode,
   patchTree,
+  applyStructural,
+  applyInsert,
   type Path,
+  type StructuralOp,
 } from "@/components/editor/EditorContext";
 import EditorPanel from "@/components/editor/EditorPanel";
 import EditableHtml from "@/components/editor/EditableHtml";
+import SectionLibraryDropZone from "@/components/editor/SectionLibraryDropZone";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft, ExternalLink, Save } from "lucide-react";
@@ -81,6 +85,17 @@ export default function AdminPageEditor() {
   }, []);
 
   const getNodeAt = useCallback((p: Path) => findNode(tree, p), [tree]);
+
+  const structural = useCallback((path: Path, op: StructuralOp) => {
+    setTree((t) => applyStructural(t, path, op));
+    setDirty(true);
+    setSelected(null);
+  }, []);
+
+  const insertNode = useCallback((node: any, parentPath?: Path) => {
+    setTree((t) => applyInsert(t, node, parentPath));
+    setDirty(true);
+  }, []);
 
   const handleSave = async () => {
     if (!post) return;
@@ -159,8 +174,11 @@ export default function AdminPageEditor() {
                 setHover={setHovered}
                 patchAt={patchAt}
                 getNodeAt={getNodeAt}
+                structural={structural}
+                insertNode={insertNode}
               >
                 <ElementorRenderer data={tree} />
+                <SectionLibraryDropZone />
               </EditorProvider>
             ) : (
               <div className="container py-12 max-w-3xl">
@@ -186,6 +204,8 @@ export default function AdminPageEditor() {
               setHover={setHovered}
               patchAt={patchAt}
               getNodeAt={getNodeAt}
+              structural={structural}
+              insertNode={insertNode}
             >
               <EditorPanel />
             </EditorProvider>

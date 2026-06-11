@@ -179,6 +179,46 @@ function HeadingFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => vo
       <Field label="Font size">
         <NumberWithUnit value={s.typography_font_size} onChange={(v) => patch((p) => ({ ...p, typography_font_size: v }))} />
       </Field>
+      <Field label="Font family">
+        <TextInput
+          value={s.typography_font_family}
+          placeholder="e.g. Inter, Georgia, serif"
+          onChange={(v) => patch((p) => ({ ...p, typography_font_family: v }))}
+        />
+      </Field>
+      <Field label="Font weight">
+        <select
+          value={s.typography_font_weight || ""}
+          onChange={(e) => patch((p) => ({ ...p, typography_font_weight: e.target.value }))}
+          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+        >
+          <option value="">default</option>
+          {["100","200","300","400","500","600","700","800","900","bold","normal"].map((w) => <option key={w}>{w}</option>)}
+        </select>
+      </Field>
+      <Field label="Line height">
+        <NumberWithUnit
+          value={s.typography_line_height}
+          onChange={(v) => patch((p) => ({ ...p, typography_line_height: v }))}
+          units={["em", "px", "%"]}
+        />
+      </Field>
+      <Field label="Letter spacing">
+        <NumberWithUnit
+          value={s.typography_letter_spacing}
+          onChange={(v) => patch((p) => ({ ...p, typography_letter_spacing: v }))}
+          units={["px", "em"]}
+        />
+      </Field>
+      <Field label="Text transform">
+        <select
+          value={s.typography_text_transform || ""}
+          onChange={(e) => patch((p) => ({ ...p, typography_text_transform: e.target.value }))}
+          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+        >
+          {["", "none", "uppercase", "lowercase", "capitalize"].map((v) => <option key={v} value={v}>{v || "default"}</option>)}
+        </select>
+      </Field>
       <Field label="Link URL">
         <TextInput value={s.link?.url} onChange={(v) => patch((p) => ({ ...p, link: { ...(p.link || {}), url: v } }))} />
       </Field>
