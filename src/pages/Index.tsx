@@ -13,7 +13,30 @@ import EntrepreneurshipWealth from "@/components/site/EntrepreneurshipWealth";
 import LearnMoreCTA from "@/components/site/LearnMoreCTA";
 import LatestBlogs from "@/components/site/LatestBlogs";
 
+import { useSEO } from "@/lib/seo";
+
 const Index = () => {
+  useSEO({
+    title: "Deepak Shukla — Investor at The Pearl Lemon Group",
+    description:
+      "Hire Deepak Shukla — lead investor at Pearl Lemon Group. SEO, growth, sales, communications. 7-figure agency founder, TEDx speaker.",
+    canonical: "/",
+    type: "website",
+    image: "https://deepakshukla.com/wp-content/uploads/2024/08/Heading-4.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: "Deepak Shukla",
+      jobTitle: "Lead Investor, Pearl Lemon Group",
+      url: typeof window !== "undefined" ? window.location.origin + "/" : "/",
+      image: "https://deepakshukla.com/wp-content/uploads/2024/08/Heading-4.png",
+      sameAs: [
+        "https://www.linkedin.com/in/deepakshukla1/",
+        "https://www.youtube.com/@deepakshuklaofficial",
+        "https://twitter.com/deepakshukla",
+      ],
+    },
+  });
   return (
     <Layout>
       <Hero />
