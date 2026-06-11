@@ -2,8 +2,16 @@ import Layout from "@/components/site/Layout";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { useSEO } from "@/lib/seo";
 
 const About = () => {
+  useSEO({
+    title: "About Deepak Shukla — Founder, Investor, TEDx Speaker",
+    description:
+      "33 marathons, 60+ countries, 3 TEDx talks, and a 7-figure agency. The unconventional path of Deepak Shukla.",
+    canonical: "/about",
+    type: "profile",
+  });
   const stats = [
     { k: "9", v: "Cities lived in" },
     { k: "60+", v: "Countries backpacked" },
