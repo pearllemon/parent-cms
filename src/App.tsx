@@ -74,6 +74,7 @@ const App = () => (
               <Route path="media" element={<AdminMedia />} />
               <Route path="import" element={<AdminImport />} />
               <Route path="sync" element={<AdminSync />} />
+              <Route path="sync-control" element={<AdminSyncControl />} />
               <Route path="seo" element={<AdminSeo />} />
               <Route path="seo-files" element={<AdminSeoFiles />} />
               <Route path="settings" element={<AdminSettings />} />
