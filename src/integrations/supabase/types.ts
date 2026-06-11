@@ -337,6 +337,105 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_links: {
+        Row: {
+          anchor_text: string | null
+          created_at: string
+          id: string
+          is_external: boolean
+          source_type: string | null
+          source_url: string
+          target_url: string
+        }
+        Insert: {
+          anchor_text?: string | null
+          created_at?: string
+          id?: string
+          is_external?: boolean
+          source_type?: string | null
+          source_url: string
+          target_url: string
+        }
+        Update: {
+          anchor_text?: string | null
+          created_at?: string
+          id?: string
+          is_external?: boolean
+          source_type?: string | null
+          source_url?: string
+          target_url?: string
+        }
+        Relationships: []
+      }
+      link_suggestions: {
+        Row: {
+          anchor_text: string
+          created_at: string
+          id: string
+          reason: string | null
+          score: number
+          source_url: string
+          status: string
+          target_url: string
+          updated_at: string
+        }
+        Insert: {
+          anchor_text: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          score?: number
+          source_url: string
+          status?: string
+          target_url: string
+          updated_at?: string
+        }
+        Update: {
+          anchor_text?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          score?: number
+          source_url?: string
+          status?: string
+          target_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      page_schemas: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          note: string | null
+          page_url: string
+          schema_json: Json
+          schema_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          note?: string | null
+          page_url: string
+          schema_json: Json
+          schema_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          note?: string | null
+          page_url?: string
+          schema_json?: Json
+          schema_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       seo_file_versions: {
         Row: {
           content: string

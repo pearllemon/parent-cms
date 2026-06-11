@@ -20,6 +20,7 @@ import DynamicPage from "./pages/DynamicPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
 import PopupManager from "./components/PopupManager.tsx";
+import PageSchemaInjector from "./components/PageSchemaInjector.tsx";
 
 import AdminShell from "./pages/admin/AdminShell.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
@@ -35,6 +36,8 @@ import AdminSyncControl from "./pages/admin/AdminSyncControl.tsx";
 import AdminSeo from "./pages/admin/AdminSeo.tsx";
 import AdminSeoFiles from "./pages/admin/AdminSeoFiles.tsx";
 import AdminSeoAudit from "./pages/admin/AdminSeoAudit.tsx";
+import AdminSchemaBuilder from "./pages/admin/AdminSchemaBuilder.tsx";
+import AdminInternalLinks from "./pages/admin/AdminInternalLinks.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
@@ -48,6 +51,7 @@ const App = () => (
         <SiteProvider>
           <PageTracker />
           <PopupManager />
+          <PageSchemaInjector />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
@@ -79,6 +83,8 @@ const App = () => (
               <Route path="seo" element={<AdminSeo />} />
               <Route path="seo-files" element={<AdminSeoFiles />} />
               <Route path="seo-audit" element={<AdminSeoAudit />} />
+              <Route path="schema" element={<AdminSchemaBuilder />} />
+              <Route path="links" element={<AdminInternalLinks />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
