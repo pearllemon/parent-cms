@@ -97,6 +97,14 @@ const AdminPosts = () => {
 
     setPosts(merged);
     setLoading(false);
+
+    // Fetch SEO scores in the background for overlay dots
+    const refs = merged.map((p) => ({ scope: (p.source === "imported" ? "imported" : "parent") as any, post_id: p.id }));
+    loadPostSeoMany(refs).then((map) => {
+      const out: Record<string, { score: number }> = {};
+      Object.entries(map).forEach(([k, v]: any) => { if (typeof v.last_score === "number") out[k] = { score: v.last_score }; });
+      setSeoMap(out);
+    }).catch(() => {});
   };
 
   useEffect(() => {
