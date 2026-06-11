@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Post = {
@@ -269,11 +269,20 @@ const AdminPosts = () => {
                         <Eye className="w-4 h-4" />
                       </a>
                     </Button>
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={`/admin/posts/${p.id}`}>
-                        <Pencil className="w-4 h-4 mr-1" /> Edit
-                      </Link>
-                    </Button>
+                    {p.source === "imported" && (
+                      <Button asChild size="sm" variant="outline" title="Inline visual editor">
+                        <Link to={`/admin/edit/${p.id}`}>
+                          <Wand2 className="w-4 h-4 mr-1" /> Edit visually
+                        </Link>
+                      </Button>
+                    )}
+                    {p.source !== "imported" && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/admin/posts/${p.id}`}>
+                          <Pencil className="w-4 h-4 mr-1" /> Edit
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>

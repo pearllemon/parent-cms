@@ -6,7 +6,8 @@
 // through), blockquote, testimonial, social-icons, toggle/tabs (best effort).
 // Unknown widgets render their children so layout is preserved.
 
-import { CSSProperties, useMemo } from "react";
+import { CSSProperties, ReactNode, useMemo } from "react";
+import { useEditor, type Path } from "@/components/editor/EditorContext";
 
 type ElNode = {
   id?: string;
@@ -279,7 +280,7 @@ function gridCols(width: any): string {
   return `${n}%`;
 }
 
-function Section({ node }: { node: ElNode }) {
+function Section({ node, path }: { node: ElNode; path: Path }) {
   const s = node.settings || {};
   const style = containerStyle(s);
   const inner = (
@@ -291,7 +292,7 @@ function Section({ node }: { node: ElNode }) {
     >
       <div className="flex flex-wrap gap-6">
         {(node.elements || []).map((child) => (
-          <ElementorNode key={child.id} node={child} />
+          <ElementorNode key={child.id} node={child} path={path} />
         ))}
       </div>
     </div>
@@ -303,7 +304,7 @@ function Section({ node }: { node: ElNode }) {
   );
 }
 
-function Column({ node }: { node: ElNode }) {
+function Column({ node, path }: { node: ElNode; path: Path }) {
   const s = node.settings || {};
   const width = gridCols(s._column_size ?? s._inline_size ?? 100);
   return (
@@ -312,13 +313,13 @@ function Column({ node }: { node: ElNode }) {
       style={{ ["--w" as any]: width, ...containerStyle(s) }}
     >
       {(node.elements || []).map((child) => (
-        <ElementorNode key={child.id} node={child} />
+        <ElementorNode key={child.id} node={child} path={path} />
       ))}
     </div>
   );
 }
 
-function Container({ node }: { node: ElNode }) {
+function Container({ node, path }: { node: ElNode; path: Path }) {
   const s = node.settings || {};
   const direction = s.flex_direction || "column";
   const style: CSSProperties = {
@@ -333,7 +334,7 @@ function Container({ node }: { node: ElNode }) {
   return (
     <div style={style} className="w-full">
       {(node.elements || []).map((child) => (
-        <ElementorNode key={child.id} node={child} />
+        <ElementorNode key={child.id} node={child} path={path} />
       ))}
     </div>
   );
@@ -355,16 +356,15 @@ function Widget({ node }: { node: ElNode }) {
     case "icon-list": return <IconList s={s} />;
     case "video": return <VideoWidget s={s} />;
     case "html": return <HtmlWidget s={s} />;
-    case "shortcode": return null; // WP shortcodes not supported here
+    case "shortcode": return null;
     case "blockquote": return <Blockquote s={s} />;
     case "testimonial": return <Testimonial s={s} />;
     case "social-icons": return <SocialIcons s={s} />;
     default:
-      // Unknown widget: render children if any, else nothing.
       if (node.elements?.length) {
         return (
           <div className="space-y-4">
-            {node.elements.map((c) => <ElementorNode key={c.id} node={c} />)}
+            {node.elements.map((c) => <ElementorNode key={c.id} node={c} path={[]} />)}
           </div>
         );
       }
@@ -372,17 +372,93 @@ function Widget({ node }: { node: ElNode }) {
   }
 }
 
-function ElementorNode({ node }: { node: ElNode }) {
+/**
+ * EditableShell: when an EditorContext is active, wraps a node with
+ * hover/select affordances. When no editor context exists, renders children
+ * untouched so the public site is unaffected.
+ */
+function EditableShell({
+  node,
+  path,
+  kind,
+  children,
+}: {
+  node: ElNode;
+  path: Path;
+  kind: "section" | "column" | "container" | "widget";
+  children: ReactNode;
+}) {
+  const ed = useEditor();
+  if (!ed) return <>{children}</>;
+  const id = node.id || "";
+  const fullPath = [...path, id];
+  const isSelected =
+    !!ed.selected && ed.selected.length === fullPath.length && ed.selected.every((p, i) => p === fullPath[i]);
+  const isHovered =
+    !!ed.hovered && ed.hovered.length === fullPath.length && ed.hovered.every((p, i) => p === fullPath[i]);
+
+  const ring =
+    isSelected
+      ? "outline outline-2 outline-blue-500 outline-offset-[-2px]"
+      : isHovered
+        ? "outline outline-2 outline-blue-300/70 outline-offset-[-2px]"
+        : "";
+
+  return (
+    <div
+      data-edit-path={fullPath.join("/")}
+      className={`relative ${ring}`}
+      onMouseEnter={(e) => { e.stopPropagation(); ed.setHover(fullPath); }}
+      onMouseLeave={(e) => { e.stopPropagation(); ed.setHover(null); }}
+      onClick={(e) => { e.stopPropagation(); ed.select(fullPath); }}
+    >
+      {isSelected && (
+        <span className="absolute -top-6 left-0 z-30 text-[10px] uppercase tracking-wide bg-blue-500 text-white px-1.5 py-0.5 rounded-sm pointer-events-none">
+          {kind === "widget" ? (node.widgetType || "widget") : kind}
+        </span>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function ElementorNode({ node, path = [] }: { node: ElNode; path?: Path }) {
   if (!node) return null;
-  if (node.elType === "section") return <Section node={node} />;
-  if (node.elType === "column") return <Column node={node} />;
-  if (node.elType === "container") return <Container node={node} />;
-  if (node.elType === "widget") return <Widget node={node} />;
-  // Unknown: render children
+  const id = node.id || "";
+  const childPath = [...path, id];
+
+  if (node.elType === "section") {
+    return (
+      <EditableShell node={node} path={path} kind="section">
+        <Section node={node} path={childPath} />
+      </EditableShell>
+    );
+  }
+  if (node.elType === "column") {
+    return (
+      <EditableShell node={node} path={path} kind="column">
+        <Column node={node} path={childPath} />
+      </EditableShell>
+    );
+  }
+  if (node.elType === "container") {
+    return (
+      <EditableShell node={node} path={path} kind="container">
+        <Container node={node} path={childPath} />
+      </EditableShell>
+    );
+  }
+  if (node.elType === "widget") {
+    return (
+      <EditableShell node={node} path={path} kind="widget">
+        <Widget node={node} />
+      </EditableShell>
+    );
+  }
   if (node.elements?.length) {
     return (
       <>
-        {node.elements.map((c) => <ElementorNode key={c.id} node={c} />)}
+        {node.elements.map((c) => <ElementorNode key={c.id} node={c} path={childPath} />)}
       </>
     );
   }
@@ -395,7 +471,7 @@ export default function ElementorRenderer({ data }: { data: unknown }) {
   return (
     <div className="elementor-rendered">
       {tree.map((n, i) => (
-        <ElementorNode key={n.id || i} node={n} />
+        <ElementorNode key={n.id || i} node={n} path={[]} />
       ))}
     </div>
   );

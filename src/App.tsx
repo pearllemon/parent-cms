@@ -26,6 +26,7 @@ import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminPosts from "./pages/admin/AdminPosts.tsx";
 import AdminPostEditor from "./pages/admin/AdminPostEditor.tsx";
+import AdminPageEditor from "./pages/admin/AdminPageEditor.tsx";
 import AdminMedia from "./pages/admin/AdminMedia.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminImport from "./pages/admin/AdminImport.tsx";
@@ -66,6 +67,7 @@ const App = () => (
               <Route index element={<AdminDashboard />} />
               <Route path="posts" element={<AdminPosts />} />
               <Route path="posts/:id" element={<AdminPostEditor />} />
+              <Route path="edit/:id" element={<AdminPageEditor />} />
               <Route path="media" element={<AdminMedia />} />
               <Route path="import" element={<AdminImport />} />
               <Route path="sync" element={<AdminSync />} />
