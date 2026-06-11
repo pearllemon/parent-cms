@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { Eye, Pencil, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { SeoScoreDot } from "@/components/admin/seo/SeoScoreBadge";
+import { loadPostSeoMany } from "@/lib/postSeo";
 
 type Post = {
   id: string;
