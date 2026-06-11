@@ -6,7 +6,8 @@
 // through), blockquote, testimonial, social-icons, toggle/tabs (best effort).
 // Unknown widgets render their children so layout is preserved.
 
-import { CSSProperties, useMemo } from "react";
+import { CSSProperties, ReactNode, useMemo } from "react";
+import { useEditor, type Path } from "@/components/editor/EditorContext";
 
 type ElNode = {
   id?: string;
