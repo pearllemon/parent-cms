@@ -48,6 +48,7 @@ const Contact = () => {
 
     <ContactBlock />
   </Layout>
-);
+  );
+};
 
 export default Contact;
