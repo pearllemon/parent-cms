@@ -113,14 +113,49 @@ export function extractImagesFromHtml(html: string): ImageRef[] {
   return Array.from(map.values());
 }
 
+// Walk an arbitrary JSON tree (Elementor data, template settings, etc.) and
+// pull out anything that looks like an image URL string. Also captures alt /
+// title when they appear as sibling keys on the same Elementor `image` object.
+export function extractImagesFromJson(node: unknown, map: Map<string, ImageRef>): void {
+  if (!node) return;
+  if (Array.isArray(node)) {
+    node.forEach((n) => extractImagesFromJson(n, map));
+    return;
+  }
+  if (typeof node !== "object") return;
+  const obj = node as Record<string, unknown>;
+
+  // Elementor image-like object: { url, alt, id, ... }
+  const u = obj.url;
+  if (typeof u === "string" && ABSOLUTE.test(u) && /\.(png|jpe?g|gif|webp|avif|svg|bmp|tiff?)(\?|#|$)/i.test(u)) {
+    addUnique(map, {
+      url: u,
+      alt: (typeof obj.alt === "string" ? obj.alt : null),
+      title: (typeof obj.title === "string" ? obj.title : null),
+    });
+  }
+  // Some widgets embed HTML strings (text-editor.editor, html.html) — scan them.
+  for (const key of ["editor", "html", "description_text", "blockquote_content", "testimonial_content", "title_text"]) {
+    const v = obj[key];
+    if (typeof v === "string" && v.includes("<img")) {
+      extractImagesFromHtml(v).forEach((ref) => addUnique(map, ref));
+    }
+  }
+  for (const v of Object.values(obj)) {
+    if (v && (typeof v === "object" || Array.isArray(v))) extractImagesFromJson(v, map);
+  }
+}
+
 export async function collectUsedImagesFromImportedPosts(options: { includeSiteImages?: boolean } = {}): Promise<ImageRef[]> {
   const map = new Map<string, ImageRef>();
   const PAGE = 500;
+
+  // 1. imported_posts (HTML body, featured image, and Elementor JSON)
   let from = 0;
   while (true) {
     const { data, error } = await supabase
       .from("imported_posts")
-      .select("title, body, featured_image_url, raw")
+      .select("title, body, featured_image_url, raw, elementor_data")
       .range(from, from + PAGE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -133,10 +168,29 @@ export async function collectUsedImagesFromImportedPosts(options: { includeSiteI
           title: row.title || null,
         });
       }
+      if (row.elementor_data) extractImagesFromJson(row.elementor_data, map);
     }
     if (data.length < PAGE) break;
     from += PAGE;
   }
+
+  // 2. elementor_templates (reusable library)
+  from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("elementor_templates")
+      .select("data, settings")
+      .range(from, from + PAGE - 1);
+    if (error) break; // table may not exist on older deployments
+    if (!data || data.length === 0) break;
+    for (const row of data) {
+      if (row.data) extractImagesFromJson(row.data, map);
+      if (row.settings) extractImagesFromJson(row.settings, map);
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
   if (options.includeSiteImages) SITE_IMAGE_REFS.forEach((ref) => addUnique(map, ref));
   return Array.from(map.values());
 }
