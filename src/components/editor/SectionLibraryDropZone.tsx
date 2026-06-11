@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 type Template = {
   id: string;
   title: string | null;
-  template_type: string | null;
+  kind: string | null;
   data: any;
 };
 
