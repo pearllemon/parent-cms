@@ -1,6 +1,7 @@
 // Sync Control Center — production-grade sync hardening UI for the child site.
 // Tabs: Overview, Selective sync, Inbound queue, Event log, Conflicts.
 import { useEffect, useState, useCallback } from "react";
+import { supabase as cloud } from "@/integrations/supabase/client";
 import {
   listSettings, updateSetting, listEvents, listQueue, decideQueue,
   applyQueueItem, listConflicts, resolveConflict, listHealth,
@@ -39,6 +40,16 @@ const AdminSyncControl = () => {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // Realtime: refresh whenever sync state changes
+  useEffect(() => {
+    const ch = cloud.channel("admin-sync-control-live");
+    ["sync_events", "sync_queue", "sync_health", "sync_conflicts", "sync_settings"].forEach((t) => {
+      (ch as any).on("postgres_changes", { event: "*", schema: "public", table: t }, () => void reload());
+    });
+    ch.subscribe();
+    return () => { cloud.removeChannel(ch); };
+  }, [reload]);
 
   const onToggle = async (s: SyncSetting, field: "enabled" | "auto_accept", v: boolean) => {
     await updateSetting(s.id, { [field]: v } as any);
