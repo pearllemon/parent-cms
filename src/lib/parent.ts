@@ -109,17 +109,31 @@ export async function getSiteId(): Promise<string | null> {
 }
 
 // ----- Page view tracking ----------------------------------------------------
+// Tracks to BOTH the parent CMS (so cross-site analytics aggregate) and the
+// child Lovable Cloud page_view_events table (so the dashboard has a live,
+// realtime-subscribable counter that doesn't depend on parent latency).
 export async function trackPageView(path: string) {
+  let sessionId: string;
+  try {
+    sessionId = sessionStorage.getItem("session_id") || crypto.randomUUID();
+    sessionStorage.setItem("session_id", sessionId);
+  } catch { sessionId = crypto.randomUUID(); }
+
+  // Child-side counter (best-effort, fire and forget)
+  try {
+    const { supabase: cloud } = await import("@/integrations/supabase/client");
+    void (cloud.from("page_view_events" as any) as any).insert({
+      path,
+      session_id: sessionId,
+      user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+      referrer: typeof document !== "undefined" ? document.referrer : null,
+    });
+  } catch { /* ignore */ }
+
+  // Parent CMS
   try {
     const site_id = await getSiteId();
     if (!site_id) return;
-    let sessionId = sessionStorage.getItem("session_id");
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      sessionStorage.setItem("session_id", sessionId);
-    }
-    // Fire-and-forget; swallow non-2xx silently so parent FK hiccups don't
-    // surface in the runtime overlay.
     const res = await fetch(`${API}?action=page_view`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
@@ -132,13 +146,8 @@ export async function trackPageView(path: string) {
       }),
       keepalive: true,
     });
-    if (!res.ok) {
-      // consume body, stay quiet
-      await res.text().catch(() => "");
-    }
-  } catch {
-    /* noop */
-  }
+    if (!res.ok) await res.text().catch(() => "");
+  } catch { /* noop */ }
 }
 
 // ----- Lead submission -------------------------------------------------------

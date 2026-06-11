@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
 import PopupManager from "./components/PopupManager.tsx";
 import PageSchemaInjector from "./components/PageSchemaInjector.tsx";
+import RedirectsGate from "./components/RedirectsGate.tsx";
 
 import AdminShell from "./pages/admin/AdminShell.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
@@ -44,6 +45,7 @@ import AdminAuthors from "./pages/admin/AdminAuthors.tsx";
 import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
+import AdminRedirects from "./pages/admin/AdminRedirects.tsx";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +57,7 @@ const App = () => (
       <BrowserRouter>
         <SiteProvider>
           <PageTracker />
+          <RedirectsGate />
           <PopupManager />
           <PageSchemaInjector />
           <Routes>
@@ -92,6 +95,7 @@ const App = () => (
               <Route path="seo-workspace" element={<AdminSeoWorkspace />} />
               <Route path="schema" element={<AdminSchemaBuilder />} />
               <Route path="links" element={<AdminInternalLinks />} />
+              <Route path="redirects" element={<AdminRedirects />} />
               <Route path="authors" element={<AdminAuthors />} />
               <Route path="cpt" element={<AdminCPTs />} />
               <Route path="cpt/:slug/entries" element={<AdminCPTEntries />} />
