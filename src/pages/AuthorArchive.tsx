@@ -44,16 +44,26 @@ export default function AuthorArchive() {
   const title = useMemo(() => author?.seo?.title || `${author?.name} — Author`, [author]);
   const desc = useMemo(() => author?.seo?.description || author?.bio || `Articles by ${author?.name}`, [author]);
 
+  useEffect(() => {
+    if (!author) return;
+    document.title = title;
+    const set = (name: string, attr: "name" | "property", content: string) => {
+      let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
+      if (!el) { el = document.createElement("meta"); el.setAttribute(attr, name); document.head.appendChild(el); }
+      el.setAttribute("content", content);
+    };
+    set("description", "name", (desc || "").slice(0, 160));
+    let link = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!link) { link = document.createElement("link"); link.setAttribute("rel", "canonical"); document.head.appendChild(link); }
+    link.setAttribute("href", `/author/${slug}`);
+  }, [author, title, desc, slug]);
+
   if (notFound) return <Layout><div className="container py-20 text-center"><h1 className="font-display text-3xl">Author not found</h1></div></Layout>;
 
   return (
     <Layout>
-      <Helmet>
-        <title>{title}</title>
-        <meta name="description" content={(desc || "").slice(0, 160)} />
-        <link rel="canonical" href={`/author/${slug}`} />
-      </Helmet>
       <section className="container py-12 max-w-4xl">
+
         {loading || !author ? (
           <p className="text-muted-foreground">Loading…</p>
         ) : (
