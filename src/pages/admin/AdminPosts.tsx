@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Post = {
