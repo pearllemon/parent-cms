@@ -67,6 +67,7 @@ const App = () => (
               <Route index element={<AdminDashboard />} />
               <Route path="posts" element={<AdminPosts />} />
               <Route path="posts/:id" element={<AdminPostEditor />} />
+              <Route path="edit/:id" element={<AdminPageEditor />} />
               <Route path="media" element={<AdminMedia />} />
               <Route path="import" element={<AdminImport />} />
               <Route path="sync" element={<AdminSync />} />
