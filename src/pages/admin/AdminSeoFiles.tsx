@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { RefreshCcw, Save, Download, Copy, History, RotateCcw, Plus, Trash2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { SeoAutomationPanel } from "./seo/SeoAutomationPanel";
 
 type FileType = "sitemap" | "robots" | "llms";
 
@@ -98,6 +99,7 @@ export default function AdminSeoFiles() {
           <TabsTrigger value="sitemap">Sitemap</TabsTrigger>
           <TabsTrigger value="robots">Robots</TabsTrigger>
           <TabsTrigger value="llms">LLMs</TabsTrigger>
+          <TabsTrigger value="automation">Automation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sitemap">
@@ -108,6 +110,9 @@ export default function AdminSeoFiles() {
         </TabsContent>
         <TabsContent value="llms">
           <LlmsTab baseUrl={baseUrl} row={rows.llms} content={content} siteName={config?.site?.name as string | undefined} onChanged={reload} />
+        </TabsContent>
+        <TabsContent value="automation">
+          <SeoAutomationPanel baseUrl={baseUrl} siteName={config?.site?.name as string | undefined} />
         </TabsContent>
       </Tabs>
     </div>
