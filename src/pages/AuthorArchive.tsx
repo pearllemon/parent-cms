@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Helmet } from "react-helmet-async" as any;
+
 import { supabase as cloud } from "@/integrations/supabase/client";
 import { supabase as parent } from "@/lib/parent";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
