@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      authors: {
+        Row: {
+          archive_enabled: boolean
+          bio: string | null
+          created_at: string
+          email: string | null
+          id: string
+          job_title: string | null
+          name: string
+          parent_user_id: string | null
+          profile_image_url: string | null
+          schema_json: Json
+          seo: Json
+          slug: string
+          social: Json
+          updated_at: string
+        }
+        Insert: {
+          archive_enabled?: boolean
+          bio?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          job_title?: string | null
+          name: string
+          parent_user_id?: string | null
+          profile_image_url?: string | null
+          schema_json?: Json
+          seo?: Json
+          slug: string
+          social?: Json
+          updated_at?: string
+        }
+        Update: {
+          archive_enabled?: boolean
+          bio?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          job_title?: string | null
+          name?: string
+          parent_user_id?: string | null
+          profile_image_url?: string | null
+          schema_json?: Json
+          seo?: Json
+          slug?: string
+          social?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cpt_entries: {
         Row: {
           author_id: string | null
@@ -581,6 +632,7 @@ export type Database = {
           focus_keyword: string | null
           id: string
           last_score: number | null
+          parent_post_id: string | null
           pillar: boolean
           post_id: string
           robots: Json
@@ -601,6 +653,7 @@ export type Database = {
           focus_keyword?: string | null
           id?: string
           last_score?: number | null
+          parent_post_id?: string | null
           pillar?: boolean
           post_id: string
           robots?: Json
@@ -621,6 +674,7 @@ export type Database = {
           focus_keyword?: string | null
           id?: string
           last_score?: number | null
+          parent_post_id?: string | null
           pillar?: boolean
           post_id?: string
           robots?: Json
