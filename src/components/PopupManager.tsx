@@ -20,7 +20,7 @@ type Popup = {
 
 const PopupManager = () => {
   const { config } = useSiteConfig();
-  const pc = config?.popupConfig as Popup | null;
+  const pc = config?.popupConfig as (Popup & { id?: string }) | null;
   const [show, setShow] = useState(false);
 
   useEffect(() => {
