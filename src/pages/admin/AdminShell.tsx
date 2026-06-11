@@ -127,6 +127,7 @@ const AdminShell = () => {
     { path: "/admin/seo-audit", label: "SEO Audit", icon: "Search" },
     { path: "/admin/schema", label: "Schema Builder", icon: "Database" },
     { path: "/admin/links", label: "Internal Links", icon: "Cloud" },
+    { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
     { path: "/admin/media", label: "Media", icon: "Image" },
     { path: "/admin/settings", label: "Settings", icon: "Settings" },
   ];
