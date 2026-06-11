@@ -172,6 +172,7 @@ const AdminShell = () => {
                 {r.icon === "Upload" && <Upload className="w-4 h-4" />}
                 {r.icon === "Cloud" && <Cloud className="w-4 h-4" />}
                 {r.icon === "Settings" && <Settings className="w-4 h-4" />}
+                {r.icon === "Search" && <Search className="w-4 h-4" />}
                 {r.icon === "Database" && <Database className="w-4 h-4" />}
                 {r.label}
               </NavLink>
