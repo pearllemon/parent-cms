@@ -18,6 +18,7 @@ import {
 } from "@/components/editor/EditorContext";
 import EditorPanel from "@/components/editor/EditorPanel";
 import EditableHtml from "@/components/editor/EditableHtml";
+import SectionLibraryDropZone from "@/components/editor/SectionLibraryDropZone";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft, ExternalLink, Save } from "lucide-react";
