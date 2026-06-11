@@ -85,6 +85,17 @@ export default function AdminPageEditor() {
 
   const getNodeAt = useCallback((p: Path) => findNode(tree, p), [tree]);
 
+  const structural = useCallback((path: Path, op: StructuralOp) => {
+    setTree((t) => applyStructural(t, path, op));
+    setDirty(true);
+    setSelected(null);
+  }, []);
+
+  const insertNode = useCallback((node: any, parentPath?: Path) => {
+    setTree((t) => applyInsert(t, node, parentPath));
+    setDirty(true);
+  }, []);
+
   const handleSave = async () => {
     if (!post) return;
     setSaving(true);
