@@ -28,7 +28,7 @@ export default function SectionLibraryDropZone() {
       setLoading(true);
       const { data, error } = await supabase
         .from("elementor_templates")
-        .select("id,title,template_type,data")
+        .select("id,title,kind,data")
         .limit(500);
       setLoading(false);
       if (error) return;
