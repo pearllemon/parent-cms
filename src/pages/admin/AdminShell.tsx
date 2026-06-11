@@ -122,6 +122,7 @@ const AdminShell = () => {
     { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
     { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
     { path: "/admin/seo", label: "SEO & Sitemap", icon: "Search" },
+    { path: "/admin/seo-files", label: "SEO Files", icon: "Search" },
     { path: "/admin/media", label: "Media", icon: "Image" },
     { path: "/admin/settings", label: "Settings", icon: "Settings" },
   ];
