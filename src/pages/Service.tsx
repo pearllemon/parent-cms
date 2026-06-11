@@ -4,11 +4,30 @@ import { Button } from "@/components/ui/button";
 import Reveal from "@/components/Reveal";
 import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
 import { findService, services } from "@/data/services";
+import { useSEO } from "@/lib/seo";
 import NotFound from "./NotFound";
 
 const Service = () => {
   const { slug = "" } = useParams();
   const svc = findService(slug);
+  useSEO(
+    svc
+      ? {
+          title: `${svc.title} | Deepak Shukla`,
+          description:
+            (svc as any).intro || (svc as any).summary || `Hire ${svc.title.toLowerCase()} — Deepak Shukla & the Pearl Lemon team.`,
+          canonical: `/services/${svc.slug}`,
+          type: "website",
+          jsonLd: {
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: svc.title,
+            provider: { "@type": "Person", name: "Deepak Shukla" },
+            url: typeof window !== "undefined" ? `${window.location.origin}/services/${svc.slug}` : `/services/${svc.slug}`,
+          },
+        }
+      : null,
+  );
   if (!svc) return <NotFound />;
 
   const others = services.filter((s) => s.slug !== svc.slug).slice(0, 4);

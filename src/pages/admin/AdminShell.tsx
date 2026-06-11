@@ -14,6 +14,7 @@ import {
   Database,
   Upload,
   Cloud,
+  Search,
 } from "lucide-react";
 
 export type AdminRoute = { path: string; label: string; table?: string; icon?: string };
@@ -120,6 +121,7 @@ const AdminShell = () => {
   const KNOWN_BOTTOM: AdminRoute[] = [
     { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
     { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
+    { path: "/admin/seo", label: "SEO & Sitemap", icon: "Search" },
     { path: "/admin/media", label: "Media", icon: "Image" },
     { path: "/admin/settings", label: "Settings", icon: "Settings" },
   ];
@@ -170,6 +172,7 @@ const AdminShell = () => {
                 {r.icon === "Upload" && <Upload className="w-4 h-4" />}
                 {r.icon === "Cloud" && <Cloud className="w-4 h-4" />}
                 {r.icon === "Settings" && <Settings className="w-4 h-4" />}
+                {r.icon === "Search" && <Search className="w-4 h-4" />}
                 {r.icon === "Database" && <Database className="w-4 h-4" />}
                 {r.label}
               </NavLink>

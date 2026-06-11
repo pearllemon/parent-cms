@@ -4,6 +4,7 @@ import Layout from "@/components/site/Layout";
 import { Calendar, ArrowLeft, Tag as TagIcon } from "lucide-react";
 import { fetchPostBySlug, type ParentPost } from "@/lib/parent";
 import CachedImage from "@/components/CachedImage";
+import { useSEO } from "@/lib/seo";
 import NotFound from "./NotFound";
 
 const BlogPost = () => {
@@ -28,45 +29,32 @@ const BlogPost = () => {
     };
   }, [slug]);
 
-  // SEO
-  useEffect(() => {
-    if (!post) return;
-    document.title = post.meta_title || post.title;
-    const setMeta = (name: string, content: string) => {
-      let el = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null;
-      if (!el) {
-        el = document.createElement("meta");
-        el.setAttribute("name", name);
-        document.head.appendChild(el);
-      }
-      el.content = content;
-    };
-    if (post.meta_description) setMeta("description", post.meta_description);
-    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.rel = "canonical";
-      document.head.appendChild(canonical);
-    }
-    canonical.href = post.canonical_url || window.location.href;
-
-    // JSON-LD
-    const ld = document.createElement("script");
-    ld.type = "application/ld+json";
-    ld.text = JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Article",
-      headline: post.title,
-      image: post.featured_image_url,
-      datePublished: post.published_at || post.publish_date,
-      author: { "@type": "Person", name: typeof post.author === "string" ? post.author : post.author?.name || "Deepak Shukla" },
-      description: post.meta_description || post.excerpt,
-    });
-    document.head.appendChild(ld);
-    return () => {
-      ld.remove();
-    };
-  }, [post]);
+  // SEO — apply once `post` is loaded.
+  useSEO(
+    post
+      ? {
+          title: post.meta_title || post.title,
+          description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240),
+          canonical: post.canonical_url || `/blog/${post.slug}`,
+          type: "article",
+          image: post.featured_image_url || undefined,
+          jsonLd: {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: post.title,
+            image: post.featured_image_url || undefined,
+            datePublished: post.published_at || post.publish_date || undefined,
+            dateModified: (post as any).updated_at || undefined,
+            author: {
+              "@type": "Person",
+              name: typeof post.author === "string" ? post.author : (post.author as any)?.name || "Deepak Shukla",
+            },
+            description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240),
+            mainEntityOfPage: typeof window !== "undefined" ? `${window.location.origin}/blog/${post.slug}` : `/blog/${post.slug}`,
+          },
+        }
+      : null,
+  );
 
   if (notFound) return <NotFound />;
   if (loading || !post) {

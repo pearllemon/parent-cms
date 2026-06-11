@@ -31,6 +31,7 @@ import AdminMedia from "./pages/admin/AdminMedia.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminImport from "./pages/admin/AdminImport.tsx";
 import AdminSync from "./pages/admin/AdminSync.tsx";
+import AdminSeo from "./pages/admin/AdminSeo.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="media" element={<AdminMedia />} />
               <Route path="import" element={<AdminImport />} />
               <Route path="sync" element={<AdminSync />} />
+              <Route path="seo" element={<AdminSeo />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
