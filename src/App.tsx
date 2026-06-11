@@ -34,6 +34,7 @@ import AdminSync from "./pages/admin/AdminSync.tsx";
 import AdminSyncControl from "./pages/admin/AdminSyncControl.tsx";
 import AdminSeo from "./pages/admin/AdminSeo.tsx";
 import AdminSeoFiles from "./pages/admin/AdminSeoFiles.tsx";
+import AdminSeoAudit from "./pages/admin/AdminSeoAudit.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="sync-control" element={<AdminSyncControl />} />
               <Route path="seo" element={<AdminSeo />} />
               <Route path="seo-files" element={<AdminSeoFiles />} />
+              <Route path="seo-audit" element={<AdminSeoAudit />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
