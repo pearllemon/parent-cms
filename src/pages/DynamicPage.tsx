@@ -37,19 +37,17 @@ const DynamicPage = () => {
     return () => { cancel = true; };
   }, [slug]);
 
-  useEffect(() => {
-    if (!post) return;
-    document.title = post.meta_title || post.title;
-    if (post.meta_description) {
-      let m = document.querySelector('meta[name="description"]');
-      if (!m) {
-        m = document.createElement("meta");
-        m.setAttribute("name", "description");
-        document.head.appendChild(m);
-      }
-      m.setAttribute("content", post.meta_description);
-    }
-  }, [post]);
+  useSEO(
+    post
+      ? {
+          title: post.meta_title || post.title,
+          description: post.meta_description || (post.excerpt || "").replace(/<[^>]+>/g, "").slice(0, 240) || undefined,
+          canonical: post.canonical_url || `/p/${post.slug}`,
+          type: "website",
+          image: post.featured_image_url || undefined,
+        }
+      : null,
+  );
 
   if (notFound) return <NotFound />;
   if (loading || !post) {
