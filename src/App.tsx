@@ -32,6 +32,7 @@ import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminImport from "./pages/admin/AdminImport.tsx";
 import AdminSync from "./pages/admin/AdminSync.tsx";
 import AdminSeo from "./pages/admin/AdminSeo.tsx";
+import AdminSeoFiles from "./pages/admin/AdminSeoFiles.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
