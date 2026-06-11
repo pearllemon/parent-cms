@@ -646,6 +646,14 @@ const AdminImport = () => {
         `Nothing was saved. ${errorSamples[0] || "Check console for details."}`,
       );
     }
+
+    // Auto-regenerate sitemap + llms.txt after the import lands
+    if (stats.inserted > 0) {
+      try {
+        const { regenerateSeoFiles } = await import("@/lib/regenerateSeoFiles");
+        await regenerateSeoFiles(window.location.origin, null, undefined, ["sitemap", "llms"]);
+      } catch (e) { console.warn("SEO regen failed:", e); }
+    }
   };
 
   const fmtBytes = (n: number | null) => {
