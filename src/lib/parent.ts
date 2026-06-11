@@ -364,3 +364,122 @@ export async function fetchTaxonomies(): Promise<{ categories: { slug: string; n
     15 * 60 * 1000,
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Extended parent API helpers (analytics, versions, overrides, events, bulk) */
+/* -------------------------------------------------------------------------- */
+
+async function postJSON(action: string, body: Record<string, unknown>) {
+  const res = await fetch(`${API}?action=${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${action} failed (${res.status})`);
+  return res.json().catch(() => ({}));
+}
+
+async function getJSON<T = unknown>(action: string, params: Record<string, string | number | undefined> = {}): Promise<T | null> {
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== "")
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join("&");
+  const url = `${API}?action=${action}${qs ? `&${qs}` : ""}`;
+  try {
+    const res = await fetch(url, { headers: HEADERS });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+export type AnalyticsResponse = {
+  totalViews?: number;
+  uniqueVisitors?: number;
+  daily?: { date: string; views: number; visitors?: number }[];
+  topPages?: { path: string; views: number }[];
+};
+
+export async function fetchAnalytics(days = 30): Promise<AnalyticsResponse | null> {
+  const site_id = await getSiteId();
+  if (!site_id) return null;
+  return getJSON<AnalyticsResponse>("analytics", { site_id, days });
+}
+
+export async function fetchVersions(config_type: string, config_id: string) {
+  return getJSON<{ versions: { id: string; created_at: string; change_summary?: string; config_snapshot: unknown }[] }>(
+    "versions",
+    { config_type, config_id },
+  );
+}
+
+export type SiteOverride = {
+  id?: string;
+  config_type: string;
+  override_key: string;
+  override_value: unknown;
+  updated_at?: string;
+};
+
+export async function fetchOverrides(): Promise<SiteOverride[]> {
+  const site_id = await getSiteId();
+  if (!site_id) return [];
+  const data = await getJSON<{ overrides?: SiteOverride[] } | SiteOverride[]>("overrides", { site_id });
+  if (!data) return [];
+  return Array.isArray(data) ? data : (data.overrides || []);
+}
+
+export async function saveOverride(o: Omit<SiteOverride, "id" | "updated_at">) {
+  const site_id = await getSiteId();
+  if (!site_id) throw new Error("No site_id");
+  return postJSON("save_override", { site_id, ...o });
+}
+
+export async function fetchSiteUsers() {
+  const site_id = await getSiteId();
+  if (!site_id) return [];
+  const data = await getJSON<{ users?: unknown[] } | unknown[]>("site_users", { site_id });
+  return Array.isArray(data) ? data : ((data as { users?: unknown[] })?.users || []);
+}
+
+export async function trackPopupEvent(popup_id: string, event_type: "impression" | "click" | "dismiss") {
+  const site_id = await getSiteId();
+  if (!site_id) return;
+  try { await postJSON("popup_event", { popup_id, site_id, event_type }); } catch { /* silent */ }
+}
+
+export async function trackInteraction(interaction_type: string, source: string, extra: Record<string, unknown> = {}) {
+  const site_id = await getSiteId();
+  if (!site_id) return;
+  try { await postJSON("track_interaction", { site_id, interaction_type, source, ...extra }); } catch { /* silent */ }
+}
+
+export async function bulkOperation(input: {
+  operation_type: "publish" | "assign_component" | "update_status" | "delete";
+  target_type: "posts" | "sites";
+  target_ids: string[];
+  payload?: Record<string, unknown>;
+}) {
+  return postJSON("bulk", input);
+}
+
+export async function saveConfigVersion(input: {
+  config_type: string;
+  config_id: string;
+  config_snapshot: unknown;
+  change_summary?: string;
+}) {
+  return postJSON("save_version", input);
+}
+
+/** Quick parent connection health probe. */
+export async function pingParent(): Promise<{ ok: boolean; latencyMs: number; status?: number }> {
+  const start = performance.now();
+  try {
+    const res = await fetch(`${API}?action=schema`, { headers: HEADERS });
+    return { ok: res.ok, status: res.status, latencyMs: Math.round(performance.now() - start) };
+  } catch {
+    return { ok: false, latencyMs: Math.round(performance.now() - start) };
+  }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSiteConfig } from "@/providers/SiteProvider";
+import { trackPopupEvent } from "@/lib/parent";
 
 type Popup = {
   is_active?: boolean;
@@ -19,7 +20,7 @@ type Popup = {
 
 const PopupManager = () => {
   const { config } = useSiteConfig();
-  const pc = config?.popupConfig as Popup | null;
+  const pc = config?.popupConfig as (Popup & { id?: string }) | null;
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -41,14 +42,24 @@ const PopupManager = () => {
     };
   }, [pc]);
 
+  // Fire impression once when we transition to shown
+  useEffect(() => {
+    if (show && pc?.id) void trackPopupEvent(pc.id, "impression");
+  }, [show, pc?.id]);
+
   if (!show || !pc) return null;
   const bg = pc.bg_color ? `hsl(${pc.bg_color})` : "white";
   const text = pc.text_color ? `hsl(${pc.text_color})` : "black";
   const accent = pc.accent_color ? `hsl(${pc.accent_color})` : "hsl(var(--primary))";
 
   const dismiss = () => {
+    if (pc.id) void trackPopupEvent(pc.id, "dismiss");
     setShow(false);
     sessionStorage.setItem("pl_popup_shown", "1");
+  };
+
+  const onCta = () => {
+    if (pc.id) void trackPopupEvent(pc.id, "click");
   };
 
   return (
@@ -62,6 +73,7 @@ const PopupManager = () => {
         {pc.cta_text && (
           <a
             href={pc.cta_link || "#"}
+            onClick={onCta}
             style={{ background: accent }}
             className="inline-block px-6 py-2 rounded-full font-bold text-white"
           >
