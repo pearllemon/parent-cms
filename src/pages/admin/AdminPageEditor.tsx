@@ -173,8 +173,11 @@ export default function AdminPageEditor() {
                 setHover={setHovered}
                 patchAt={patchAt}
                 getNodeAt={getNodeAt}
+                structural={structural}
+                insertNode={insertNode}
               >
                 <ElementorRenderer data={tree} />
+                <SectionLibraryDropZone />
               </EditorProvider>
             ) : (
               <div className="container py-12 max-w-3xl">
@@ -200,6 +203,8 @@ export default function AdminPageEditor() {
               setHover={setHovered}
               patchAt={patchAt}
               getNodeAt={getNodeAt}
+              structural={structural}
+              insertNode={insertNode}
             >
               <EditorPanel />
             </EditorProvider>
