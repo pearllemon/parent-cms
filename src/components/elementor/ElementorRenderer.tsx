@@ -84,6 +84,11 @@ function Heading({ s }: { s: Record<string, any> }) {
         ...textAlign(s),
         color: s.title_color || undefined,
         fontSize: px(s.typography_font_size) || undefined,
+        fontFamily: s.typography_font_family || undefined,
+        fontWeight: s.typography_font_weight || undefined,
+        lineHeight: px(s.typography_line_height) || (s.typography_line_height?.size ?? undefined),
+        letterSpacing: px(s.typography_letter_spacing) || undefined,
+        textTransform: (s.typography_text_transform || undefined) as any,
         margin: 0,
       }}
       className="font-display"
