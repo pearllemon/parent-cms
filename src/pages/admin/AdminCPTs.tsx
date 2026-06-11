@@ -36,6 +36,7 @@ export default function AdminCPTs() {
   const create = async () => {
     const label = newLabel.trim();
     if (!label) return;
+    if (!(await ensureCloudSession())) return;
     const slug = slugify(label);
     const plural = label.endsWith("s") ? label : label + "s";
     const { data, error } = await (supabase.from(TBL_CPT) as any)
