@@ -14,6 +14,142 @@ export type Database = {
   }
   public: {
     Tables: {
+      cpt_entries: {
+        Row: {
+          author_id: string | null
+          cpt_slug: string
+          created_at: string
+          data: Json
+          id: string
+          published_at: string | null
+          slug: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          cpt_slug: string
+          created_at?: string
+          data?: Json
+          id?: string
+          published_at?: string | null
+          slug: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          cpt_slug?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          published_at?: string | null
+          slug?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cpt_entries_cpt_slug_fkey"
+            columns: ["cpt_slug"]
+            isOneToOne: false
+            referencedRelation: "custom_post_types"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      custom_fields: {
+        Row: {
+          cpt_slug: string
+          created_at: string
+          field_key: string
+          field_type: string
+          id: string
+          label: string
+          position: number
+          required: boolean
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          cpt_slug: string
+          created_at?: string
+          field_key: string
+          field_type?: string
+          id?: string
+          label: string
+          position?: number
+          required?: boolean
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          cpt_slug?: string
+          created_at?: string
+          field_key?: string
+          field_type?: string
+          id?: string
+          label?: string
+          position?: number
+          required?: boolean
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_fields_cpt_slug_fkey"
+            columns: ["cpt_slug"]
+            isOneToOne: false
+            referencedRelation: "custom_post_types"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      custom_post_types: {
+        Row: {
+          created_at: string
+          has_archive: boolean
+          icon: string | null
+          id: string
+          is_public: boolean
+          label: string
+          plural_label: string
+          settings: Json
+          slug: string
+          supports: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          has_archive?: boolean
+          icon?: string | null
+          id?: string
+          is_public?: boolean
+          label: string
+          plural_label: string
+          settings?: Json
+          slug: string
+          supports?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          has_archive?: boolean
+          icon?: string | null
+          id?: string
+          is_public?: boolean
+          label?: string
+          plural_label?: string
+          settings?: Json
+          slug?: string
+          supports?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       elementor_site_settings: {
         Row: {
           created_at: string
@@ -433,6 +569,36 @@ export type Database = {
           schema_json?: Json
           schema_type?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      revisions: {
+        Row: {
+          author_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          note: string | null
+          snapshot: Json
+        }
+        Insert: {
+          author_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          note?: string | null
+          snapshot: Json
+        }
+        Update: {
+          author_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          note?: string | null
+          snapshot?: Json
         }
         Relationships: []
       }
