@@ -8,6 +8,7 @@
 
 import { CSSProperties, ReactNode, useMemo } from "react";
 import { useEditor, type Path } from "@/components/editor/EditorContext";
+import NodeToolbar from "@/components/editor/NodeToolbar";
 
 type ElNode = {
   id?: string;
