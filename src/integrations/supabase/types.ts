@@ -572,6 +572,69 @@ export type Database = {
         }
         Relationships: []
       }
+      post_seo: {
+        Row: {
+          author_id: string | null
+          canonical_url: string | null
+          created_at: string
+          extra: Json
+          focus_keyword: string | null
+          id: string
+          last_score: number | null
+          pillar: boolean
+          post_id: string
+          robots: Json
+          schema_json: Json
+          scope: string
+          secondary_keywords: string[] | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string | null
+          social: Json
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          canonical_url?: string | null
+          created_at?: string
+          extra?: Json
+          focus_keyword?: string | null
+          id?: string
+          last_score?: number | null
+          pillar?: boolean
+          post_id: string
+          robots?: Json
+          schema_json?: Json
+          scope: string
+          secondary_keywords?: string[] | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          social?: Json
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          canonical_url?: string | null
+          created_at?: string
+          extra?: Json
+          focus_keyword?: string | null
+          id?: string
+          last_score?: number | null
+          pillar?: boolean
+          post_id?: string
+          robots?: Json
+          schema_json?: Json
+          scope?: string
+          secondary_keywords?: string[] | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string | null
+          social?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       revisions: {
         Row: {
           author_id: string | null
