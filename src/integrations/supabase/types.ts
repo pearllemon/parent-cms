@@ -337,6 +337,66 @@ export type Database = {
         }
         Relationships: []
       }
+      seo_file_versions: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          file_type: string
+          id: string
+          note: string | null
+          settings: Json
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          file_type: string
+          id?: string
+          note?: string | null
+          settings?: Json
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          file_type?: string
+          id?: string
+          note?: string | null
+          settings?: Json
+        }
+        Relationships: []
+      }
+      seo_files: {
+        Row: {
+          auto_enabled: boolean
+          file_type: string
+          last_generated_at: string | null
+          manual_content: string | null
+          settings: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_enabled?: boolean
+          file_type: string
+          last_generated_at?: string | null
+          manual_content?: string | null
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_enabled?: boolean
+          file_type?: string
+          last_generated_at?: string | null
+          manual_content?: string | null
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
