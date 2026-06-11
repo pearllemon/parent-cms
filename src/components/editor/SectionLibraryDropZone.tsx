@@ -99,7 +99,7 @@ export default function SectionLibraryDropZone() {
                   >
                     <p className="font-medium truncate">{t.title || "(untitled)"}</p>
                     <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                      {t.template_type || "section"} · {Array.isArray(t.data) ? t.data.length : 0} root nodes
+                      {t.kind || "section"} · {Array.isArray(t.data) ? t.data.length : 0} root nodes
                     </p>
                   </button>
                 ))}
