@@ -300,6 +300,14 @@ const AdminPostEditorWP = () => {
             onPickImage={async () => window.prompt("Image URL:") || null}
           />
         </div>
+
+        {/* Custom Fields (WordPress-style) */}
+        <CustomFieldsPanel
+          entityType={form.type === "page" ? "page" : "post"}
+          entityId={isNew ? null : (id ?? null)}
+          values={cfValues}
+          onValuesChange={setCfValues}
+        />
       </div>
 
       {/* SIDEBAR */}
