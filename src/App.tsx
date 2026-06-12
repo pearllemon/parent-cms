@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -33,8 +33,7 @@ import AdminPageEditor from "./pages/admin/AdminPageEditor.tsx";
 import AdminMedia from "./pages/admin/AdminMedia.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminImport from "./pages/admin/AdminImport.tsx";
-import AdminSync from "./pages/admin/AdminSync.tsx";
-import AdminSyncControl from "./pages/admin/AdminSyncControl.tsx";
+import AdminSyncHub from "./pages/admin/AdminSyncHub.tsx";
 import AdminSeo from "./pages/admin/AdminSeo.tsx";
 import AdminSeoFiles from "./pages/admin/AdminSeoFiles.tsx";
 import AdminSeoAudit from "./pages/admin/AdminSeoAudit.tsx";
@@ -46,7 +45,6 @@ import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
-import AdminRedirects from "./pages/admin/AdminRedirects.tsx";
 
 const queryClient = new QueryClient();
 
@@ -88,15 +86,15 @@ const App = () => (
               <Route path="edit/:id" element={<AdminPageEditor />} />
               <Route path="media" element={<AdminMedia />} />
               <Route path="import" element={<AdminImport />} />
-              <Route path="sync" element={<AdminSync />} />
-              <Route path="sync-control" element={<AdminSyncControl />} />
+              <Route path="sync" element={<AdminSyncHub />} />
+              <Route path="sync-control" element={<Navigate to="/admin/sync?tab=control" replace />} />
               <Route path="seo" element={<AdminSeo />} />
               <Route path="seo-files" element={<AdminSeoFiles />} />
               <Route path="seo-audit" element={<AdminSeoAudit />} />
               <Route path="seo-workspace" element={<AdminSeoWorkspace />} />
               <Route path="schema" element={<AdminSchemaBuilder />} />
               <Route path="links" element={<AdminInternalLinks />} />
-              <Route path="redirects" element={<AdminRedirects />} />
+              <Route path="redirects" element={<Navigate to="/admin/seo-workspace?tab=redirects" replace />} />
               <Route path="authors" element={<AdminAuthors />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="cpt" element={<AdminCPTs />} />
