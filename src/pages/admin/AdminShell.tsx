@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
   Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
-  FolderTree, Tag, type LucideIcon,
+  FolderTree, Tag, Activity, type LucideIcon,
 } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
