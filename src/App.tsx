@@ -98,6 +98,7 @@ const App = () => (
               <Route path="links" element={<AdminInternalLinks />} />
               <Route path="redirects" element={<AdminRedirects />} />
               <Route path="authors" element={<AdminAuthors />} />
+              <Route path="users" element={<AdminUsers />} />
               <Route path="cpt" element={<AdminCPTs />} />
               <Route path="cpt/:slug/entries" element={<AdminCPTEntries />} />
               <Route path="cpt/:slug/entries/:id" element={<AdminCPTEntries />} />
