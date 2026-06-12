@@ -47,6 +47,7 @@ import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
 import AdminThemeDesigner from "./pages/admin/AdminThemeDesigner.tsx";
 import AdminTaxonomies from "./pages/admin/AdminTaxonomies.tsx";
+import AdminActivityLog from "./pages/admin/AdminActivityLog.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
