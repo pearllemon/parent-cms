@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          last_seen_at: string | null
+          role: string
+          site_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email: string
+          id?: string
+          last_seen_at?: string | null
+          role?: string
+          site_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          id?: string
+          last_seen_at?: string | null
+          role?: string
+          site_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       authors: {
         Row: {
           archive_enabled: boolean
@@ -273,6 +312,39 @@ export type Database = {
           source_id?: string | null
           title?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      entry_field_values: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          field_key: string
+          id: string
+          site_id: string | null
+          updated_at: string
+          value: Json | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          field_key: string
+          id?: string
+          site_id?: string | null
+          updated_at?: string
+          value?: Json | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          field_key?: string
+          id?: string
+          site_id?: string | null
+          updated_at?: string
+          value?: Json | null
         }
         Relationships: []
       }
@@ -587,6 +659,98 @@ export type Database = {
           status?: string
           target_url?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      media_folders: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          parent_id: string | null
+          site_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          parent_id?: string | null
+          site_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+          site_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "media_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_meta: {
+        Row: {
+          alt_text: string | null
+          caption: string | null
+          created_at: string
+          description: string | null
+          file_name: string | null
+          folder: string | null
+          height: number | null
+          id: string
+          media_url: string
+          mime_type: string | null
+          site_id: string | null
+          size_bytes: number | null
+          source: string | null
+          tags: string[] | null
+          title: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          alt_text?: string | null
+          caption?: string | null
+          created_at?: string
+          description?: string | null
+          file_name?: string | null
+          folder?: string | null
+          height?: number | null
+          id?: string
+          media_url: string
+          mime_type?: string | null
+          site_id?: string | null
+          size_bytes?: number | null
+          source?: string | null
+          tags?: string[] | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          alt_text?: string | null
+          caption?: string | null
+          created_at?: string
+          description?: string | null
+          file_name?: string | null
+          folder?: string | null
+          height?: number | null
+          id?: string
+          media_url?: string
+          mime_type?: string | null
+          site_id?: string | null
+          size_bytes?: number | null
+          source?: string | null
+          tags?: string[] | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
         }
         Relationships: []
       }
@@ -933,6 +1097,117 @@ export type Database = {
           organization_logo?: string | null
           organization_name?: string | null
           social_image?: string | null
+          twitter_handle?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          brand_accent: string | null
+          brand_primary: string | null
+          created_at: string
+          default_meta_description: string | null
+          default_meta_title: string | null
+          default_og_image: string | null
+          email_from_address: string | null
+          email_from_name: string | null
+          email_provider: string | null
+          email_reply_to: string | null
+          email_smtp: Json | null
+          extras: Json
+          facebook_app_id: string | null
+          facebook_pixel_id: string | null
+          favicon_url: string | null
+          google_analytics_id: string | null
+          google_tag_manager_id: string | null
+          id: string
+          logo_dark_url: string | null
+          logo_url: string | null
+          perf_image_cdn: boolean | null
+          perf_lazy_images: boolean | null
+          perf_minify: boolean | null
+          perf_preconnect: string[] | null
+          plausible_domain: string | null
+          sec_csp: string | null
+          sec_force_https: boolean | null
+          sec_hsts: boolean | null
+          sec_referrer_policy: string | null
+          site_id: string
+          site_name: string | null
+          tagline: string | null
+          twitter_handle: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand_accent?: string | null
+          brand_primary?: string | null
+          created_at?: string
+          default_meta_description?: string | null
+          default_meta_title?: string | null
+          default_og_image?: string | null
+          email_from_address?: string | null
+          email_from_name?: string | null
+          email_provider?: string | null
+          email_reply_to?: string | null
+          email_smtp?: Json | null
+          extras?: Json
+          facebook_app_id?: string | null
+          facebook_pixel_id?: string | null
+          favicon_url?: string | null
+          google_analytics_id?: string | null
+          google_tag_manager_id?: string | null
+          id?: string
+          logo_dark_url?: string | null
+          logo_url?: string | null
+          perf_image_cdn?: boolean | null
+          perf_lazy_images?: boolean | null
+          perf_minify?: boolean | null
+          perf_preconnect?: string[] | null
+          plausible_domain?: string | null
+          sec_csp?: string | null
+          sec_force_https?: boolean | null
+          sec_hsts?: boolean | null
+          sec_referrer_policy?: string | null
+          site_id: string
+          site_name?: string | null
+          tagline?: string | null
+          twitter_handle?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand_accent?: string | null
+          brand_primary?: string | null
+          created_at?: string
+          default_meta_description?: string | null
+          default_meta_title?: string | null
+          default_og_image?: string | null
+          email_from_address?: string | null
+          email_from_name?: string | null
+          email_provider?: string | null
+          email_reply_to?: string | null
+          email_smtp?: Json | null
+          extras?: Json
+          facebook_app_id?: string | null
+          facebook_pixel_id?: string | null
+          favicon_url?: string | null
+          google_analytics_id?: string | null
+          google_tag_manager_id?: string | null
+          id?: string
+          logo_dark_url?: string | null
+          logo_url?: string | null
+          perf_image_cdn?: boolean | null
+          perf_lazy_images?: boolean | null
+          perf_minify?: boolean | null
+          perf_preconnect?: string[] | null
+          plausible_domain?: string | null
+          sec_csp?: string | null
+          sec_force_https?: boolean | null
+          sec_hsts?: boolean | null
+          sec_referrer_policy?: string | null
+          site_id?: string
+          site_name?: string | null
+          tagline?: string | null
           twitter_handle?: string | null
           updated_at?: string
         }
