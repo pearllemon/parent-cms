@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2 } from "lucide-react";
 import VisualCanvas, { type Block as VCBlock } from "@/components/admin/VisualCanvas";
 import {
   listSections, listTemplates, saveSection, saveTemplate, deleteSection, deleteTemplate,
@@ -18,6 +18,10 @@ import {
   type ThemeSection, type ThemeTemplate, type ThemeTokens, type TemplateKind, DEFAULT_TOKENS,
   type SectionRevision,
 } from "@/lib/themeStore";
+import {
+  listAssignments, saveAssignment, deleteAssignment,
+  type TemplateAssignment, type TemplateScope,
+} from "@/lib/templateAssignments";
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
