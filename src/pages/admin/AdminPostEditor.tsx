@@ -141,6 +141,11 @@ const AdminPostEditorWP = () => {
           .eq("entity_type", scope === "parent" ? "parent_post" : "imported_post")
           .eq("entity_id", id!);
         setRevisionCount(count || 0);
+
+        // Custom field values
+        const entityType = (form.type === "page" ? "page" : "post");
+        const v = await loadValues(entityType, id!);
+        setCfValues(v);
       } catch (e: any) {
         toast.error(e?.message || "Failed to load");
       } finally {
