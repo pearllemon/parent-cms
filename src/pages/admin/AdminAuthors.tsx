@@ -135,6 +135,13 @@ export default function AdminAuthors() {
             </div>
           </div>
         </Card>
+
+        <MediaPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onPick={(it) => setF("profile_image_url", it.url)}
+          title="Pick profile image"
+        />
       </div>
     );
   }
