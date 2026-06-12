@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, Save, ArrowLeft, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import MediaPicker from "@/components/admin/MediaPicker";
 
 type Author = {
   id: string;
