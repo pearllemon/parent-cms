@@ -18,6 +18,7 @@ import BlogPost from "./pages/BlogPost.tsx";
 import BlogTaxonomy from "./pages/BlogTaxonomy.tsx";
 import DynamicPage from "./pages/DynamicPage.tsx";
 import AuthorArchive from "./pages/AuthorArchive.tsx";
+import TaxonomyArchive from "./pages/TaxonomyArchive.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
 import PopupManager from "./components/PopupManager.tsx";
@@ -44,6 +45,8 @@ import AdminAuthors from "./pages/admin/AdminAuthors.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
+import AdminThemeDesigner from "./pages/admin/AdminThemeDesigner.tsx";
+import AdminTaxonomies from "./pages/admin/AdminTaxonomies.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
@@ -76,6 +79,8 @@ const App = () => (
             {/* Imported WordPress pages — keep last before admin/catch-all */}
             <Route path="/p/:slug" element={<DynamicPage />} />
             <Route path="/author/:slug" element={<AuthorArchive />} />
+            {/* Public taxonomy archives: /category/:slug, /tag/:slug, /:taxonomy/:slug */}
+            <Route path="/:taxonomy/:slug" element={<TaxonomyArchive />} />
 
             {/* Admin CMS */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -101,6 +106,10 @@ const App = () => (
               <Route path="cpt/:slug/entries" element={<AdminCPTEntries />} />
               <Route path="cpt/:slug/entries/:id" element={<AdminCPTEntries />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="theme" element={<AdminThemeDesigner />} />
+              <Route path="taxonomies" element={<AdminTaxonomies />} />
+              <Route path="categories" element={<Navigate to="/admin/taxonomies?tax=category" replace />} />
+              <Route path="tags" element={<Navigate to="/admin/taxonomies?tax=tag" replace />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
