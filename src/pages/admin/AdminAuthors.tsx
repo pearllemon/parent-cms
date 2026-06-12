@@ -40,6 +40,7 @@ export default function AdminAuthors() {
   const [list, setList] = useState<Author[]>([]);
   const [editing, setEditing] = useState<Partial<Author> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
