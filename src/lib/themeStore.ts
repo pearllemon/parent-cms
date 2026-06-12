@@ -1,5 +1,6 @@
 // Theme Designer storage: sections, templates, global tokens.
 import { supabase } from "@/integrations/supabase/client";
+import { logActivity } from "@/lib/activityLog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
