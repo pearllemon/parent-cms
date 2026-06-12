@@ -87,6 +87,8 @@ const AdminPostEditorWP = () => {
   const [seoOpen, setSeoOpen] = useState(false);
   const [revisionCount, setRevisionCount] = useState(0);
   const [parentPages, setParentPages] = useState<{ id: string; title: string }[]>([]);
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const [featuredPickerOpen, setFeaturedPickerOpen] = useState(false);
 
   // Load post + seo
   useEffect(() => {
