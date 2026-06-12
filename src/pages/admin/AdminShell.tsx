@@ -16,6 +16,9 @@ import {
   Cloud,
   Search,
   Users,
+  Palette,
+  FolderTree,
+  Tag,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,7 +36,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 const ICONS: Record<string, LucideIcon> = {
-  LayoutDashboard, FileText, File, Layers, Image, Upload, Cloud, Settings, Search, Database, Users,
+  LayoutDashboard, FileText, File, Layers, Image, Upload, Cloud, Settings, Search, Database, Users, Palette, FolderTree, Tag,
 };
 
 const SECTION_TABLES: Record<string, string> = {
@@ -130,9 +133,18 @@ const AdminShell = () => {
       label: "Content",
       items: [
         ...contentRoutes,
+        { path: "/admin/taxonomies?tax=category", label: "Categories", icon: "FolderTree" },
+        { path: "/admin/taxonomies?tax=tag", label: "Tags", icon: "Tag" },
+        { path: "/admin/taxonomies", label: "Taxonomies", icon: "Database" },
         { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
         { path: "/admin/media", label: "Media", icon: "Image" },
         { path: "/admin/authors", label: "Authors", icon: "Users" },
+      ],
+    },
+    {
+      label: "Design",
+      items: [
+        { path: "/admin/theme", label: "Theme Designer", icon: "Palette" },
       ],
     },
     {
