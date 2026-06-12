@@ -237,6 +237,12 @@ const AdminPostEditorWP = () => {
       // Persist SEO + sync to parent (best-effort inside savePostSeo)
       await savePostSeo({ ...seo, post_id: savedId, slug, last_score: liveScore });
 
+      // Persist custom field values
+      try {
+        const entityType = (form.type === "page" ? "page" : "post");
+        await saveValues(entityType, savedId, config?.site?.id || null, cfValues);
+      } catch { /* ignore */ }
+
       toast.success(status === "published" ? "Published" : status === "trash" ? "Moved to Bin" : "Saved");
       if (isNew) nav(`/admin/posts/${savedId}${scope === "imported" ? "?scope=imported" : ""}`, { replace: true });
       if (status === "trash") nav("/admin/posts");
