@@ -94,15 +94,19 @@ export async function saveSection(s: Partial<ThemeSection> & { name: string; slu
     }
     const { data } = await db.from("theme_sections").update({ ...payload, version: (prev?.version || 1) + 1 }).eq("id", s.id).select().maybeSingle();
     saved = data as ThemeSection | null;
+    if (saved) void logActivity({ action: "update", entity_type: "theme_section", entity_id: saved.id, entity_label: saved.name, details: { version: saved.version } });
   } else {
     const { data } = await db.from("theme_sections").insert(payload).select().maybeSingle();
     saved = data as ThemeSection | null;
+    if (saved) void logActivity({ action: "create", entity_type: "theme_section", entity_id: saved.id, entity_label: saved.name });
   }
   return saved;
 }
 
 export async function deleteSection(id: string) {
+  const { data: prev } = await db.from("theme_sections").select("name").eq("id", id).maybeSingle();
   await db.from("theme_sections").delete().eq("id", id);
+  void logActivity({ action: "delete", entity_type: "theme_section", entity_id: id, entity_label: prev?.name || null });
 }
 
 export type SectionRevision = {
