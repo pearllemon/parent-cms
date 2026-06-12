@@ -279,6 +279,36 @@ function SectionEditor({ initial, onClose, onSaved }: { initial: Partial<ThemeSe
           </Tabs>
         </div>
       </Card>
+
+      {historyOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={() => setHistoryOpen(false)}>
+          <Card className="w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-medium">Version history</h3>
+              <Button size="sm" variant="ghost" onClick={() => setHistoryOpen(false)}>Close</Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {revisions.length === 0 ? (
+                <p className="p-6 text-sm text-muted-foreground text-center">No snapshots yet. Future saves will appear here.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {revisions.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between p-3 rounded hover:bg-muted/50">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">v{r.snapshot?.version ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => restoreRevision(r)}>
+                        <RotateCcw className="w-3.5 h-3.5 mr-1" /> Restore
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
