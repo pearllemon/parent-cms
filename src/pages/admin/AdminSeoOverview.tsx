@@ -2,8 +2,9 @@
 // "Rescan all" runs a fresh score sweep and stores results. Per-row click
 // jumps into the SEO Audit detail view.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSiteConfig } from "@/providers/SiteProvider";
+import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { loadStoredScores, aggregate, rescanAll, type StoredScore } from "@/lib/seoScoresStore";
 import { getSeoSettings, saveSeoSettings, resolvedBaseUrl, type SeoSettings } from "@/lib/seoSettings";
 import { Button } from "@/components/ui/button";
@@ -23,15 +24,17 @@ const color = (s: number) => s >= 75 ? "bg-green-500/15 text-green-700"
 export default function AdminSeoOverview() {
   const { config } = useSiteConfig();
   const [settings, setSettings] = useState<SeoSettings | null>(null);
-  const [rows, setRows] = useState<StoredScore[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ n: number; total: number } | null>(null);
+  const autoRan = useRef(false);
 
-  const reload = async () => setRows(await loadStoredScores());
+  // Cached — overview renders instantly, refreshes in background.
+  const scoresQ = useCachedQuery<StoredScore[]>("seo:scores", loadStoredScores);
+  const rows = scoresQ.data || [];
+  const reload = scoresQ.refresh;
 
   useEffect(() => {
     getSeoSettings().then(setSettings);
-    void reload();
   }, []);
 
   const onRescan = async () => {
@@ -50,6 +53,15 @@ export default function AdminSeoOverview() {
     setBusy(false);
     setProgress(null);
   };
+
+  // First-run fix for the all-zero overview: if no scores are stored yet,
+  // kick off a scan automatically once settings are available.
+  useEffect(() => {
+    if (autoRan.current || scoresQ.loading || rows.length > 0 || !settings || busy) return;
+    autoRan.current = true;
+    void onRescan();
+    // eslint-disable-next-line
+  }, [scoresQ.loading, rows.length, settings]);
 
   const onSaveBase = async () => {
     if (!settings) return;

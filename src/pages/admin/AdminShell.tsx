@@ -16,6 +16,7 @@ import {
   Cloud,
   Search,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 
 export type AdminRoute = { path: string; label: string; table?: string; icon?: string };
@@ -29,6 +30,10 @@ const titleCase = (s: string) =>
 const TYPE_ICON: Record<string, string> = {
   post: "FileText",
   page: "File",
+};
+
+const ICONS: Record<string, LucideIcon> = {
+  LayoutDashboard, FileText, File, Layers, Image, Upload, Cloud, Settings, Search, Database, Users,
 };
 
 const SECTION_TABLES: Record<string, string> = {
@@ -116,22 +121,32 @@ const AdminShell = () => {
     icon: TYPE_ICON[t] || "Layers",
   }));
 
-  const KNOWN_TOP: AdminRoute[] = [
-    { path: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
+  const groups: { label: string; items: AdminRoute[] }[] = [
+    {
+      label: "",
+      items: [{ path: "/admin", label: "Dashboard", icon: "LayoutDashboard" }],
+    },
+    {
+      label: "Content",
+      items: [
+        ...contentRoutes,
+        { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
+        { path: "/admin/media", label: "Media", icon: "Image" },
+        { path: "/admin/authors", label: "Authors", icon: "Users" },
+      ],
+    },
+    {
+      label: "Manage",
+      items: [
+        { path: "/admin/users", label: "Users", icon: "Users" },
+        { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
+        { path: "/admin/sync", label: "Sync", icon: "Cloud" },
+        { path: "/admin/seo-workspace", label: "SEO Workspace", icon: "Search" },
+        { path: "/admin/settings", label: "Settings", icon: "Settings" },
+      ],
+    },
+    ...(dynamicRoutes.length ? [{ label: "Data", items: dynamicRoutes }] : []),
   ];
-  const KNOWN_BOTTOM: AdminRoute[] = [
-    { path: "/admin/import", label: "Import (WP XML)", icon: "Upload" },
-    { path: "/admin/sync", label: "Parent Sync", icon: "Cloud" },
-    { path: "/admin/sync-control", label: "Sync Control", icon: "Cloud" },
-    { path: "/admin/seo-workspace", label: "SEO Workspace", icon: "Search" },
-    { path: "/admin/redirects", label: "Redirects", icon: "Cloud" },
-    { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
-    { path: "/admin/authors", label: "Authors", icon: "Users" },
-    { path: "/admin/users", label: "Users", icon: "Users" },
-    { path: "/admin/media", label: "Media", icon: "Image" },
-    { path: "/admin/settings", label: "Settings", icon: "Settings" },
-  ];
-  const allRoutes = [...KNOWN_TOP, ...contentRoutes, ...KNOWN_BOTTOM, ...dynamicRoutes];
 
   if (authed === null) {
     return <div className="min-h-screen flex items-center justify-center">Loading admin…</div>;
@@ -144,47 +159,49 @@ const AdminShell = () => {
         <Link to="/" className="font-display text-xl mb-6">
           {config?.site?.name?.toString().slice(0, 22) || "CMS"}
         </Link>
-        <nav className="space-y-1 text-sm">
-          {allRoutes.map((r) => {
-            const [rPath, rQuery] = r.path.split("?");
-            const isContentLink = rPath === "/admin/posts" && !!rQuery;
-            const currentType = new URLSearchParams(location.search).get("type");
-            const linkType = new URLSearchParams(rQuery || "").get("type");
-            const customActive = isContentLink
-              ? location.pathname.startsWith("/admin/posts") && currentType === linkType
-              : undefined;
-            return (
-              <NavLink
-                key={r.path}
-                to={r.path}
-                end={r.path === "/admin"}
-                className={({ isActive }) => {
-                  const active =
-                    customActive !== undefined
-                      ? customActive
-                      : isActive &&
-                        // prevent default /admin/posts highlight when on a typed variant
-                        !(rPath === "/admin/posts" && !rQuery && currentType);
-                  return `flex items-center gap-2 py-2 px-3 rounded ${
-                    active ? "bg-primary text-primary-foreground" : "hover:bg-background/10"
-                  }`;
-                }}
-              >
-                {r.icon === "LayoutDashboard" && <LayoutDashboard className="w-4 h-4" />}
-                {r.icon === "FileText" && <FileText className="w-4 h-4" />}
-                {r.icon === "File" && <File className="w-4 h-4" />}
-                {r.icon === "Layers" && <Layers className="w-4 h-4" />}
-                {r.icon === "Image" && <Image className="w-4 h-4" />}
-                {r.icon === "Upload" && <Upload className="w-4 h-4" />}
-                {r.icon === "Cloud" && <Cloud className="w-4 h-4" />}
-                {r.icon === "Settings" && <Settings className="w-4 h-4" />}
-                {r.icon === "Search" && <Search className="w-4 h-4" />}
-                {r.icon === "Database" && <Database className="w-4 h-4" />}
-                {r.icon === "Users" && <Users className="w-4 h-4" />}
-                {r.label}
-              </NavLink>
-            );
-          })}
+        <nav className="space-y-3 text-sm">
+          {groups.map((g, gi) => (
+            <div key={g.label || gi}>
+              {g.label && (
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">
+                  {g.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {g.items.map((r) => {
+                  const [rPath, rQuery] = r.path.split("?");
+                  const isContentLink = rPath === "/admin/posts" && !!rQuery;
+                  const currentType = new URLSearchParams(location.search).get("type");
+                  const linkType = new URLSearchParams(rQuery || "").get("type");
+                  const customActive = isContentLink
+                    ? location.pathname.startsWith("/admin/posts") && currentType === linkType
+                    : undefined;
+                  const Icon = ICONS[r.icon || ""] || Layers;
+                  return (
+                    <NavLink
+                      key={r.path}
+                      to={r.path}
+                      end={r.path === "/admin"}
+                      className={({ isActive }) => {
+                        const active =
+                          customActive !== undefined
+                            ? customActive
+                            : isActive &&
+                              // prevent default /admin/posts highlight when on a typed variant
+                              !(rPath === "/admin/posts" && !rQuery && currentType);
+                        return `flex items-center gap-2 py-2 px-3 rounded ${
+                          active ? "bg-primary text-primary-foreground" : "hover:bg-background/10"
+                        }`;
+                      }}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {r.label}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
         <div className="mt-auto pt-6 text-xs opacity-60 space-y-1">
           {schema && (

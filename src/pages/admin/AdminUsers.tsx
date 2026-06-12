@@ -1,20 +1,23 @@
 // Users — admin team & role management.
-// Sources accounts from cloud `admin_users` table. Lets you invite (record
-// an email + role), edit role/display name, link to a parent CMS user_id,
-// and remove. Authentication itself remains in parent CMS — this is a
-// directory and role registry only.
+// Sources accounts from cloud `admin_users`, auto-registers whoever is
+// signed in via the parent CMS auth (so real admins appear without manual
+// entry), and pulls any users the parent exposes for this site.
+// Loads instantly from cache, refreshes in the background.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase as cloud } from "@/integrations/supabase/client";
+import { supabase as parentClient } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
+import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Save, Mail, Shield } from "lucide-react";
+import { Plus, Trash2, Save, Mail, Shield, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import MediaPicker from "@/components/admin/MediaPicker";
 
@@ -43,24 +46,66 @@ const ROLES = [
 export default function AdminUsers() {
   const { config } = useSiteConfig();
   const siteId = config?.site?.id;
-  const [list, setList] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Partial<User> | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    let qb = T("admin_users").select("*").order("created_at", { ascending: false });
-    if (siteId) qb = qb.eq("site_id", siteId);
-    const { data } = await qb;
-    setList((data as User[]) || []);
-    setLoading(false);
-  };
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, [siteId]);
+  const { data, loading, refreshing, refresh } = useCachedQuery<User[]>(
+    `users:${siteId || "any"}`,
+    async () => {
+      // 1) Auto-register the currently signed-in admin (parent CMS auth)
+      try {
+        const { data: au } = await parentClient.auth.getUser();
+        const email = au?.user?.email;
+        if (email) {
+          const { data: existing } = await T("admin_users").select("id").ilike("email", email).maybeSingle();
+          if (existing?.id) {
+            await T("admin_users")
+              .update({ last_seen_at: new Date().toISOString(), user_id: au.user!.id })
+              .eq("id", existing.id);
+          } else {
+            await T("admin_users").insert({
+              site_id: siteId || null,
+              email,
+              display_name: (au.user!.user_metadata as any)?.full_name || email.split("@")[0],
+              role: "admin",
+              user_id: au.user!.id,
+              last_seen_at: new Date().toISOString(),
+            });
+          }
+        }
+      } catch { /* best-effort */ }
+
+      // 2) Pull any users the parent CMS exposes for this site
+      try {
+        const { data: su } = await (parentClient.from("site_users" as any) as any).select("*").limit(500);
+        for (const r of (su as any[]) || []) {
+          const email = r.email || r.user_email;
+          if (!email) continue;
+          const { data: existing } = await T("admin_users").select("id").ilike("email", email).maybeSingle();
+          if (!existing?.id) {
+            await T("admin_users").insert({
+              site_id: siteId || null,
+              email,
+              display_name: r.display_name || r.name || null,
+              role: (r.role as User["role"]) || "editor",
+              user_id: r.user_id || null,
+            });
+          }
+        }
+      } catch { /* parent may not expose users */ }
+
+      // 3) Load the directory
+      let qb = T("admin_users").select("*").order("created_at", { ascending: false });
+      if (siteId) qb = qb.or(`site_id.eq.${siteId},site_id.is.null`);
+      const { data: rows } = await qb;
+      return (rows as User[]) || [];
+    },
+  );
+  const list = data || [];
 
   const save = async () => {
     if (!editing?.email?.trim()) return toast.error("Email required");
-    const payload = { ...editing, site_id: siteId };
+    const payload = { ...editing, site_id: editing.site_id ?? siteId };
     if ((editing as User).id) {
       const { error } = await T("admin_users").update(payload).eq("id", (editing as User).id);
       if (error) return toast.error(error.message);
@@ -71,13 +116,13 @@ export default function AdminUsers() {
       toast.success("User invited");
     }
     setEditing(null);
-    await load();
+    await refresh();
   };
 
   const del = async (u: User) => {
     if (!confirm(`Remove ${u.email}?`)) return;
     await T("admin_users").delete().eq("id", u.id);
-    setList((ls) => ls.filter((x) => x.id !== u.id));
+    await refresh();
   };
 
   return (
@@ -85,14 +130,23 @@ export default function AdminUsers() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="font-display text-2xl">Users</h1>
-          <p className="text-sm text-muted-foreground">Team members and access roles for this site.</p>
+          <p className="text-sm text-muted-foreground">
+            Team members and access roles for this site. Admins who sign in are registered automatically.
+          </p>
         </div>
-        <Button onClick={() => setEditing({ email: "", role: "editor", display_name: "", avatar_url: "" })}>
-          <Plus className="w-4 h-4 mr-2" /> Add user
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void refresh()} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} /> Sync
+          </Button>
+          <Button onClick={() => setEditing({ email: "", role: "editor", display_name: "", avatar_url: "" })}>
+            <Plus className="w-4 h-4 mr-2" /> Add user
+          </Button>
+        </div>
       </div>
 
-      {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : list.length === 0 ? (
+      {loading && list.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : list.length === 0 ? (
         <div className="border rounded-xl p-8 text-center text-sm text-muted-foreground">
           No team members yet. Add one to assign access.
         </div>
@@ -107,7 +161,14 @@ export default function AdminUsers() {
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{u.display_name || u.email}</div>
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-1"><Mail className="w-3 h-3" /> {u.email}</div>
-                <div className="text-xs mt-1 flex items-center gap-1"><Shield className="w-3 h-3 text-primary" /> {u.role}</div>
+                <div className="text-xs mt-1 flex items-center gap-2">
+                  <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-primary" /> {u.role}</span>
+                  {u.last_seen_at && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Seen {new Date(u.last_seen_at).toLocaleDateString()}
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex gap-1 mt-2">
                   <Button size="sm" variant="outline" onClick={() => setEditing(u)}>Edit</Button>
                   <Button size="sm" variant="ghost" className="text-red-600 ml-auto" onClick={() => del(u)}><Trash2 className="w-3 h-3" /></Button>

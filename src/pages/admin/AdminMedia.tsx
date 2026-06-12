@@ -6,7 +6,8 @@
 // `media_library` for cross-site visibility. Metadata (alt, caption,
 // etc.) lives in `media_meta`.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { supabase as cloud } from "@/integrations/supabase/client";
 import { supabase as parent } from "@/lib/parent";
 import { useSiteConfig } from "@/providers/SiteProvider";
@@ -68,9 +69,6 @@ const AdminMedia = () => {
   const { config } = useSiteConfig();
   const siteId = config?.site?.id;
 
-  const [items, setItems] = useState<MediaRow[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video" | "audio" | "document" | "other">("all");
@@ -80,59 +78,62 @@ const AdminMedia = () => {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
-    setLoading(true);
-    const next: MediaRow[] = [];
-    try {
-      let qb = cloudT("media_meta").select("*").order("created_at", { ascending: false }).limit(500);
-      if (siteId) qb = qb.eq("site_id", siteId);
-      const { data } = await qb;
-      for (const r of (data as any[]) || []) {
-        next.push({
-          id: `c:${r.id}`,
-          source: "cloud",
-          url: r.media_url,
-          file_name: r.file_name || r.media_url.split("/").pop() || "media",
-          mime_type: r.mime_type, size_bytes: r.size_bytes,
-          alt_text: r.alt_text, title: r.title, caption: r.caption, description: r.description,
-          folder: r.folder, tags: r.tags, width: r.width, height: r.height,
-          created_at: r.created_at,
-        });
-      }
-    } catch { /* ignore */ }
+  // Cached query — shows the library instantly from cache, refreshes in background.
+  const { data, loading, refresh } = useCachedQuery<{ items: MediaRow[]; folders: Folder[] }>(
+    `media:${siteId || "any"}`,
+    async () => {
+      const next: MediaRow[] = [];
+      try {
+        let qb = cloudT("media_meta").select("*").order("created_at", { ascending: false }).limit(500);
+        if (siteId) qb = qb.eq("site_id", siteId);
+        const { data: rows } = await qb;
+        for (const r of (rows as any[]) || []) {
+          next.push({
+            id: `c:${r.id}`,
+            source: "cloud",
+            url: r.media_url,
+            file_name: r.file_name || r.media_url.split("/").pop() || "media",
+            mime_type: r.mime_type, size_bytes: r.size_bytes,
+            alt_text: r.alt_text, title: r.title, caption: r.caption, description: r.description,
+            folder: r.folder, tags: r.tags, width: r.width, height: r.height,
+            created_at: r.created_at,
+          });
+        }
+      } catch { /* ignore */ }
 
-    try {
-      const { data } = await parentT("media_library")
-        .select("id,file_url,file_name,file_size,mime_type,created_at")
-        .order("created_at", { ascending: false }).limit(500);
-      const knownUrls = new Set(next.map((i) => i.url));
-      for (const r of (data as any[]) || []) {
-        if (knownUrls.has(r.file_url)) continue;
-        next.push({
-          id: `p:${r.id}`,
-          source: "parent",
-          url: r.file_url,
-          file_name: r.file_name,
-          mime_type: r.mime_type || guessMime(r.file_name),
-          size_bytes: r.file_size,
-          created_at: r.created_at,
-        });
-      }
-    } catch { /* ignore */ }
+      try {
+        const { data: rows } = await parentT("media_library")
+          .select("id,file_url,file_name,file_size,mime_type,created_at")
+          .order("created_at", { ascending: false }).limit(500);
+        const knownUrls = new Set(next.map((i) => i.url));
+        for (const r of (rows as any[]) || []) {
+          if (knownUrls.has(r.file_url)) continue;
+          next.push({
+            id: `p:${r.id}`,
+            source: "parent",
+            url: r.file_url,
+            file_name: r.file_name,
+            mime_type: r.mime_type || guessMime(r.file_name),
+            size_bytes: r.file_size,
+            created_at: r.created_at,
+          });
+        }
+      } catch { /* ignore */ }
 
-    setItems(next);
+      let folderRows: Folder[] = [];
+      try {
+        let qb = cloudT("media_folders").select("id,name").order("name");
+        if (siteId) qb = qb.eq("site_id", siteId);
+        const { data: rows } = await qb;
+        folderRows = (rows as Folder[]) || [];
+      } catch { /* ignore */ }
 
-    try {
-      let qb = cloudT("media_folders").select("id,name").order("name");
-      if (siteId) qb = qb.eq("site_id", siteId);
-      const { data } = await qb;
-      setFolders((data as Folder[]) || []);
-    } catch { /* ignore */ }
-
-    setLoading(false);
-  };
-
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, [siteId]);
+      return { items: next, folders: folderRows };
+    },
+  );
+  const items = useMemo(() => data?.items || [], [data]);
+  const folders = useMemo(() => data?.folders || [], [data]);
+  const load = refresh;
 
   const upload = async (files: FileList) => {
     if (!siteId) return toast.error("Site not loaded");

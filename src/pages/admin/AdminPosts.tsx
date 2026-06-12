@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Eye, Pencil, Wand2, ChevronLeft, ChevronRight } from "lucide-react";
-import { toast } from "sonner";
+import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { SeoScoreDot } from "@/components/admin/seo/SeoScoreBadge";
 import { loadPostSeoMany } from "@/lib/postSeo";
 import ScreenOptions, { useScreenPrefs, type ColumnDef } from "@/components/admin/ScreenOptions";
@@ -53,87 +53,92 @@ const AdminPosts = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const typeFilter = searchParams.get("type") || "post";
   const [prefs, setPrefs] = useScreenPrefs(`admin:posts:${typeFilter}`, COLUMNS);
+  const siteId = config?.site?.id as string | undefined;
 
-  const [posts, setPosts] = useState<Post[]>([]);
   const [seoMap, setSeoMap] = useState<Record<string, { score: number }>>({});
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [author, setAuthor] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
 
-  const load = async () => {
-    if (!config?.site?.id) return;
-    setLoading(true);
+  // Cached query — list renders instantly from cache, refreshes in background.
+  const { data, loading, refresh } = useCachedQuery<Post[]>(
+    siteId ? `posts:${siteId}` : null,
+    async () => {
+      const parentReq = supabase
+        .from("posts")
+        .select("id,title,slug,status,type,publish_date,updated_at,author,categories,tags,comment_count")
+        .eq("site_id", siteId!)
+        .order("updated_at", { ascending: false })
+        .limit(500);
 
-    const parentReq = supabase
-      .from("posts")
-      .select("id,title,slug,status,type,publish_date,updated_at,author,categories,tags,comment_count")
-      .eq("site_id", config.site.id)
-      .order("updated_at", { ascending: false })
-      .limit(500);
+      const cloudReq = cloud
+        .from("imported_posts")
+        .select("id,title,slug,status,type,publish_date,updated_at,raw")
+        .order("updated_at", { ascending: false })
+        .limit(1000);
 
-    const cloudReq = cloud
-      .from("imported_posts")
-      .select("id,title,slug,status,type,publish_date,updated_at,raw")
-      .order("updated_at", { ascending: false })
-      .limit(1000);
+      const [parentRes, cloudRes] = await Promise.all([parentReq, cloudReq]);
 
-    const [parentRes, cloudRes] = await Promise.all([parentReq, cloudReq]);
+      if (parentRes.error) console.error(parentRes.error.message);
+      if (cloudRes.error) console.error(cloudRes.error.message);
 
-    if (parentRes.error) toast.error(parentRes.error.message);
-    if (cloudRes.error) console.error(cloudRes.error.message);
+      const parentRows: Post[] = (parentRes.data || []).map((p: any) => ({
+        id: p.id, title: p.title, slug: p.slug, status: p.status, type: p.type,
+        publish_date: p.publish_date, updated_at: p.updated_at,
+        source: "parent" as const,
+        author: typeof p.author === "object" ? p.author?.name : p.author,
+        categories: Array.isArray(p.categories) ? p.categories : [],
+        tags: Array.isArray(p.tags) ? p.tags : [],
+        comments: p.comment_count ?? 0,
+      }));
+      const cloudRows: Post[] = (cloudRes.data || []).map((p: any) => {
+        const raw = p.raw || {};
+        return {
+          id: p.id, title: p.title, slug: p.slug, status: p.status, type: p.type,
+          publish_date: p.publish_date, updated_at: p.updated_at,
+          source: "imported" as const,
+          author: typeof raw.author === "object" ? raw.author?.name : raw.author,
+          categories: Array.isArray(raw.categories) ? raw.categories : [],
+          tags: Array.isArray(raw.tags) ? raw.tags : [],
+          comments: 0,
+        };
+      });
 
-    const parentRows: Post[] = (parentRes.data || []).map((p: any) => ({
-      ...p,
-      source: "parent" as const,
-      author: typeof p.author === "object" ? p.author?.name : p.author,
-      comments: p.comment_count ?? 0,
-    }));
-    const cloudRows: Post[] = (cloudRes.data || []).map((p: any) => {
-      const raw = p.raw || {};
-      return {
-        ...p,
-        source: "imported" as const,
-        author: typeof raw.author === "object" ? raw.author?.name : raw.author,
-        categories: Array.isArray(raw.categories) ? raw.categories : [],
-        tags: Array.isArray(raw.tags) ? raw.tags : [],
-        comments: 0,
-      };
-    });
+      const seen = new Set<string>();
+      const merged: Post[] = [];
+      for (const row of [...parentRows, ...cloudRows]) {
+        const key = `${row.type || "post"}::${row.slug}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(row);
+      }
+      merged.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      return merged;
+    },
+  );
+  const posts = useMemo(() => data || [], [data]);
 
-    const seen = new Set<string>();
-    const merged: Post[] = [];
-    for (const row of [...parentRows, ...cloudRows]) {
-      const key = `${row.type || "post"}::${row.slug}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(row);
-    }
-    merged.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-    setPosts(merged);
-    setLoading(false);
-
-    const refs = merged.map((p) => ({ scope: (p.source === "imported" ? "imported" : "parent") as any, post_id: p.id }));
+  // SEO score dots — refresh whenever the post list changes (cached or fresh)
+  useEffect(() => {
+    if (!posts.length) return;
+    const refs = posts.map((p) => ({ scope: (p.source === "imported" ? "imported" : "parent") as any, post_id: p.id }));
     loadPostSeoMany(refs).then((map) => {
       const out: Record<string, { score: number }> = {};
       Object.entries(map).forEach(([k, v]: any) => { if (typeof v.last_score === "number") out[k] = { score: v.last_score }; });
       setSeoMap(out);
     }).catch(() => {});
-  };
-
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [config?.site?.id, typeFilter]);
+    // eslint-disable-next-line
+  }, [posts]);
 
   // Realtime — refresh whenever imported_posts changes
   useEffect(() => {
-    const ch = cloud.channel(`admin-posts-live-${typeFilter}`);
-    (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "imported_posts" }, () => void load());
+    const ch = cloud.channel("admin-posts-live");
+    (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "imported_posts" }, () => void refresh());
     ch.subscribe();
     return () => { cloud.removeChannel(ch); };
-    // eslint-disable-next-line
-  }, [typeFilter, config?.site?.id]);
+  }, [refresh]);
 
   const allAuthors = useMemo(() => Array.from(new Set(posts.map((p) => p.author).filter(Boolean))) as string[], [posts]);
   const allCategories = useMemo(() => {
