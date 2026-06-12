@@ -427,23 +427,29 @@ const AdminPostEditorWP = () => {
             <div className="space-y-2">
               <img src={form.featured_image_url} alt="" className="w-full rounded-lg object-cover aspect-video" />
               <div className="flex gap-2">
-                <label className="flex-1">
-                  <Button asChild size="sm" variant="outline" className="w-full">
-                    <span><Upload className="w-3 h-3 mr-1" /> Replace</span>
-                  </Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => setFeaturedPickerOpen(true)}>
+                  <ImageIcon className="w-3 h-3 mr-1" /> Media Library
+                </Button>
+                <label>
+                  <Button asChild size="sm" variant="outline"><span><Upload className="w-3 h-3 mr-1" /> Upload</span></Button>
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUploadFeatured(e.target.files[0])} />
                 </label>
                 <Button size="sm" variant="ghost" onClick={() => setF("featured_image_url", "")}>Remove</Button>
               </div>
             </div>
           ) : (
-            <label className="block">
-              <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50">
-                <ImageIcon className="w-6 h-6 mx-auto text-muted-foreground" />
-                <div className="text-xs mt-1 text-muted-foreground">Click to upload</div>
-              </div>
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUploadFeatured(e.target.files[0])} />
-            </label>
+            <div className="space-y-2">
+              <Button size="sm" variant="outline" className="w-full" onClick={() => setFeaturedPickerOpen(true)}>
+                <ImageIcon className="w-3 h-3 mr-1" /> Choose from Media Library
+              </Button>
+              <label className="block">
+                <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50">
+                  <Upload className="w-6 h-6 mx-auto text-muted-foreground" />
+                  <div className="text-xs mt-1 text-muted-foreground">Or click to upload a new file</div>
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUploadFeatured(e.target.files[0])} />
+              </label>
+            </div>
           )}
         </SideBlock>
 
