@@ -127,6 +127,7 @@ const AdminShell = () => {
     { path: "/admin/redirects", label: "Redirects", icon: "Cloud" },
     { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
     { path: "/admin/authors", label: "Authors", icon: "Users" },
+    { path: "/admin/users", label: "Users", icon: "Users" },
     { path: "/admin/media", label: "Media", icon: "Image" },
     { path: "/admin/settings", label: "Settings", icon: "Settings" },
   ];
