@@ -348,6 +348,38 @@ export type Database = {
         }
         Relationships: []
       }
+      entry_terms: {
+        Row: {
+          created_at: string
+          entry_id: string
+          entry_type: string
+          id: string
+          term_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          entry_type: string
+          id?: string
+          term_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          entry_type?: string
+          id?: string
+          term_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_terms_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_terms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       image_assets: {
         Row: {
           alt_text: string | null
@@ -1405,6 +1437,253 @@ export type Database = {
           resource_type?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      taxonomies: {
+        Row: {
+          applies_to: string[]
+          created_at: string
+          description: string | null
+          hierarchical: boolean
+          id: string
+          label_singular: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          applies_to?: string[]
+          created_at?: string
+          description?: string | null
+          hierarchical?: boolean
+          id?: string
+          label_singular: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          applies_to?: string[]
+          created_at?: string
+          description?: string | null
+          hierarchical?: boolean
+          id?: string
+          label_singular?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      taxonomy_terms: {
+        Row: {
+          archive_template_id: string | null
+          canonical_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          og_image: string | null
+          parent_id: string | null
+          position: number
+          schema_json: Json | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string
+          taxonomy_id: string
+          updated_at: string
+        }
+        Insert: {
+          archive_template_id?: string | null
+          canonical_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          og_image?: string | null
+          parent_id?: string | null
+          position?: number
+          schema_json?: Json | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug: string
+          taxonomy_id: string
+          updated_at?: string
+        }
+        Update: {
+          archive_template_id?: string | null
+          canonical_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          og_image?: string | null
+          parent_id?: string | null
+          position?: number
+          schema_json?: Json | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string
+          taxonomy_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taxonomy_terms_archive_template_id_fkey"
+            columns: ["archive_template_id"]
+            isOneToOne: false
+            referencedRelation: "theme_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "taxonomy_terms_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_terms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "taxonomy_terms_taxonomy_id_fkey"
+            columns: ["taxonomy_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      theme_sections: {
+        Row: {
+          blocks: Json
+          category: string
+          created_at: string
+          description: string | null
+          design_tokens: Json
+          id: string
+          is_global: boolean
+          name: string
+          parent_section_id: string | null
+          site_id: string | null
+          slug: string
+          source: string
+          updated_at: string
+          variants: Json
+          version: number
+        }
+        Insert: {
+          blocks?: Json
+          category?: string
+          created_at?: string
+          description?: string | null
+          design_tokens?: Json
+          id?: string
+          is_global?: boolean
+          name: string
+          parent_section_id?: string | null
+          site_id?: string | null
+          slug: string
+          source?: string
+          updated_at?: string
+          variants?: Json
+          version?: number
+        }
+        Update: {
+          blocks?: Json
+          category?: string
+          created_at?: string
+          description?: string | null
+          design_tokens?: Json
+          id?: string
+          is_global?: boolean
+          name?: string
+          parent_section_id?: string | null
+          site_id?: string | null
+          slug?: string
+          source?: string
+          updated_at?: string
+          variants?: Json
+          version?: number
+        }
+        Relationships: []
+      }
+      theme_templates: {
+        Row: {
+          blocks: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          kind: string
+          name: string
+          preview_url: string | null
+          site_id: string | null
+          slug: string
+          source: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name: string
+          preview_url?: string | null
+          site_id?: string | null
+          slug: string
+          source?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name?: string
+          preview_url?: string | null
+          site_id?: string | null
+          slug?: string
+          source?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      theme_tokens: {
+        Row: {
+          breakpoints: Json
+          colors: Json
+          created_at: string
+          id: string
+          site_id: string | null
+          spacing: Json
+          typography: Json
+          updated_at: string
+        }
+        Insert: {
+          breakpoints?: Json
+          colors?: Json
+          created_at?: string
+          id?: string
+          site_id?: string | null
+          spacing?: Json
+          typography?: Json
+          updated_at?: string
+        }
+        Update: {
+          breakpoints?: Json
+          colors?: Json
+          created_at?: string
+          id?: string
+          site_id?: string | null
+          spacing?: Json
+          typography?: Json
+          updated_at?: string
         }
         Relationships: []
       }

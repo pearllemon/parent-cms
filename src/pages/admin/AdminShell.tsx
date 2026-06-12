@@ -16,6 +16,9 @@ import {
   Cloud,
   Search,
   Users,
+  Palette,
+  FolderTree,
+  Tag,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,7 +36,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 const ICONS: Record<string, LucideIcon> = {
-  LayoutDashboard, FileText, File, Layers, Image, Upload, Cloud, Settings, Search, Database, Users,
+  LayoutDashboard, FileText, File, Layers, Image, Upload, Cloud, Settings, Search, Database, Users, Palette, FolderTree, Tag,
 };
 
 const SECTION_TABLES: Record<string, string> = {
@@ -130,9 +133,18 @@ const AdminShell = () => {
       label: "Content",
       items: [
         ...contentRoutes,
+        { path: "/admin/taxonomies?tax=category", label: "Categories", icon: "FolderTree" },
+        { path: "/admin/taxonomies?tax=tag", label: "Tags", icon: "Tag" },
+        { path: "/admin/taxonomies", label: "Taxonomies", icon: "Database" },
         { path: "/admin/cpt", label: "Custom Types", icon: "Layers" },
         { path: "/admin/media", label: "Media", icon: "Image" },
         { path: "/admin/authors", label: "Authors", icon: "Users" },
+      ],
+    },
+    {
+      label: "Design",
+      items: [
+        { path: "/admin/theme", label: "Theme Designer", icon: "Palette" },
       ],
     },
     {
@@ -170,12 +182,22 @@ const AdminShell = () => {
               <div className="space-y-0.5">
                 {g.items.map((r) => {
                   const [rPath, rQuery] = r.path.split("?");
-                  const isContentLink = rPath === "/admin/posts" && !!rQuery;
-                  const currentType = new URLSearchParams(location.search).get("type");
-                  const linkType = new URLSearchParams(rQuery || "").get("type");
-                  const customActive = isContentLink
-                    ? location.pathname.startsWith("/admin/posts") && currentType === linkType
-                    : undefined;
+                  const linkParams = new URLSearchParams(rQuery || "");
+                  const currentParams = new URLSearchParams(location.search);
+                  // For links that carry a query string (?type=, ?tax=), highlight only
+                  // when the path + that specific query key/value match.
+                  let customActive: boolean | undefined;
+                  if (rQuery) {
+                    const key = Array.from(linkParams.keys())[0];
+                    if (key) {
+                      customActive =
+                        location.pathname.startsWith(rPath) &&
+                        currentParams.get(key) === linkParams.get(key);
+                    }
+                  } else if (rPath === "/admin/taxonomies" || rPath === "/admin/posts") {
+                    // base link (no query) — active only when no narrowing query is set
+                    customActive = location.pathname === rPath && !currentParams.toString();
+                  }
                   const Icon = ICONS[r.icon || ""] || Layers;
                   return (
                     <NavLink
@@ -183,12 +205,7 @@ const AdminShell = () => {
                       to={r.path}
                       end={r.path === "/admin"}
                       className={({ isActive }) => {
-                        const active =
-                          customActive !== undefined
-                            ? customActive
-                            : isActive &&
-                              // prevent default /admin/posts highlight when on a typed variant
-                              !(rPath === "/admin/posts" && !rQuery && currentType);
+                        const active = customActive !== undefined ? customActive : isActive;
                         return `flex items-center gap-2 py-2 px-3 rounded ${
                           active ? "bg-primary text-primary-foreground" : "hover:bg-background/10"
                         }`;
