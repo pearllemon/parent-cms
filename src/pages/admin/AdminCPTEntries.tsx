@@ -16,6 +16,9 @@ import { Plus, Save, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import FieldRenderer from "@/components/admin/FieldRenderer";
 import RevisionPanel from "@/components/admin/RevisionPanel";
+import CustomFieldsPanel from "@/components/admin/CustomFieldsPanel";
+import { loadValues, saveValues } from "@/lib/customFields";
+import { useSiteConfig } from "@/providers/SiteProvider";
 import { slugify, type CPT, type CPTEntry, type CustomField } from "@/lib/cpt";
 
 const TBL_CPT = "custom_post_types" as any;
