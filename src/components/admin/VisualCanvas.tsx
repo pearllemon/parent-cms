@@ -1,11 +1,13 @@
 // Visual canvas: click-to-select block editor with inspector panel.
-// - Renders a JSON block tree (section/container/heading/text/image/button).
-// - Click to select; inspector shows on the right with Layout / Style / Image / Text tabs.
+// - JSON block tree (section / container / heading / text / image / button).
+// - Click to select; right-side inspector with Layout / Style / Image / Text tabs.
+// - Drag-and-drop reordering within any parent (dnd-kit).
+// - Inline contenteditable for heading / text / button text when the block is selected.
 // - Device toggle (Desktop / Tablet / Mobile) constrains canvas width.
-// - Variants switcher lets the user flip between design variations without losing structure.
-// - Media Library popup integrated for image blocks.
+// - Variants switcher in the left rail.
+// - Media Library popup for image blocks.
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,9 +18,19 @@ import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import MediaPicker from "@/components/admin/MediaPicker";
 import {
+  DndContext, PointerSensor, useSensor, useSensors, closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Monitor, Tablet, Smartphone, Trash2, ArrowUp, ArrowDown, Plus,
-  Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers,
+  Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical,
 } from "lucide-react";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button";
 export type Block = {
@@ -44,7 +56,7 @@ const newBlock = (type: BlockType): Block => {
   return base[type];
 };
 
-// --------- Utility: walk / update tree ---------
+// --------- Tree utilities ---------
 function findBlock(tree: Block[], id: string): { block: Block; parent: Block[]; index: number } | null {
   for (let i = 0; i < tree.length; i++) {
     if (tree[i].id === id) return { block: tree[i], parent: tree, index: i };
@@ -70,6 +82,7 @@ type Props = {
 export default function VisualCanvas({ blocks, onChange, variants = [], activeVariantId = null, onVariantChange, onSaveVariant }: Props) {
   const [device, setDevice] = useState<Device>("desktop");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const selected = useMemo(() => (selectedId ? findBlock(blocks, selectedId) : null), [blocks, selectedId]);
 
@@ -82,24 +95,25 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
   const addBlock = (type: BlockType) => {
     update((tree) => {
       const b = newBlock(type);
-      if (selected) {
-        // Add into selected section/container, else after it
-        if (selected.block.type === "section" || selected.block.type === "container") {
-          selected.block.children = selected.block.children || [];
-          selected.block.children.push(b);
+      const sel = selectedId ? findBlock(tree, selectedId) : null;
+      if (sel) {
+        if (sel.block.type === "section" || sel.block.type === "container") {
+          sel.block.children = sel.block.children || [];
+          sel.block.children.push(b);
         } else {
-          selected.parent.splice(selected.index + 1, 0, b);
+          sel.parent.splice(sel.index + 1, 0, b);
         }
-      } else {
-        tree.push(b);
-      }
+      } else tree.push(b);
       setSelectedId(b.id);
     });
   };
 
   const removeSelected = () => {
     if (!selected) return;
-    update(() => { selected.parent.splice(selected.index, 1); });
+    update((tree) => {
+      const r = findBlock(tree, selected.block.id);
+      if (r) r.parent.splice(r.index, 1);
+    });
     setSelectedId(null);
   };
 
@@ -131,14 +145,36 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
     if (!selected) return;
     update((tree) => {
       const r = findBlock(tree, selected.block.id);
-      if (!r) return;
-      r.block.props = { ...r.block.props, ...patch };
+      if (r) r.block.props = { ...r.block.props, ...patch };
+    });
+  };
+
+  // Inline text edit commit
+  const commitText = (id: string, text: string) => {
+    update((tree) => {
+      const r = findBlock(tree, id);
+      if (r) r.block.props = { ...r.block.props, text };
+    });
+  };
+
+  // Drag-and-drop reorder. Only allows reordering when both items share the same parent list.
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    update((tree) => {
+      const a = findBlock(tree, String(active.id));
+      const b = findBlock(tree, String(over.id));
+      if (!a || !b) return;
+      if (a.parent !== b.parent) return;
+      const reordered = arrayMove(a.parent, a.index, b.index);
+      a.parent.length = 0;
+      reordered.forEach((x) => a.parent.push(x));
     });
   };
 
   return (
     <div className="flex h-[78vh] gap-3 border rounded-lg overflow-hidden bg-background">
-      {/* Left rail: insert + variants */}
+      {/* Left rail */}
       <div className="w-44 border-r bg-muted/40 p-2 space-y-3 overflow-y-auto">
         <div>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 pb-1">Add block</p>
@@ -152,19 +188,19 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
           </div>
         </div>
 
-        {variants.length > 0 && (
+        {(variants.length > 0 || onSaveVariant) && (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 pb-1">Variants</p>
             <div className="space-y-1">
-              <button
-                onClick={() => onVariantChange?.(null)}
-                className={`w-full text-left text-xs px-2 py-1.5 rounded ${activeVariantId === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-              >Default</button>
+              <button onClick={() => onVariantChange?.(null)}
+                className={`w-full text-left text-xs px-2 py-1.5 rounded ${activeVariantId === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                Default
+              </button>
               {variants.map((v) => (
-                <button key={v.id}
-                  onClick={() => onVariantChange?.(v.id)}
-                  className={`w-full text-left text-xs px-2 py-1.5 rounded ${activeVariantId === v.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                >{v.name}</button>
+                <button key={v.id} onClick={() => onVariantChange?.(v.id)}
+                  className={`w-full text-left text-xs px-2 py-1.5 rounded ${activeVariantId === v.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                  {v.name}
+                </button>
               ))}
               {onSaveVariant && (
                 <Button size="sm" variant="outline" className="w-full mt-1 h-7 text-xs" onClick={onSaveVariant}>
@@ -174,6 +210,10 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             </div>
           </div>
         )}
+
+        <div className="text-[10px] text-muted-foreground px-1 leading-relaxed">
+          Tip: drag the grip handle to reorder. Double-click text to edit inline.
+        </div>
       </div>
 
       {/* Canvas */}
@@ -183,9 +223,10 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             {(["desktop", "tablet", "mobile"] as Device[]).map((d) => {
               const I = d === "desktop" ? Monitor : d === "tablet" ? Tablet : Smartphone;
               return (
-                <button key={d} onClick={() => setDevice(d)}
-                  className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${device === d ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                  title={d}><I className="w-3.5 h-3.5" /></button>
+                <button key={d} onClick={() => setDevice(d)} title={d}
+                  className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${device === d ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                  <I className="w-3.5 h-3.5" />
+                </button>
               );
             })}
           </div>
@@ -212,9 +253,14 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
                 Empty section. Add a block from the left rail.
               </div>
             ) : (
-              blocks.map((b) => (
-                <RenderBlock key={b.id} block={b} selectedId={selectedId} onSelect={setSelectedId} />
-              ))
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableList
+                  items={blocks}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onCommitText={commitText}
+                />
+              </DndContext>
             )}
           </div>
         </div>
@@ -241,17 +287,61 @@ function InsertBtn({ label, Icon, onClick }: { label: string; Icon: any; onClick
   );
 }
 
+// ============== Sortable list (wraps children) ==============
+type ListProps = {
+  items: Block[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onCommitText: (id: string, text: string) => void;
+};
+
+function SortableList({ items, selectedId, onSelect, onCommitText }: ListProps) {
+  return (
+    <SortableContext items={items.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+      {items.map((b) => (
+        <SortableBlock key={b.id} block={b} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+      ))}
+    </SortableContext>
+  );
+}
+
+function SortableBlock(props: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.block.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="group/blk">
+      <button
+        type="button"
+        {...attributes} {...listeners}
+        className="absolute -left-5 top-1 z-10 hidden group-hover/blk:flex items-center justify-center w-4 h-5 rounded bg-foreground/80 text-background cursor-grab active:cursor-grabbing"
+        onClick={(e) => e.stopPropagation()}
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-3 h-3" />
+      </button>
+      <RenderBlock {...props} />
+    </div>
+  );
+}
+
 // ============== Render ==============
-function RenderBlock({ block, selectedId, onSelect }: { block: Block; selectedId: string | null; onSelect: (id: string) => void }) {
-  const selected = selectedId === block.id;
-  const ring = selected ? "outline outline-2 outline-primary outline-offset-[-2px]" : "outline outline-1 outline-transparent hover:outline-primary/40";
+function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void }) {
+  const isSel = selectedId === block.id;
+  const ring = isSel
+    ? "outline outline-2 outline-primary outline-offset-[-2px]"
+    : "outline outline-1 outline-transparent hover:outline-primary/40";
   const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onSelect(block.id); };
   const p = block.props;
 
   if (block.type === "section") {
     return (
       <section onClick={handleClick} className={`relative ${ring}`} style={{ padding: p.padding, background: p.background }}>
-        {(block.children || []).map((c) => <RenderBlock key={c.id} block={c} selectedId={selectedId} onSelect={onSelect} />)}
+        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
       </section>
     );
   }
@@ -263,7 +353,7 @@ function RenderBlock({ block, selectedId, onSelect }: { block: Block; selectedId
           display: p.display || "flex", flexDirection: p.direction || "column",
           gap: p.gap, alignItems: p.align || "stretch", justifyContent: p.justify || "flex-start",
         }}>
-        {(block.children || []).map((c) => <RenderBlock key={c.id} block={c} selectedId={selectedId} onSelect={onSelect} />)}
+        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
       </div>
     );
   }
@@ -272,7 +362,7 @@ function RenderBlock({ block, selectedId, onSelect }: { block: Block; selectedId
     return (
       <Tag onClick={handleClick} className={ring}
         style={{ fontSize: p.fontSize, color: p.color, textAlign: p.align, fontWeight: p.fontWeight, margin: p.margin || 0 }}>
-        {p.text}
+        <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} />
       </Tag>
     );
   }
@@ -280,7 +370,7 @@ function RenderBlock({ block, selectedId, onSelect }: { block: Block; selectedId
     return (
       <p onClick={handleClick} className={ring}
         style={{ fontSize: p.fontSize, color: p.color, textAlign: p.align, lineHeight: p.lineHeight, margin: p.margin || 0 }}>
-        {p.text}
+        <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} multiline />
       </p>
     );
   }
@@ -300,11 +390,36 @@ function RenderBlock({ block, selectedId, onSelect }: { block: Block; selectedId
       <a href={p.href || "#"} onClick={handleClick} className={`inline-block ${ring}`}
         style={{ background: p.bg, color: p.color, padding: p.padding, borderRadius: p.radius, textDecoration: "none", boxShadow: p.shadow }}
         onMouseDown={(e) => e.preventDefault()}>
-        {p.text}
+        <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} />
       </a>
     );
   }
   return null;
+}
+
+// Inline contenteditable text. Becomes editable on double-click while selected.
+function InlineText({ id, value, isSelected, onCommit, multiline }: { id: string; value: string; isSelected: boolean; onCommit: (id: string, text: string) => void; multiline?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <span
+      contentEditable={editing}
+      suppressContentEditableWarning
+      onDoubleClick={(e) => { if (!isSelected) return; e.stopPropagation(); setEditing(true); }}
+      onBlur={(e) => {
+        if (!editing) return;
+        setEditing(false);
+        const next = (e.currentTarget.textContent || "").trim();
+        if (next !== value) onCommit(id, next);
+      }}
+      onKeyDown={(e) => {
+        if (!multiline && e.key === "Enter") { e.preventDefault(); (e.target as HTMLElement).blur(); }
+        if (e.key === "Escape") { (e.target as HTMLElement).blur(); }
+      }}
+      style={{ outline: editing ? "1px dashed currentColor" : "none", cursor: isSelected ? "text" : "inherit", minWidth: 12, display: "inline-block" }}
+    >
+      {value}
+    </span>
+  );
 }
 
 // ============== Inspector ==============

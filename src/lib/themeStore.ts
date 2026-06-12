@@ -75,17 +75,54 @@ export async function saveSection(s: Partial<ThemeSection> & { name: string; slu
     design_tokens: s.design_tokens ?? {},
     is_global: s.is_global ?? false,
   };
+  let saved: ThemeSection | null;
   if (s.id) {
-    const { data } = await db.from("theme_sections").update(payload).eq("id", s.id).select().maybeSingle();
-    return data as ThemeSection | null;
+    // Snapshot previous version BEFORE updating (so we can restore later).
+    const { data: prev } = await db.from("theme_sections").select("*").eq("id", s.id).maybeSingle();
+    if (prev) {
+      await db.from("revisions").insert({
+        entity_type: "theme_section",
+        entity_id: s.id,
+        snapshot: {
+          name: prev.name, slug: prev.slug, category: prev.category, description: prev.description,
+          blocks: prev.blocks, variants: prev.variants, design_tokens: prev.design_tokens,
+          is_global: prev.is_global, version: prev.version,
+        },
+        note: "auto",
+      });
+    }
+    const { data } = await db.from("theme_sections").update({ ...payload, version: (prev?.version || 1) + 1 }).eq("id", s.id).select().maybeSingle();
+    saved = data as ThemeSection | null;
+  } else {
+    const { data } = await db.from("theme_sections").insert(payload).select().maybeSingle();
+    saved = data as ThemeSection | null;
   }
-  const { data } = await db.from("theme_sections").insert(payload).select().maybeSingle();
-  return data as ThemeSection | null;
+  return saved;
 }
 
 export async function deleteSection(id: string) {
   await db.from("theme_sections").delete().eq("id", id);
 }
+
+export type SectionRevision = {
+  id: string;
+  entity_id: string;
+  snapshot: Partial<ThemeSection> & { version?: number };
+  note: string | null;
+  created_at: string;
+};
+
+export async function listSectionRevisions(sectionId: string): Promise<SectionRevision[]> {
+  const { data } = await db
+    .from("revisions")
+    .select("id, entity_id, snapshot, note, created_at")
+    .eq("entity_type", "theme_section")
+    .eq("entity_id", sectionId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return (data as SectionRevision[]) || [];
+}
+
 
 export async function listTemplates(): Promise<ThemeTemplate[]> {
   const { data } = await db.from("theme_templates").select("*").order("kind").order("name");
