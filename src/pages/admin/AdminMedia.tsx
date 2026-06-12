@@ -131,8 +131,8 @@ const AdminMedia = () => {
       return { items: next, folders: folderRows };
     },
   );
-  const items = data?.items || [];
-  const folders = data?.folders || [];
+  const items = useMemo(() => data?.items || [], [data]);
+  const folders = useMemo(() => data?.folders || [], [data]);
   const load = refresh;
 
   const upload = async (files: FileList) => {

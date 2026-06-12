@@ -118,7 +118,7 @@ const AdminPosts = () => {
       return merged;
     },
   );
-  const posts = data || [];
+  const posts = useMemo(() => data || [], [data]);
 
   // SEO score dots — refresh whenever the post list changes (cached or fresh)
   useEffect(() => {
