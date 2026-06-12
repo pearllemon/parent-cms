@@ -109,6 +109,7 @@ const App = () => (
               <Route path="settings" element={<AdminSettings />} />
               <Route path="theme" element={<AdminThemeDesigner />} />
               <Route path="taxonomies" element={<AdminTaxonomies />} />
+              <Route path="activity" element={<AdminActivityLog />} />
               <Route path="categories" element={<Navigate to="/admin/taxonomies?tax=category" replace />} />
               <Route path="tags" element={<Navigate to="/admin/taxonomies?tax=tag" replace />} />
               <Route path="data/:table" element={<GenericCRUD />} />
