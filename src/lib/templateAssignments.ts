@@ -6,6 +6,7 @@
 import { supabase as cloud } from "@/integrations/supabase/client";
 import type { TemplateKind, ThemeTemplate } from "@/lib/themeStore";
 import { listTemplates } from "@/lib/themeStore";
+import { logActivity } from "@/lib/activityLog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = cloud as any;
