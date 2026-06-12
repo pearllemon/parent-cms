@@ -47,6 +47,7 @@ import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
 import AdminThemeDesigner from "./pages/admin/AdminThemeDesigner.tsx";
 import AdminTaxonomies from "./pages/admin/AdminTaxonomies.tsx";
+import AdminActivityLog from "./pages/admin/AdminActivityLog.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
@@ -108,6 +109,7 @@ const App = () => (
               <Route path="settings" element={<AdminSettings />} />
               <Route path="theme" element={<AdminThemeDesigner />} />
               <Route path="taxonomies" element={<AdminTaxonomies />} />
+              <Route path="activity" element={<AdminActivityLog />} />
               <Route path="categories" element={<Navigate to="/admin/taxonomies?tax=category" replace />} />
               <Route path="tags" element={<Navigate to="/admin/taxonomies?tax=tag" replace />} />
               <Route path="data/:table" element={<GenericCRUD />} />

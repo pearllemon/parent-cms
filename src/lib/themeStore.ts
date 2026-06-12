@@ -1,5 +1,6 @@
 // Theme Designer storage: sections, templates, global tokens.
 import { supabase } from "@/integrations/supabase/client";
+import { logActivity } from "@/lib/activityLog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -93,15 +94,19 @@ export async function saveSection(s: Partial<ThemeSection> & { name: string; slu
     }
     const { data } = await db.from("theme_sections").update({ ...payload, version: (prev?.version || 1) + 1 }).eq("id", s.id).select().maybeSingle();
     saved = data as ThemeSection | null;
+    if (saved) void logActivity({ action: "update", entity_type: "theme_section", entity_id: saved.id, entity_label: saved.name, details: { version: saved.version } });
   } else {
     const { data } = await db.from("theme_sections").insert(payload).select().maybeSingle();
     saved = data as ThemeSection | null;
+    if (saved) void logActivity({ action: "create", entity_type: "theme_section", entity_id: saved.id, entity_label: saved.name });
   }
   return saved;
 }
 
 export async function deleteSection(id: string) {
+  const { data: prev } = await db.from("theme_sections").select("name").eq("id", id).maybeSingle();
   await db.from("theme_sections").delete().eq("id", id);
+  void logActivity({ action: "delete", entity_type: "theme_section", entity_id: id, entity_label: prev?.name || null });
 }
 
 export type SectionRevision = {
@@ -140,14 +145,18 @@ export async function saveTemplate(t: Partial<ThemeTemplate> & { name: string; s
   };
   if (t.id) {
     const { data } = await db.from("theme_templates").update(payload).eq("id", t.id).select().maybeSingle();
+    if (data) void logActivity({ action: "update", entity_type: "theme_template", entity_id: data.id, entity_label: data.name, details: { kind: data.kind } });
     return data as ThemeTemplate | null;
   }
   const { data } = await db.from("theme_templates").insert(payload).select().maybeSingle();
+  if (data) void logActivity({ action: "create", entity_type: "theme_template", entity_id: data.id, entity_label: data.name, details: { kind: data.kind } });
   return data as ThemeTemplate | null;
 }
 
 export async function deleteTemplate(id: string) {
+  const { data: prev } = await db.from("theme_templates").select("name").eq("id", id).maybeSingle();
   await db.from("theme_templates").delete().eq("id", id);
+  void logActivity({ action: "delete", entity_type: "theme_template", entity_id: id, entity_label: prev?.name || null });
 }
 
 // Global tokens (single row)

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
   Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
-  FolderTree, Tag, type LucideIcon,
+  FolderTree, Tag, Activity, type LucideIcon,
 } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -240,6 +240,7 @@ const AdminShell = () => {
               <SidebarItem to="/admin/import" label="Import (WP XML)" Icon={Upload} active={location.pathname.startsWith("/admin/import")} />
               <SidebarItem to="/admin/sync" label="Sync" Icon={Cloud} active={location.pathname.startsWith("/admin/sync")} />
               <SidebarItem to="/admin/seo-workspace" label="SEO Workspace" Icon={Search} active={location.pathname.startsWith("/admin/seo")} />
+              <SidebarItem to="/admin/activity" label="Activity Log" Icon={Activity} active={location.pathname.startsWith("/admin/activity")} />
               <SidebarItem to="/admin/settings" label="Settings" Icon={Settings} active={location.pathname.startsWith("/admin/settings")} />
             </div>
           </div>

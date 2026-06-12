@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2 } from "lucide-react";
 import VisualCanvas, { type Block as VCBlock } from "@/components/admin/VisualCanvas";
 import {
   listSections, listTemplates, saveSection, saveTemplate, deleteSection, deleteTemplate,
@@ -18,6 +18,10 @@ import {
   type ThemeSection, type ThemeTemplate, type ThemeTokens, type TemplateKind, DEFAULT_TOKENS,
   type SectionRevision,
 } from "@/lib/themeStore";
+import {
+  listAssignments, saveAssignment, deleteAssignment,
+  type TemplateAssignment, type TemplateScope,
+} from "@/lib/templateAssignments";
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -35,10 +39,12 @@ export default function AdminThemeDesigner() {
         <TabsList>
           <TabsTrigger value="sections"><Boxes className="w-4 h-4 mr-1.5" />Sections</TabsTrigger>
           <TabsTrigger value="templates"><LayoutTemplate className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>
+          <TabsTrigger value="assignments"><Link2 className="w-4 h-4 mr-1.5" />Assignments</TabsTrigger>
           <TabsTrigger value="tokens"><Palette className="w-4 h-4 mr-1.5" />Global Design</TabsTrigger>
         </TabsList>
         <TabsContent value="sections"><SectionsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="assignments"><AssignmentsTab /></TabsContent>
         <TabsContent value="tokens"><TokensTab /></TabsContent>
       </Tabs>
     </div>
@@ -532,6 +538,132 @@ function TokensTab() {
       <div className="flex justify-end">
         <Button onClick={save} disabled={busy}>Save tokens</Button>
       </div>
+    </div>
+  );
+}
+
+// ---------------- Assignments ----------------
+const SCOPE_OPTIONS: { value: TemplateScope; label: string; placeholder: string }[] = [
+  { value: "global", label: "Global (site-wide)", placeholder: "site" },
+  { value: "route", label: "Route", placeholder: "/blog" },
+  { value: "cpt", label: "Custom Post Type", placeholder: "service" },
+  { value: "taxonomy", label: "Taxonomy", placeholder: "category" },
+];
+
+function AssignmentsTab() {
+  const [assignments, setAssignments] = useState<TemplateAssignment[]>([]);
+  const [templates, setTemplates] = useState<ThemeTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState<Partial<TemplateAssignment>>({ scope: "global", target: "site", kind: "header", priority: 0 });
+
+  const reload = async () => {
+    setLoading(true);
+    const [a, t] = await Promise.all([listAssignments(), listTemplates()]);
+    setAssignments(a); setTemplates(t);
+    setLoading(false);
+  };
+  useEffect(() => { void reload(); }, []);
+
+  const templateName = (id: string) => templates.find((t) => t.id === id)?.name || "(missing)";
+
+  const handleAdd = async () => {
+    if (!draft.template_id) { toast.error("Pick a template"); return; }
+    if (!draft.scope || !draft.target || !draft.kind) { toast.error("Scope, target and kind required"); return; }
+    const saved = await saveAssignment({
+      template_id: draft.template_id,
+      scope: draft.scope as TemplateScope,
+      target: draft.target,
+      kind: draft.kind as TemplateKind,
+      priority: draft.priority || 0,
+    });
+    if (saved) { toast.success("Assigned"); setDraft({ scope: "global", target: "site", kind: "header", priority: 0 }); void reload(); }
+    else toast.error("Save failed");
+  };
+
+  return (
+    <div className="space-y-5 max-w-4xl">
+      <Card className="p-4 space-y-3">
+        <h3 className="font-medium">New assignment</h3>
+        <div className="grid sm:grid-cols-5 gap-2">
+          <div>
+            <Label className="text-xs">Template</Label>
+            <Select value={draft.template_id || ""} onValueChange={(v) => {
+              const tpl = templates.find((t) => t.id === v);
+              setDraft((d) => ({ ...d, template_id: v, kind: (tpl?.kind as TemplateKind) || d.kind }));
+            }}>
+              <SelectTrigger><SelectValue placeholder="Pick…" /></SelectTrigger>
+              <SelectContent>
+                {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.kind})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Kind</Label>
+            <Select value={draft.kind || "header"} onValueChange={(v) => setDraft((d) => ({ ...d, kind: v as TemplateKind }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Scope</Label>
+            <Select value={draft.scope || "global"} onValueChange={(v) => setDraft((d) => ({ ...d, scope: v as TemplateScope }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SCOPE_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Target</Label>
+            <Input
+              value={draft.target || ""}
+              onChange={(e) => setDraft((d) => ({ ...d, target: e.target.value }))}
+              placeholder={SCOPE_OPTIONS.find((s) => s.value === draft.scope)?.placeholder}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Priority</Label>
+            <Input type="number" value={draft.priority || 0} onChange={(e) => setDraft((d) => ({ ...d, priority: Number(e.target.value) }))} />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={handleAdd}><Plus className="w-4 h-4 mr-1" /> Add assignment</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Resolution order: <code>route</code> → <code>cpt</code> → <code>taxonomy</code> → <code>global</code>. Higher priority wins inside the same scope.
+        </p>
+      </Card>
+
+      <Card className="overflow-hidden">
+        {loading ? (
+          <p className="p-6 text-sm text-muted-foreground">Loading…</p>
+        ) : assignments.length === 0 ? (
+          <p className="p-8 text-sm text-muted-foreground text-center">No assignments yet. Add one above to bind a header / footer / archive template to a route or CPT.</p>
+        ) : (
+          <ul className="divide-y">
+            {assignments.map((a) => (
+              <li key={a.id} className="p-3 flex items-center gap-3 text-sm">
+                <Badge variant="outline">{a.kind}</Badge>
+                <span className="font-medium">{templateName(a.template_id)}</span>
+                <span className="text-muted-foreground">on</span>
+                <Badge variant="secondary">{a.scope}: {a.target}</Badge>
+                <span className="text-xs text-muted-foreground">priority {a.priority}</span>
+                <div className="flex-1" />
+                <Button size="sm" variant="ghost" onClick={async () => {
+                  if (!confirm("Remove this assignment?")) return;
+                  await deleteAssignment(a.id);
+                  toast.success("Removed");
+                  void reload();
+                }}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
