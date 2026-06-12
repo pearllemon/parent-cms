@@ -46,14 +46,17 @@ export async function saveAssignment(a: {
   };
   if (a.id) {
     const { data } = await db.from("template_assignments").update(payload).eq("id", a.id).select().maybeSingle();
+    if (data) void logActivity({ action: "assign", entity_type: "template_assignment", entity_id: data.id, entity_label: `${a.kind} → ${a.scope}:${a.target}`, details: payload });
     return data as TemplateAssignment | null;
   }
   const { data } = await db.from("template_assignments").upsert(payload, { onConflict: "scope,target,kind" }).select().maybeSingle();
+  if (data) void logActivity({ action: "assign", entity_type: "template_assignment", entity_id: data.id, entity_label: `${a.kind} → ${a.scope}:${a.target}`, details: payload });
   return data as TemplateAssignment | null;
 }
 
 export async function deleteAssignment(id: string) {
   await db.from("template_assignments").delete().eq("id", id);
+  void logActivity({ action: "unassign", entity_type: "template_assignment", entity_id: id });
 }
 
 /** Resolve the best-matching template for a route/cpt/taxonomy context. */
