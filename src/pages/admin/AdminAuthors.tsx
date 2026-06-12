@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, Save, ArrowLeft, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import MediaPicker from "@/components/admin/MediaPicker";
 
 type Author = {
   id: string;
@@ -39,6 +40,7 @@ export default function AdminAuthors() {
   const [list, setList] = useState<Author[]>([]);
   const [editing, setEditing] = useState<Partial<Author> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -97,8 +99,13 @@ export default function AdminAuthors() {
             <div><Label>Slug</Label><Input value={e.slug || ""} onChange={(ev) => setF("slug", slugify(ev.target.value))} placeholder={slugify(e.name || "")} /></div>
             <div><Label>Job Title</Label><Input value={e.job_title || ""} onChange={(ev) => setF("job_title", ev.target.value)} /></div>
             <div><Label>Email</Label><Input type="email" value={e.email || ""} onChange={(ev) => setF("email", ev.target.value)} /></div>
-            <div className="col-span-2"><Label>Profile Image URL</Label>
-              <Input value={e.profile_image_url || ""} onChange={(ev) => setF("profile_image_url", ev.target.value)} placeholder="https://…" />
+            <div className="col-span-2"><Label>Profile Image</Label>
+              <div className="flex items-center gap-2">
+                {e.profile_image_url ? <img src={e.profile_image_url} alt="" className="w-12 h-12 rounded border object-cover" /> : <div className="w-12 h-12 rounded border bg-muted flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground" /></div>}
+                <Input className="flex-1" value={e.profile_image_url || ""} onChange={(ev) => setF("profile_image_url", ev.target.value)} placeholder="https://… or pick from library" />
+                <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>Browse media</Button>
+                {e.profile_image_url && <Button type="button" size="sm" variant="ghost" onClick={() => setF("profile_image_url", "")}>Clear</Button>}
+              </div>
             </div>
             <div className="col-span-2"><Label>Bio</Label>
               <Textarea rows={4} value={e.bio || ""} onChange={(ev) => setF("bio", ev.target.value)} />
@@ -128,6 +135,13 @@ export default function AdminAuthors() {
             </div>
           </div>
         </Card>
+
+        <MediaPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onPick={(it) => setF("profile_image_url", it.url)}
+          title="Pick profile image"
+        />
       </div>
     );
   }

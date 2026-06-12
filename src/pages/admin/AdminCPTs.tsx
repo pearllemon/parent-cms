@@ -27,7 +27,7 @@ export default function AdminCPTs() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await (supabase.from(TBL_CPT) as any).select("*").order("label");
+    const { data } = await (supabase.from(TBL_CPT) as any).select("*").not("slug", "in", "(__global__,__entry__)").order("label");
     setCpts((data || []) as CPT[]);
     setLoading(false);
   };

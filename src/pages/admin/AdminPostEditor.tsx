@@ -34,12 +34,15 @@ import {
 import RichTextEditor from "@/components/editor/RichTextEditor";
 import SeoScoreBadge, { seoColor } from "@/components/admin/seo/SeoScoreBadge";
 import SeoPanel from "@/components/admin/seo/RankMathPanel";
+import CustomFieldsPanel from "@/components/admin/CustomFieldsPanel";
+import MediaPicker from "@/components/admin/MediaPicker";
 import { ensureCloudSession } from "@/lib/cloudSession";
 import {
   emptySeo, loadPostSeo, savePostSeo, type PostSeo, type Scope,
 } from "@/lib/postSeo";
 import { scoreSeo } from "@/lib/seoScoring";
 import { analyzeKeywords, gradeClass } from "@/lib/keywordRelevance";
+import { loadValues, saveValues } from "@/lib/customFields";
 
 
 const slugify = (s: string) =>
@@ -84,6 +87,8 @@ const AdminPostEditorWP = () => {
   const [seoOpen, setSeoOpen] = useState(false);
   const [revisionCount, setRevisionCount] = useState(0);
   const [parentPages, setParentPages] = useState<{ id: string; title: string }[]>([]);
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const [featuredPickerOpen, setFeaturedPickerOpen] = useState(false);
 
   // Load post + seo
   useEffect(() => {
@@ -136,6 +141,11 @@ const AdminPostEditorWP = () => {
           .eq("entity_type", scope === "parent" ? "parent_post" : "imported_post")
           .eq("entity_id", id!);
         setRevisionCount(count || 0);
+
+        // Custom field values
+        const entityType = (form.type === "page" ? "page" : "post");
+        const v = await loadValues(entityType, id!);
+        setCfValues(v);
       } catch (e: any) {
         toast.error(e?.message || "Failed to load");
       } finally {
@@ -227,6 +237,12 @@ const AdminPostEditorWP = () => {
       // Persist SEO + sync to parent (best-effort inside savePostSeo)
       await savePostSeo({ ...seo, post_id: savedId, slug, last_score: liveScore });
 
+      // Persist custom field values
+      try {
+        const entityType = (form.type === "page" ? "page" : "post");
+        await saveValues(entityType, savedId, config?.site?.id || null, cfValues);
+      } catch { /* ignore */ }
+
       toast.success(status === "published" ? "Published" : status === "trash" ? "Moved to Bin" : "Saved");
       if (isNew) nav(`/admin/posts/${savedId}${scope === "imported" ? "?scope=imported" : ""}`, { replace: true });
       if (status === "trash") nav("/admin/posts");
@@ -284,6 +300,14 @@ const AdminPostEditorWP = () => {
             onPickImage={async () => window.prompt("Image URL:") || null}
           />
         </div>
+
+        {/* Custom Fields (WordPress-style) */}
+        <CustomFieldsPanel
+          entityType={form.type === "page" ? "page" : "post"}
+          entityId={isNew ? null : (id ?? null)}
+          values={cfValues}
+          onValuesChange={setCfValues}
+        />
       </div>
 
       {/* SIDEBAR */}
@@ -403,23 +427,29 @@ const AdminPostEditorWP = () => {
             <div className="space-y-2">
               <img src={form.featured_image_url} alt="" className="w-full rounded-lg object-cover aspect-video" />
               <div className="flex gap-2">
-                <label className="flex-1">
-                  <Button asChild size="sm" variant="outline" className="w-full">
-                    <span><Upload className="w-3 h-3 mr-1" /> Replace</span>
-                  </Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => setFeaturedPickerOpen(true)}>
+                  <ImageIcon className="w-3 h-3 mr-1" /> Media Library
+                </Button>
+                <label>
+                  <Button asChild size="sm" variant="outline"><span><Upload className="w-3 h-3 mr-1" /> Upload</span></Button>
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUploadFeatured(e.target.files[0])} />
                 </label>
                 <Button size="sm" variant="ghost" onClick={() => setF("featured_image_url", "")}>Remove</Button>
               </div>
             </div>
           ) : (
-            <label className="block">
-              <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50">
-                <ImageIcon className="w-6 h-6 mx-auto text-muted-foreground" />
-                <div className="text-xs mt-1 text-muted-foreground">Click to upload</div>
-              </div>
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUploadFeatured(e.target.files[0])} />
-            </label>
+            <div className="space-y-2">
+              <Button size="sm" variant="outline" className="w-full" onClick={() => setFeaturedPickerOpen(true)}>
+                <ImageIcon className="w-3 h-3 mr-1" /> Choose from Media Library
+              </Button>
+              <label className="block">
+                <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50">
+                  <Upload className="w-6 h-6 mx-auto text-muted-foreground" />
+                  <div className="text-xs mt-1 text-muted-foreground">Or click to upload a new file</div>
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUploadFeatured(e.target.files[0])} />
+              </label>
+            </div>
           )}
         </SideBlock>
 
@@ -439,6 +469,13 @@ const AdminPostEditorWP = () => {
           featured_image: form.featured_image_url,
           url: typeof window !== "undefined" ? `${window.location.origin}/${form.type === "page" ? "p" : "blog"}/${fullSlug}` : "/",
         }}
+      />
+
+      <MediaPicker
+        open={featuredPickerOpen}
+        onOpenChange={setFeaturedPickerOpen}
+        onPick={(it) => setF("featured_image_url", it.url)}
+        title="Choose featured image"
       />
     </div>
   );

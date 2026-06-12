@@ -16,6 +16,9 @@ import { Plus, Save, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import FieldRenderer from "@/components/admin/FieldRenderer";
 import RevisionPanel from "@/components/admin/RevisionPanel";
+import CustomFieldsPanel from "@/components/admin/CustomFieldsPanel";
+import { loadValues, saveValues } from "@/lib/customFields";
+import { useSiteConfig } from "@/providers/SiteProvider";
 import { slugify, type CPT, type CPTEntry, type CustomField } from "@/lib/cpt";
 
 const TBL_CPT = "custom_post_types" as any;
@@ -100,11 +103,13 @@ function EntryList({ cpt }: { cpt: CPT }) {
 function EntryEditor({ cpt, fields, entryId, onBack }: { cpt: CPT; fields: CustomField[]; entryId: string; onBack: () => void }) {
   const isNew = entryId === "new";
   const nav = useNavigate();
+  const { config } = useSiteConfig();
   const [entry, setEntry] = useState<CPTEntry | null>(null);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [status, setStatus] = useState<"draft" | "published" | "archived">("draft");
   const [data, setData] = useState<Record<string, any>>({});
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -115,31 +120,37 @@ function EntryEditor({ cpt, fields, entryId, onBack }: { cpt: CPT; fields: Custo
         setEntry(e as CPTEntry);
         setTitle(e.title || ""); setSlug(e.slug || ""); setStatus(e.status);
         setData(e.data || {});
+        const v = await loadValues(`cpt:${cpt.slug}`, e.id);
+        setCfValues(v);
       }
     })();
-  }, [entryId, isNew]);
+  }, [entryId, isNew, cpt.slug]);
 
   const save = async () => {
     setSaving(true);
     const finalSlug = slug || slugify(title) || `entry-${Date.now()}`;
+    let savedId = entry?.id || "";
     if (isNew) {
       const { data: created, error } = await (supabase.from(TBL_ENTRY) as any).insert({
         cpt_slug: cpt.slug, title, slug: finalSlug, status, data,
         published_at: status === "published" ? new Date().toISOString() : null,
       }).select().single();
-      setSaving(false);
-      if (error) { toast.error(error.message); return; }
+      if (error) { setSaving(false); toast.error(error.message); return; }
+      savedId = (created as any).id;
       toast.success("Created");
-      nav(`/admin/cpt/${cpt.slug}/entries/${(created as any).id}`);
     } else if (entry) {
       const { error } = await (supabase.from(TBL_ENTRY) as any).update({
         title, slug: finalSlug, status, data,
         published_at: status === "published" && !entry.published_at ? new Date().toISOString() : entry.published_at,
       }).eq("id", entry.id);
-      setSaving(false);
-      if (error) { toast.error(error.message); return; }
+      if (error) { setSaving(false); toast.error(error.message); return; }
       toast.success("Saved");
     }
+    try {
+      if (savedId) await saveValues(`cpt:${cpt.slug}`, savedId, config?.site?.id || null, cfValues);
+    } catch { /* ignore */ }
+    setSaving(false);
+    if (isNew && savedId) nav(`/admin/cpt/${cpt.slug}/entries/${savedId}`);
   };
 
   const restore = async (snapshot: any) => {
@@ -175,12 +186,19 @@ function EntryEditor({ cpt, fields, entryId, onBack }: { cpt: CPT; fields: Custo
             </div>
           </div>
           <div className="border rounded-lg p-4 space-y-4">
-            <h3 className="font-medium text-sm">Custom fields</h3>
-            {fields.length === 0 && <p className="text-xs text-muted-foreground">No fields defined for this type yet.</p>}
+            <h3 className="font-medium text-sm">Schema fields ({cpt.label})</h3>
+            {fields.length === 0 && <p className="text-xs text-muted-foreground">No schema fields. Add some in Custom Types or use the Custom Fields panel below.</p>}
             {fields.map((f) => (
               <FieldRenderer key={f.id} field={f} value={data[f.field_key]} onChange={(v) => setData((d) => ({ ...d, [f.field_key]: v }))} />
             ))}
           </div>
+
+          <CustomFieldsPanel
+            entityType={`cpt:${cpt.slug}`}
+            entityId={entry?.id || null}
+            values={cfValues}
+            onValuesChange={setCfValues}
+          />
         </div>
         <div>
           {entry && <RevisionPanel entityType="cpt_entry" entityId={entry.id} onRestore={restore} />}

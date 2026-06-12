@@ -42,6 +42,7 @@ import AdminSeoWorkspace from "./pages/admin/AdminSeoWorkspace.tsx";
 import AdminSchemaBuilder from "./pages/admin/AdminSchemaBuilder.tsx";
 import AdminInternalLinks from "./pages/admin/AdminInternalLinks.tsx";
 import AdminAuthors from "./pages/admin/AdminAuthors.tsx";
+import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
@@ -97,6 +98,7 @@ const App = () => (
               <Route path="links" element={<AdminInternalLinks />} />
               <Route path="redirects" element={<AdminRedirects />} />
               <Route path="authors" element={<AdminAuthors />} />
+              <Route path="users" element={<AdminUsers />} />
               <Route path="cpt" element={<AdminCPTs />} />
               <Route path="cpt/:slug/entries" element={<AdminCPTEntries />} />
               <Route path="cpt/:slug/entries/:id" element={<AdminCPTEntries />} />
