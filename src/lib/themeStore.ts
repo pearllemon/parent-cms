@@ -145,14 +145,18 @@ export async function saveTemplate(t: Partial<ThemeTemplate> & { name: string; s
   };
   if (t.id) {
     const { data } = await db.from("theme_templates").update(payload).eq("id", t.id).select().maybeSingle();
+    if (data) void logActivity({ action: "update", entity_type: "theme_template", entity_id: data.id, entity_label: data.name, details: { kind: data.kind } });
     return data as ThemeTemplate | null;
   }
   const { data } = await db.from("theme_templates").insert(payload).select().maybeSingle();
+  if (data) void logActivity({ action: "create", entity_type: "theme_template", entity_id: data.id, entity_label: data.name, details: { kind: data.kind } });
   return data as ThemeTemplate | null;
 }
 
 export async function deleteTemplate(id: string) {
+  const { data: prev } = await db.from("theme_templates").select("name").eq("id", id).maybeSingle();
   await db.from("theme_templates").delete().eq("id", id);
+  void logActivity({ action: "delete", entity_type: "theme_template", entity_id: id, entity_label: prev?.name || null });
 }
 
 // Global tokens (single row)
