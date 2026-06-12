@@ -34,12 +34,15 @@ import {
 import RichTextEditor from "@/components/editor/RichTextEditor";
 import SeoScoreBadge, { seoColor } from "@/components/admin/seo/SeoScoreBadge";
 import SeoPanel from "@/components/admin/seo/RankMathPanel";
+import CustomFieldsPanel from "@/components/admin/CustomFieldsPanel";
+import MediaPicker from "@/components/admin/MediaPicker";
 import { ensureCloudSession } from "@/lib/cloudSession";
 import {
   emptySeo, loadPostSeo, savePostSeo, type PostSeo, type Scope,
 } from "@/lib/postSeo";
 import { scoreSeo } from "@/lib/seoScoring";
 import { analyzeKeywords, gradeClass } from "@/lib/keywordRelevance";
+import { loadValues, saveValues } from "@/lib/customFields";
 
 
 const slugify = (s: string) =>
