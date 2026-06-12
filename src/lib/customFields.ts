@@ -12,60 +12,44 @@
 import { supabase as cloud } from "@/integrations/supabase/client";
 import type { CustomField, FieldType } from "@/lib/cpt";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const fields = () => (cloud.from("custom_fields" as any) as any);
+const values = () => (cloud.from("entry_field_values" as any) as any);
+
 export const ENTITY = {
   post: "post",
   page: "page",
   cpt: (slug: string) => `cpt:${slug}`,
 };
 
-export type EntryValueRow = {
-  id: string;
-  site_id: string | null;
-  entity_type: string;
-  entity_id: string;
-  field_key: string;
-  value: unknown;
-};
-
 /** Load all custom fields that apply to a given entity type. */
 export async function loadFieldsFor(entityType: string): Promise<CustomField[]> {
-  // entityType: 'post' | 'page' | 'cpt:<slug>'
   const scopes = new Set<string>(["__global__"]);
   if (entityType.startsWith("cpt:")) scopes.add(entityType.slice(4));
-  else scopes.add(entityType); // 'post' or 'page' as a slug
-
-  const { data } = await (cloud.from("custom_fields" as never) as never)
-    .select("*")
-    .in("cpt_slug", Array.from(scopes))
-    .order("position");
-  return ((data as CustomField[] | null) || []).filter(
-    (f) => f.cpt_slug !== "__entry__",
-  );
+  else scopes.add(entityType);
+  const { data } = await fields().select("*").in("cpt_slug", Array.from(scopes)).order("position");
+  return ((data as CustomField[] | null) || []).filter((f) => f.cpt_slug !== "__entry__");
 }
 
-/** Load only the per-entry attached fields (the `__entry__` slug used as
- *  a holding bucket, filtered by settings.entity_id). */
+/** Load per-entry attached fields stored in the `__entry__` bucket and
+ *  filtered by settings.entity_type / settings.entity_id. */
 export async function loadPerEntryFields(
   entityType: string,
   entityId: string,
 ): Promise<CustomField[]> {
-  const { data } = await (cloud.from("custom_fields" as never) as never)
-    .select("*")
-    .eq("cpt_slug", "__entry__")
-    .order("position");
+  const { data } = await fields().select("*").eq("cpt_slug", "__entry__").order("position");
   return ((data as CustomField[] | null) || []).filter((f) => {
     const s = (f.settings || {}) as { entity_type?: string; entity_id?: string };
     return s.entity_type === entityType && s.entity_id === entityId;
   });
 }
 
-/** Load values for an entity. Returns a `{ field_key: value }` map. */
 export async function loadValues(
   entityType: string,
   entityId: string,
 ): Promise<Record<string, unknown>> {
   if (!entityId) return {};
-  const { data } = await (cloud.from("entry_field_values" as never) as never)
+  const { data } = await values()
     .select("field_key,value")
     .eq("entity_type", entityType)
     .eq("entity_id", entityId);
@@ -80,10 +64,10 @@ export async function saveValues(
   entityType: string,
   entityId: string,
   siteId: string | null,
-  values: Record<string, unknown>,
+  vals: Record<string, unknown>,
 ) {
   if (!entityId) return;
-  const rows = Object.entries(values).map(([field_key, value]) => ({
+  const rows = Object.entries(vals).map(([field_key, value]) => ({
     site_id: siteId,
     entity_type: entityType,
     entity_id: entityId,
@@ -91,13 +75,11 @@ export async function saveValues(
     value,
   }));
   if (rows.length === 0) return;
-  await (cloud.from("entry_field_values" as never) as never).upsert(rows, {
-    onConflict: "entity_type,entity_id,field_key",
-  });
+  await values().upsert(rows, { onConflict: "entity_type,entity_id,field_key" });
 }
 
 export async function deleteField(fieldId: string) {
-  await (cloud.from("custom_fields" as never) as never).delete().eq("id", fieldId);
+  await fields().delete().eq("id", fieldId);
 }
 
 export async function createField(input: {
@@ -109,7 +91,7 @@ export async function createField(input: {
   settings?: Record<string, unknown>;
   position?: number;
 }) {
-  const { data, error } = await (cloud.from("custom_fields" as never) as never)
+  const { data, error } = await fields()
     .insert({
       cpt_slug: input.cpt_slug,
       field_key: input.field_key,
@@ -126,5 +108,5 @@ export async function createField(input: {
 }
 
 export async function updateField(id: string, patch: Partial<CustomField>) {
-  await (cloud.from("custom_fields" as never) as never).update(patch).eq("id", id);
+  await fields().update(patch).eq("id", id);
 }
