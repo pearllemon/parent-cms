@@ -39,10 +39,12 @@ export default function AdminThemeDesigner() {
         <TabsList>
           <TabsTrigger value="sections"><Boxes className="w-4 h-4 mr-1.5" />Sections</TabsTrigger>
           <TabsTrigger value="templates"><LayoutTemplate className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>
+          <TabsTrigger value="assignments"><Link2 className="w-4 h-4 mr-1.5" />Assignments</TabsTrigger>
           <TabsTrigger value="tokens"><Palette className="w-4 h-4 mr-1.5" />Global Design</TabsTrigger>
         </TabsList>
         <TabsContent value="sections"><SectionsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="assignments"><AssignmentsTab /></TabsContent>
         <TabsContent value="tokens"><TokensTab /></TabsContent>
       </Tabs>
     </div>
