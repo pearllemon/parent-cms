@@ -42,6 +42,7 @@ import AdminSeoWorkspace from "./pages/admin/AdminSeoWorkspace.tsx";
 import AdminSchemaBuilder from "./pages/admin/AdminSchemaBuilder.tsx";
 import AdminInternalLinks from "./pages/admin/AdminInternalLinks.tsx";
 import AdminAuthors from "./pages/admin/AdminAuthors.tsx";
+import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminCPTs from "./pages/admin/AdminCPTs.tsx";
 import AdminCPTEntries from "./pages/admin/AdminCPTEntries.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
