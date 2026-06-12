@@ -470,6 +470,13 @@ const AdminPostEditorWP = () => {
           url: typeof window !== "undefined" ? `${window.location.origin}/${form.type === "page" ? "p" : "blog"}/${fullSlug}` : "/",
         }}
       />
+
+      <MediaPicker
+        open={featuredPickerOpen}
+        onOpenChange={setFeaturedPickerOpen}
+        onPick={(it) => setF("featured_image_url", it.url)}
+        title="Choose featured image"
+      />
     </div>
   );
 };
