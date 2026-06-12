@@ -151,6 +151,30 @@ function SectionEditor({ initial, onClose, onSaved }: { initial: Partial<ThemeSe
   const [s, setS] = useState<Partial<ThemeSection>>(initial);
   const [busy, setBusy] = useState(false);
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [revisions, setRevisions] = useState<SectionRevision[]>([]);
+
+  const openHistory = async () => {
+    if (!s.id) return;
+    setHistoryOpen(true);
+    setRevisions(await listSectionRevisions(s.id));
+  };
+  const restoreRevision = (r: SectionRevision) => {
+    const snap = r.snapshot || {};
+    setS({
+      ...s,
+      name: snap.name ?? s.name,
+      slug: snap.slug ?? s.slug,
+      category: snap.category ?? s.category,
+      description: snap.description ?? s.description,
+      blocks: snap.blocks ?? [],
+      variants: snap.variants ?? [],
+      design_tokens: snap.design_tokens ?? {},
+    });
+    setHistoryOpen(false);
+    toast.success("Snapshot loaded — click Save to apply");
+  };
+
 
   const blocks = activeVariantId
     ? ((s.variants || []).find((v) => v.id === activeVariantId)?.blocks || []) as unknown[]
@@ -208,7 +232,7 @@ function SectionEditor({ initial, onClose, onSaved }: { initial: Partial<ThemeSe
             </div>
           </div>
           {s.id && (
-            <Button variant="outline" onClick={() => setHistoryOpen(true)} title="Version history">
+            <Button variant="outline" onClick={openHistory} title="Version history">
               <HistoryIcon className="w-4 h-4 mr-1" /> History
             </Button>
           )}
