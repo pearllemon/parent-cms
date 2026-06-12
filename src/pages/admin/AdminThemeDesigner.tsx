@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette } from "lucide-react";
+import VisualCanvas, { type Block as VCBlock } from "@/components/admin/VisualCanvas";
 import {
   listSections, listTemplates, saveSection, saveTemplate, deleteSection, deleteTemplate,
   loadTokens, saveTokens, SECTION_CATEGORIES, TEMPLATE_KINDS,
@@ -148,6 +149,30 @@ function SectionsTab() {
 function SectionEditor({ initial, onClose, onSaved }: { initial: Partial<ThemeSection>; onClose: () => void; onSaved: () => void }) {
   const [s, setS] = useState<Partial<ThemeSection>>(initial);
   const [busy, setBusy] = useState(false);
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
+
+  const blocks = activeVariantId
+    ? ((s.variants || []).find((v) => v.id === activeVariantId)?.blocks || []) as unknown[]
+    : (s.blocks || []) as unknown[];
+
+  const setBlocks = (next: unknown[]) => {
+    if (activeVariantId) {
+      const vs = (s.variants || []).map((v) => v.id === activeVariantId ? { ...v, blocks: next } : v);
+      setS({ ...s, variants: vs });
+    } else {
+      setS({ ...s, blocks: next });
+    }
+  };
+
+  const saveAsVariant = () => {
+    const name = prompt("Variant name?");
+    if (!name) return;
+    const newV = { id: Math.random().toString(36).slice(2, 10), name, blocks: (s.blocks || []) as unknown[] };
+    setS({ ...s, variants: [...(s.variants || []), newV] });
+    setActiveVariantId(newV.id);
+    toast.success(`Variant "${name}" created`);
+  };
+
   const handleSave = async () => {
     if (!s.name || !s.category) { toast.error("Name and category required"); return; }
     setBusy(true);
@@ -160,56 +185,68 @@ function SectionEditor({ initial, onClose, onSaved }: { initial: Partial<ThemeSe
     setBusy(false);
     if (saved) { toast.success("Saved"); onSaved(); } else toast.error("Save failed");
   };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 space-y-4">
-          <h2 className="text-xl font-display">{s.id ? "Edit section" : "New section"}</h2>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <Label>Name</Label>
-              <Input value={s.name || ""} onChange={(e) => setS({ ...s, name: e.target.value })} />
-            </div>
-            <div>
-              <Label>Slug</Label>
-              <Input value={s.slug || ""} onChange={(e) => setS({ ...s, slug: e.target.value })} placeholder="auto from name" />
-            </div>
-            <div>
-              <Label>Category</Label>
+    <div className="fixed inset-0 z-50 bg-black/60 p-3" onClick={onClose}>
+      <Card className="w-full h-full overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <Input value={s.name || ""} onChange={(e) => setS({ ...s, name: e.target.value })} placeholder="Section name" className="text-lg font-medium border-0 px-0 focus-visible:ring-0" />
+            <div className="flex gap-2 mt-1">
+              <Input value={s.slug || ""} onChange={(e) => setS({ ...s, slug: e.target.value })} placeholder="slug" className="h-6 text-xs w-40" />
               <Select value={s.category || "Hero"} onValueChange={(v) => setS({ ...s, category: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-6 text-xs w-40"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SECTION_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <div className="flex items-center gap-1 text-xs">
+                <Switch checked={!!s.is_global} onCheckedChange={(v) => setS({ ...s, is_global: v })} />
+                <span>Global</span>
+              </div>
             </div>
-            <div className="flex items-end gap-2">
-              <Switch checked={!!s.is_global} onCheckedChange={(v) => setS({ ...s, is_global: v })} />
-              <Label>Available globally</Label>
-            </div>
           </div>
-          <div>
-            <Label>Description</Label>
-            <Textarea value={s.description || ""} onChange={(e) => setS({ ...s, description: e.target.value })} />
-          </div>
-          <div>
-            <Label>Blocks (JSON)</Label>
-            <Textarea
-              rows={8}
-              className="font-mono text-xs"
-              value={JSON.stringify(s.blocks || [], null, 2)}
-              onChange={(e) => {
-                try { setS({ ...s, blocks: JSON.parse(e.target.value) }); } catch { /* ignore */ }
-              }}
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Structured block tree. The visual canvas (next phase) will edit this for you.
-            </p>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSave} disabled={busy}>Save</Button>
-          </div>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={busy}>Save section</Button>
+        </div>
+
+        <div className="flex-1 overflow-hidden p-3">
+          <Tabs defaultValue="visual" className="h-full flex flex-col">
+            <TabsList className="self-start">
+              <TabsTrigger value="visual">Visual</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+              <TabsTrigger value="meta">Meta</TabsTrigger>
+            </TabsList>
+            <TabsContent value="visual" className="flex-1 mt-3">
+              <VisualCanvas
+                blocks={blocks as VCBlock[]}
+                onChange={(b) => setBlocks(b)}
+                variants={(s.variants || []) as { id: string; name: string; blocks: VCBlock[] }[]}
+                activeVariantId={activeVariantId}
+                onVariantChange={setActiveVariantId}
+                onSaveVariant={saveAsVariant}
+              />
+            </TabsContent>
+            <TabsContent value="json" className="flex-1 mt-3">
+              <Textarea
+                rows={20}
+                className="font-mono text-xs h-full"
+                value={JSON.stringify(s.blocks || [], null, 2)}
+                onChange={(e) => {
+                  try { setS({ ...s, blocks: JSON.parse(e.target.value) }); } catch { /* */ }
+                }}
+              />
+            </TabsContent>
+            <TabsContent value="meta" className="flex-1 mt-3 max-w-xl space-y-3">
+              <div>
+                <Label>Description</Label>
+                <Textarea value={s.description || ""} onChange={(e) => setS({ ...s, description: e.target.value })} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Version {s.version || 1} · {(s.variants || []).length} variant{(s.variants || []).length === 1 ? "" : "s"}
+              </p>
+            </TabsContent>
+          </Tabs>
         </div>
       </Card>
     </div>
