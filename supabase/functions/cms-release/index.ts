@@ -139,6 +139,11 @@ Deno.serve(async (req) => {
           published_at: release.published_at,
           manifest: release.manifest || {},
           migrations: migrations || [],
+          // Signature envelope — children verify this BEFORE applying anything.
+          signature: release.signature || null,
+          signing_key_id: release.signing_key_id || null,
+          payload_hash: release.payload_hash || null,
+          signed_at: release.signed_at || null,
         },
         200,
         { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },

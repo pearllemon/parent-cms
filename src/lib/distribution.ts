@@ -18,6 +18,10 @@ export type Release = {
   min_compatible_child_version: string | null;
   is_latest: boolean;
   recalled: boolean;
+  signature: string | null;
+  signing_key_id: string | null;
+  payload_hash: string | null;
+  signed_at: string | null;
   published_at: string;
   created_at: string;
   updated_at: string;
