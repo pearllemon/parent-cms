@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listInstallations, forceUpgrade, getLatestRelease, type ChildInstallation, type Release } from "@/lib/distribution";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,13 @@ const STATE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "o
   upgrading: "secondary",
   failed: "destructive",
   rolled_back: "outline",
+  awaiting_release: "outline",
   unknown: "outline",
 };
+
+type Filter = "all" | "up_to_date" | "drift" | "failed" | "awaiting";
+
+
 
 export default function AdminInstallations() {
   const [items, setItems] = useState<ChildInstallation[]>([]);
