@@ -143,3 +143,32 @@ export default function AdminReleases() {
     </div>
   );
 }
+
+function UploadBundleButton({ release, onDone }: { release: Release; onDone: () => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const url = await uploadSdkBundle(release.version, file);
+      await updateReleaseSdkUrl(release.id, url);
+      toast.success("SDK bundle uploaded");
+      onDone();
+    } catch (err) {
+      toast.error(String((err as Error).message));
+    } finally {
+      setBusy(false);
+      if (ref.current) ref.current.value = "";
+    }
+  };
+  return (
+    <>
+      <input ref={ref} type="file" accept=".js,application/javascript" className="hidden" onChange={handle} />
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => ref.current?.click()}>
+        <Upload className="w-3.5 h-3.5 mr-1" /> {busy ? "Uploading…" : "Upload SDK"}
+      </Button>
+    </>
+  );
+}
