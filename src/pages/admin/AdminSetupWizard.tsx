@@ -627,7 +627,7 @@ $$;
       <Snippet label="2. .env (child project)" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
       <Snippet label="3. src/cms/trusted-keys.ts (embedded public keys)" code={trustedKeysFile} copied={copied === "tk"} onCopy={() => copy(trustedKeysFile, "tk")} />
       <Snippet label="4. src/cms-bootstrap.ts (self-contained, no npm dep)" code={bootstrap} copied={copied === "boot"} onCopy={() => copy(bootstrap, "boot")} />
-      <Snippet label="5. src/main.tsx — add the bootstrap import" code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
+      <Snippet label={mainTsxLabel} code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
       <Snippet label="6. supabase/functions/cms-migrate/index.ts (child edge function)" code={childEdgeFn} copied={copied === "edge"} onCopy={() => copy(childEdgeFn, "edge")} />
       <Snippet label="7. Child DB migration — exec_cms_migration RPC" code={childMigrationSql} copied={copied === "sql"} onCopy={() => copy(childMigrationSql, "sql")} />
 
