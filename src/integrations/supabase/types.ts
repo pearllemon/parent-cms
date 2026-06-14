@@ -140,6 +140,170 @@ export type Database = {
         }
         Relationships: []
       }
+      child_installations: {
+        Row: {
+          child_shim_version: string | null
+          created_at: string
+          current_version: string | null
+          id: string
+          last_error: string | null
+          last_seen_at: string | null
+          site_id: string
+          site_name: string | null
+          site_url: string | null
+          updated_at: string
+          upgrade_state: string
+        }
+        Insert: {
+          child_shim_version?: string | null
+          created_at?: string
+          current_version?: string | null
+          id?: string
+          last_error?: string | null
+          last_seen_at?: string | null
+          site_id: string
+          site_name?: string | null
+          site_url?: string | null
+          updated_at?: string
+          upgrade_state?: string
+        }
+        Update: {
+          child_shim_version?: string | null
+          created_at?: string
+          current_version?: string | null
+          id?: string
+          last_error?: string | null
+          last_seen_at?: string | null
+          site_id?: string
+          site_name?: string | null
+          site_url?: string | null
+          updated_at?: string
+          upgrade_state?: string
+        }
+        Relationships: []
+      }
+      child_upgrade_log: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          from_version: string | null
+          id: string
+          site_id: string
+          snapshot: Json | null
+          status: string
+          to_version: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          from_version?: string | null
+          id?: string
+          site_id: string
+          snapshot?: Json | null
+          status: string
+          to_version: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          from_version?: string | null
+          id?: string
+          site_id?: string
+          snapshot?: Json | null
+          status?: string
+          to_version?: string
+        }
+        Relationships: []
+      }
+      cms_migration_manifest: {
+        Row: {
+          created_at: string
+          description: string | null
+          down_payload: string | null
+          id: string
+          kind: string
+          order_index: number
+          payload: string
+          reversible: boolean
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          down_payload?: string | null
+          id?: string
+          kind: string
+          order_index?: number
+          payload?: string
+          reversible?: boolean
+          version: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          down_payload?: string | null
+          id?: string
+          kind?: string
+          order_index?: number
+          payload?: string
+          reversible?: boolean
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cms_migration_manifest_version_fkey"
+            columns: ["version"]
+            isOneToOne: false
+            referencedRelation: "cms_releases"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
+      cms_releases: {
+        Row: {
+          changelog: string | null
+          created_at: string
+          id: string
+          is_latest: boolean
+          manifest: Json
+          min_compatible_child_version: string | null
+          published_at: string
+          recalled: boolean
+          sdk_url: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          changelog?: string | null
+          created_at?: string
+          id?: string
+          is_latest?: boolean
+          manifest?: Json
+          min_compatible_child_version?: string | null
+          published_at?: string
+          recalled?: boolean
+          sdk_url?: string | null
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          changelog?: string | null
+          created_at?: string
+          id?: string
+          is_latest?: boolean
+          manifest?: Json
+          min_compatible_child_version?: string | null
+          published_at?: string
+          recalled?: boolean
+          sdk_url?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       cpt_entries: {
         Row: {
           author_id: string | null
