@@ -52,9 +52,11 @@ export type BuiltManifest = {
   _counts: Record<string, number>;
 };
 
-async function safe<T>(p: PromiseLike<{ data: T | null }>): Promise<T | null> {
+async function safe<T = unknown>(p: PromiseLike<{ data: T | null }>): Promise<T | null> {
   try { const r = await p; return r.data ?? null; } catch { return null; }
 }
+type AnyRow = Record<string, unknown>;
+
 
 export async function buildManifest(sel: SnapshotSelection): Promise<BuiltManifest> {
   const out: BuiltManifest = {
