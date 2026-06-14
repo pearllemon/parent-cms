@@ -122,9 +122,35 @@ function cmpSemver(a: string, b: string): number {
   }
   return 0;
 }
+const DEFAULT_TIMEOUT_MS = 10000;
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try { return await fetch(input, { ...init, signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+}
 async function postJSON(url: string, body: unknown) {
-  try { return await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
-  catch { return null; }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch { /* retry */ }
+  }
+  return null;
+}
+async function fetchManifestWithRetry(url: string): Promise<any | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { cache: "no-store" });
+      if (res.ok) return await res.json().catch(() => null);
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) return null;
+    } catch { /* network — retry */ }
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+  }
+  return null;
 }
 function isAllowedSdkUrl(sdkUrl: string): boolean {
   try {
@@ -150,14 +176,33 @@ async function verifySignature(manifest: any): Promise<{ ok: true; key_id: strin
 }
 
 /* ---------- main ---------- */
+export type BootstrapStatus = "ok" | "no_release" | "waiting" | "recalled" | "untrusted" | "error";
 export type BootstrapResult = {
-  siteId: string; version: string; previousVersion: string | null;
+  siteId: string; status: BootstrapStatus; message: string;
+  version: string; previousVersion: string | null;
   sdkLoaded: boolean; verified: boolean; upgraded: boolean; error: string | null;
 };
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 export async function bootstrapCmsCore(): Promise<BootstrapResult> {
+  // Top-level guard: this function NEVER throws. The customer's site keeps
+  // rendering no matter what happens with the parent CMS.
+  try {
+    return await bootstrapInner();
+  } catch (e) {
+    const siteId = getOrCreateSiteId();
+    return {
+      siteId, status: "error",
+      message: "Site is running normally. Background sync will retry automatically.",
+      version: "0.0.0", previousVersion: null,
+      sdkLoaded: false, verified: false, upgraded: false,
+      error: String((e as Error)?.message || e),
+    };
+  }
+}
+
+async function bootstrapInner(): Promise<BootstrapResult> {
   const started = performance.now();
   const siteId = getOrCreateSiteId();
   const base = PARENT_RELEASE_URL.replace(/\\/$/, "");
@@ -170,21 +215,34 @@ export async function bootstrapCmsCore(): Promise<BootstrapResult> {
     mode: "child", shim_version: SHIM_VERSION,
   });
 
-  const res = await fetch(base + "?site_id=" + encodeURIComponent(siteId), { cache: "no-store" }).catch(() => null);
-  const manifest: any = res && res.ok ? await res.json().catch(() => null) : null;
+  const manifest: any = await fetchManifestWithRetry(base + "?site_id=" + encodeURIComponent(siteId));
 
-  const fail = (reason: string): BootstrapResult => ({
-    siteId, version: previousVersion || "0.0.0", previousVersion,
-    sdkLoaded: false, verified: false, upgraded: false, error: reason,
+  const make = (status: BootstrapStatus, message: string, extra: Partial<BootstrapResult> = {}): BootstrapResult => ({
+    siteId, status, message,
+    version: previousVersion || "0.0.0", previousVersion,
+    sdkLoaded: false, verified: false, upgraded: false, error: null,
+    ...extra,
   });
+
+  // No-release envelope: parent is reachable but hasn't published yet.
+  if (manifest && (manifest.status === "no_release" || (!manifest.version && !manifest.signature && !manifest.signature_b64))) {
+    await postJSON(base + "/heartbeat", {
+      site_id: siteId, current_version: previousVersion,
+      child_shim_version: SHIM_VERSION, upgrade_state: "awaiting_release",
+    });
+    schedule(siteId, previousVersion);
+    return make("no_release", "Connected to parent CMS. Waiting for the first release.");
+  }
 
   if (!manifest) {
     schedule(siteId, previousVersion);
-    return fail("manifest unavailable");
+    return make("waiting", previousVersion
+      ? "Parent CMS temporarily unreachable. Running last known version."
+      : "Connecting to parent CMS… will retry automatically.");
   }
   if (manifest.recalled) {
     schedule(siteId, previousVersion);
-    return fail("release recalled");
+    return make("recalled", "Latest release was recalled. Running previous version.");
   }
 
   const v = await verifySignature(manifest);
@@ -194,7 +252,7 @@ export async function bootstrapCmsCore(): Promise<BootstrapResult> {
       status: "failed", error: "signature: " + v.reason,
     });
     schedule(siteId, previousVersion);
-    return fail("signature: " + v.reason);
+    return make("untrusted", "Latest release could not be verified. Running previous version.", { error: "signature: " + v.reason });
   }
 
   const needsUpgrade = !previousVersion || cmpSemver(manifest.version, previousVersion) > 0;
@@ -248,7 +306,12 @@ export async function bootstrapCmsCore(): Promise<BootstrapResult> {
   schedule(siteId, currentVersion);
 
   return {
-    siteId, version: currentVersion, previousVersion,
+    siteId,
+    status: upgradeError ? "error" : "ok",
+    message: upgradeError
+      ? "Site is running. Latest update could not be applied; will retry."
+      : sdkLoaded ? "Connected. Engine loaded and up to date." : "Connected. Running current version.",
+    version: currentVersion, previousVersion,
     sdkLoaded, verified: true, upgraded: upgradeStatus === "success", error: upgradeError,
   };
 }
@@ -263,11 +326,15 @@ function schedule(siteId: string, version: string | null) {
   }, HEARTBEAT_INTERVAL_MS);
 }
 
-// Fire-and-forget: log result for debugging.
+// Fire-and-forget: log result for debugging. NEVER surfaces errors to the UI.
 export const cmsCorePromise = bootstrapCmsCore().then((r) => {
   // eslint-disable-next-line no-console
-  console.info("[cms-core]", r);
+  console.info("[cms-core]", r.status, r.message);
   return r;
+}).catch((e) => {
+  // eslint-disable-next-line no-console
+  console.warn("[cms-core] bootstrap soft-failed:", e);
+  return null;
 });
 `, [siteName, siteUrl]);
 

@@ -147,7 +147,36 @@ Deno.serve(async (req) => {
           .eq("is_latest", true).eq("recalled", false).maybeSingle();
         release = r.data;
       }
-      if (!release) return json({ error: "no release available" }, 404);
+      if (!release) {
+        // Graceful "no release yet" envelope — children treat this as
+        // "connected, waiting for first release" rather than an error.
+        return json(
+          {
+            status: "no_release",
+            ok: true,
+            siteId: siteId || null,
+            version: null,
+            previousVersion: null,
+            payload: null,
+            payload_canonical: null,
+            signature_b64: null,
+            signing_key_id: null,
+            signed_at: null,
+            sdk_url: null,
+            changelog: null,
+            min_compatible_child_version: null,
+            recalled: false,
+            published_at: null,
+            manifest: {},
+            migrations: [],
+            signature: null,
+            payload_hash: null,
+            message: "No release has been published yet. The site is connected and will receive the first release automatically.",
+          },
+          200,
+          { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" },
+        );
+      }
 
       const { data: migrationsRaw } = await sb
         .from("cms_migration_manifest").select("*")

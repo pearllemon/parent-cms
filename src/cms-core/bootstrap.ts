@@ -74,8 +74,19 @@ export type BootstrapOptions = {
   heartbeat?: boolean;
 };
 
+export type BootstrapStatus =
+  | "ok"               // verified + (possibly) upgraded + SDK loaded
+  | "no_release"       // parent reachable, but no release has been published yet
+  | "waiting"          // parent temporarily unreachable; running cached/current version
+  | "recalled"         // latest release was pulled by the parent
+  | "untrusted"        // signature failed verification
+  | "error";           // unexpected failure (still non-fatal — site keeps rendering)
+
 export type BootstrapResult = {
   siteId: string;
+  status: BootstrapStatus;
+  /** Human-friendly status message — safe to surface to the customer. */
+  message: string;
   version: string;
   previousVersion: string | null;
   sdkLoaded: boolean;
@@ -97,28 +108,55 @@ function getOrCreateSiteId(explicit?: string): string {
   return generated;
 }
 
-async function postJSON(url: string, body: unknown): Promise<Response | null> {
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    return await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch { return null; }
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function postJSON(url: string, body: unknown): Promise<Response | null> {
+  // Best-effort: never throw. Retry once on network failure.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch { /* retry */ }
+  }
+  return null;
 }
 
 async function fetchManifest(base: string, siteId: string): Promise<Manifest | null> {
-  try {
-    const url = `${base}?site_id=${encodeURIComponent(siteId)}`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const m = (await res.json()) as Manifest;
-    try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
-    return m;
-  } catch {
-    try { const raw = localStorage.getItem(MANIFEST_CACHE_KEY); return raw ? JSON.parse(raw) as Manifest : null; }
-    catch { return null; }
+  const url = `${base}?site_id=${encodeURIComponent(siteId)}`;
+  // Retry transient failures (network, 5xx, 429) with small backoff.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { cache: "no-store" });
+      if (res.ok) {
+        const m = (await res.json()) as Manifest;
+        try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
+        return m;
+      }
+      // 4xx (except 408/429) — don't keep retrying.
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        break;
+      }
+    } catch { /* network / abort — fall through to retry */ }
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
   }
+  // Last resort: serve the previously cached manifest so the site keeps working.
+  try {
+    const raw = localStorage.getItem(MANIFEST_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Manifest) : null;
+  } catch { return null; }
 }
 
 function isAllowedSdkUrl(sdkUrl: string, allow: string[]): boolean {
@@ -155,30 +193,66 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   let previousVersion: string | null = null;
   try { previousVersion = localStorage.getItem(INSTALLED_VERSION_KEY); } catch { /* */ }
 
-  const failResult = (reason: string): BootstrapResult => ({
-    siteId, version: previousVersion || "0.0.0", previousVersion,
-    sdkLoaded: false, module: null, manifest,
-    appliedMigrations: 0, upgraded: false, verified: false, error: reason,
+  const buildResult = (
+    overrides: Partial<BootstrapResult> & { status: BootstrapStatus; message: string },
+  ): BootstrapResult => ({
+    siteId,
+    version: previousVersion || "0.0.0",
+    previousVersion,
+    sdkLoaded: false,
+    module: null,
+    manifest,
+    appliedMigrations: 0,
+    upgraded: false,
+    verified: false,
+    error: null,
+    ...overrides,
   });
 
-  if (!manifest) {
+  // Parent reachable but no release yet — graceful "connected, waiting" state.
+  const isNoRelease = !!manifest && (
+    (manifest as unknown as { status?: string }).status === "no_release" ||
+    (!manifest.version && !manifest.signature && !manifest.signature_b64)
+  );
+  if (isNoRelease) {
     await sendHeartbeat(base, {
       site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
       current_version: previousVersion, child_shim_version: SHIM_VERSION,
-      upgrade_state: "unknown", last_error: "manifest unavailable",
+      upgrade_state: "awaiting_release",
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult("manifest unavailable");
+    return buildResult({
+      status: "no_release",
+      message: "Connected to parent CMS. Waiting for the first release.",
+    });
+  }
+
+  if (!manifest) {
+    // Parent temporarily unreachable. Site keeps running on cached version.
+    await sendHeartbeat(base, {
+      site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
+      current_version: previousVersion, child_shim_version: SHIM_VERSION,
+      upgrade_state: "unknown",
+    });
+    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    return buildResult({
+      status: "waiting",
+      message: previousVersion
+        ? "Parent CMS temporarily unreachable. Running last known version."
+        : "Connecting to parent CMS… will retry automatically.",
+    });
   }
 
   if (manifest.recalled) {
     await sendHeartbeat(base, {
       site_id: siteId, current_version: previousVersion,
       child_shim_version: SHIM_VERSION, upgrade_state: "rolled_back",
-      last_error: "release recalled",
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult("release recalled");
+    return buildResult({
+      status: "recalled",
+      message: "Latest release was recalled by the parent. Running previous version.",
+    });
   }
 
   /* ---------- (3) signature verification ---------- */
@@ -195,7 +269,11 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
       last_error: `signature: ${reason}`,
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult(`signature: ${reason}`);
+    return buildResult({
+      status: "untrusted",
+      message: "Latest release could not be verified. Running previous version.",
+      error: `signature: ${reason}`,
+    });
   }
 
   /* ---------- (4) forward-only check ---------- */
@@ -272,11 +350,24 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   });
   scheduleHeartbeat(base, siteId, opts, currentVersion);
 
+  const finalStatus: BootstrapStatus = upgradeError ? "error" : "ok";
   return {
-    siteId, version: currentVersion, previousVersion,
-    sdkLoaded, module: mod, manifest,
-    appliedMigrations, upgraded: upgradeStatus === "success",
-    verified: true, error: upgradeError,
+    siteId,
+    status: finalStatus,
+    message: upgradeError
+      ? "Site is running, but the latest update could not be applied. Will retry."
+      : sdkLoaded
+        ? "Connected. Engine loaded and up to date."
+        : "Connected. Running current version.",
+    version: currentVersion,
+    previousVersion,
+    sdkLoaded,
+    module: mod,
+    manifest,
+    appliedMigrations,
+    upgraded: upgradeStatus === "success",
+    verified: true,
+    error: upgradeError,
   };
 }
 
