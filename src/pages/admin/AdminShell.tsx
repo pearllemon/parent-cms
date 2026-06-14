@@ -241,6 +241,7 @@ const AdminShell = () => {
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Design</p>
             <div className="space-y-0.5">
               <SidebarItem to="/admin/theme" label="Theme Designer" Icon={Palette} active={location.pathname.startsWith("/admin/theme")} />
+              <SidebarItem to="/admin/component-cloud" label="Component Cloud" Icon={Cloud} active={location.pathname.startsWith("/admin/component-cloud")} />
             </div>
           </div>
 
