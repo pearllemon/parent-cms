@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  listReleases, cutRelease, recallRelease, promoteRelease,
+  listReleases, recallRelease, promoteRelease,
   listMigrationsForVersion,
   type Release,
 } from "@/lib/distribution";
@@ -9,24 +9,15 @@ import {
   loadLocalSigner, signReleasePayload, attachSignatureToRelease,
 } from "@/lib/releaseSigning";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload, ShieldCheck, ShieldAlert, PenLine } from "lucide-react";
 import { toast } from "sonner";
+import BuildReleaseDialog from "@/components/admin/BuildReleaseDialog";
 
 export default function AdminReleases() {
   const [releases, setReleases] = useState<Release[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    version: "",
-    changelog: "",
-    sdk_url: "",
-    min_compatible_child_version: "",
-  });
 
   const load = async () => {
     setLoading(true);
@@ -35,26 +26,6 @@ export default function AdminReleases() {
   };
 
   useEffect(() => { void load(); }, []);
-
-  const submit = async () => {
-    if (!form.version.trim()) return toast.error("Version required (e.g. 1.0.0)");
-    try {
-      await cutRelease({
-        version: form.version.trim(),
-        changelog: form.changelog || undefined,
-        sdk_url: form.sdk_url || undefined,
-        min_compatible_child_version: form.min_compatible_child_version || undefined,
-        manifest: {},
-        migrations: [],
-      });
-      toast.success(`Release v${form.version} cut`);
-      setOpen(false);
-      setForm({ version: "", changelog: "", sdk_url: "", min_compatible_child_version: "" });
-      void load();
-    } catch (e) {
-      toast.error(String((e as Error).message));
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -67,37 +38,10 @@ export default function AdminReleases() {
             Cut new versions of the CMS engine. Children pull the latest version automatically on next boot.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="w-4 h-4 mr-2" /> Cut release</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Cut new release</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label>Version (semver)</Label>
-                <Input value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} placeholder="1.0.0" />
-              </div>
-              <div>
-                <Label>Changelog</Label>
-                <Textarea rows={4} value={form.changelog} onChange={(e) => setForm({ ...form, changelog: e.target.value })} placeholder="What changed in this release..." />
-              </div>
-              <div>
-                <Label>SDK URL (optional)</Label>
-                <Input value={form.sdk_url} onChange={(e) => setForm({ ...form, sdk_url: e.target.value })} placeholder="https://.../cms-core.{ver}.js" />
-              </div>
-              <div>
-                <Label>Min compatible child shim (optional)</Label>
-                <Input value={form.min_compatible_child_version} onChange={(e) => setForm({ ...form, min_compatible_child_version: e.target.value })} placeholder="0.1.0" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={submit}>Publish</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-2" /> Build release</Button>
+        <BuildReleaseDialog open={open} onOpenChange={setOpen} onDone={load} />
       </header>
+
 
       <div className="bg-background border rounded-2xl divide-y">
         {loading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}

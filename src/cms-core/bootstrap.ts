@@ -21,6 +21,8 @@ import {
   verifyManifestSignature, compareSemver,
   type TrustedKey, type VerifiableManifest,
 } from "./verify";
+import { applyManifest } from "./applyManifest";
+
 
 const SHIM_VERSION = "1.1.0";
 const MANIFEST_CACHE_KEY = "cms-core-manifest-v1";
@@ -337,6 +339,14 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
       }
     }
   }
+
+  /* ---------- (6b) apply populated manifest content ---------- */
+  // Best-effort: upserts pages / posts / templates / sections / tokens into
+  // the child's local tables. Failures are non-fatal — site keeps rendering.
+  if (manifest.manifest && typeof manifest.manifest === "object") {
+    try { await applyManifest(manifest.manifest); } catch { /* non-fatal */ }
+  }
+
 
   const currentVersion = upgradeStatus === "success" ? manifest.version : (previousVersion || manifest.version);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listInstallations, forceUpgrade, getLatestRelease, type ChildInstallation, type Release } from "@/lib/distribution";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +11,19 @@ const STATE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "o
   upgrading: "secondary",
   failed: "destructive",
   rolled_back: "outline",
+  awaiting_release: "outline",
   unknown: "outline",
 };
+
+type Filter = "all" | "up_to_date" | "drift" | "failed" | "awaiting";
+
+
 
 export default function AdminInstallations() {
   const [items, setItems] = useState<ChildInstallation[]>([]);
   const [latest, setLatest] = useState<Release | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
 
   const load = async () => {
     setLoading(true);
@@ -26,6 +32,26 @@ export default function AdminInstallations() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const stats = useMemo(() => {
+    let upToDate = 0, drift = 0, failed = 0, awaiting = 0;
+    for (const i of items) {
+      if (i.upgrade_state === "failed") failed++;
+      else if ((i.upgrade_state as string) === "awaiting_release" || (!i.current_version && latest)) awaiting++;
+      else if (latest && i.current_version && i.current_version !== latest.version) drift++;
+      else if (latest && i.current_version === latest.version) upToDate++;
+    }
+    return { upToDate, drift, failed, awaiting };
+  }, [items, latest]);
+
+  const filtered = useMemo(() => items.filter((i) => {
+    if (filter === "all") return true;
+    if (filter === "failed") return (i.upgrade_state as string) === "failed";
+    if (filter === "awaiting") return (i.upgrade_state as string) === "awaiting_release" || (!i.current_version && !!latest);
+    if (filter === "up_to_date") return !!latest && i.current_version === latest.version;
+    if (filter === "drift") return !!latest && !!i.current_version && i.current_version !== latest.version;
+    return true;
+  }), [items, filter, latest]);
 
   return (
     <div className="space-y-6">
@@ -41,14 +67,32 @@ export default function AdminInstallations() {
         </Button>
       </header>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {([
+          ["all",        "Total",        items.length],
+          ["up_to_date", "Up to date",   stats.upToDate],
+          ["drift",      "Drift",        stats.drift],
+          ["awaiting",   "Awaiting first release", stats.awaiting],
+        ] as Array<[Filter, string, number]>).map(([f, label, n]) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`p-3 border rounded-xl text-left transition ${filter === f ? "border-primary bg-primary/5" : "bg-background hover:bg-muted/30"}`}>
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="font-display text-2xl">{n}</div>
+          </button>
+        ))}
+      </div>
+
       <div className="bg-background border rounded-2xl divide-y">
         {loading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
-        {!loading && items.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            No child sites have checked in yet. Once a child runs the bootstrap loader, it will appear here.
+            {items.length === 0
+              ? "No child sites have checked in yet. Once a child runs the bootstrap loader, it will appear here."
+              : "No installations match this filter."}
           </div>
         )}
-        {items.map((i) => {
+
+        {filtered.map((i) => {
           const stale = latest && i.current_version && i.current_version !== latest.version;
           return (
             <div key={i.id} className="p-4 flex items-start justify-between gap-4">

@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wand2, Copy, Check, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { listPublicKeys } from "@/lib/releaseSigning";
@@ -28,11 +29,24 @@ const PARENT_SDK_ORIGIN = new URL(import.meta.env.VITE_SUPABASE_URL).origin;
 
 type Row = { key_id: string; public_key: string; is_active: boolean };
 
+type Framework = "vite" | "next-app" | "next-pages" | "tanstack" | "remix" | "react-router";
+
+const FRAMEWORK_LABELS: Record<Framework, string> = {
+  "vite":         "Vite + React (Lovable default)",
+  "next-app":     "Next.js — App Router",
+  "next-pages":   "Next.js — Pages Router",
+  "tanstack":     "TanStack Start",
+  "remix":        "Remix",
+  "react-router": "React Router (data router)",
+};
+
 export default function AdminSetupWizard() {
   const [siteName, setSiteName] = useState("");
   const [siteUrl, setSiteUrl] = useState("");
+  const [framework, setFramework] = useState<Framework>("vite");
   const [copied, setCopied] = useState<string | null>(null);
   const [trusted, setTrusted] = useState<Row[]>([]);
+
 
   useEffect(() => {
     listPublicKeys().then((rows) =>
@@ -338,15 +352,82 @@ export const cmsCorePromise = bootstrapCmsCore().then((r) => {
 });
 `, [siteName, siteUrl]);
 
-  const mainTsxPatch = `// src/main.tsx — import the bootstrap ONCE on app startup.
-// Add the single line marked NEW below.
+  const entryPoint = useMemo<{ file: string; code: string }>(() => {
+    const importLine = `import "@/cms-bootstrap"; // NEW — register → verify → migrate → load SDK`;
+    switch (framework) {
+      case "next-app":
+        return {
+          file: "app/layout.tsx — add a tiny client component that imports the bootstrap",
+          code: `// app/cms-bootstrap-client.tsx (NEW)
+"use client";
+import "@/cms-bootstrap";
+export default function CmsBootstrap() { return null; }
+
+// app/layout.tsx — add <CmsBootstrap /> inside <body>
+import CmsBootstrap from "./cms-bootstrap-client";
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (<html><body><CmsBootstrap />{children}</body></html>);
+}
+`,
+        };
+      case "next-pages":
+        return {
+          file: "pages/_app.tsx — add the bootstrap import at the top",
+          code: `// pages/_app.tsx
+${importLine}
+import type { AppProps } from "next/app";
+export default function App({ Component, pageProps }: AppProps) {
+  return <Component {...pageProps} />;
+}
+`,
+        };
+      case "tanstack":
+        return {
+          file: "src/routes/__root.tsx — import the bootstrap in the root route",
+          code: `// src/routes/__root.tsx
+${importLine}
+import { Outlet, createRootRoute } from "@tanstack/react-router";
+export const Route = createRootRoute({ component: () => <Outlet /> });
+`,
+        };
+      case "remix":
+        return {
+          file: "app/root.tsx — import the bootstrap once",
+          code: `// app/root.tsx
+${importLine}
+import { Outlet } from "@remix-run/react";
+export default function Root() { return <Outlet />; }
+`,
+        };
+      case "react-router":
+        return {
+          file: "src/main.tsx — import the bootstrap before mounting the router",
+          code: `// src/main.tsx
+${importLine}
+import { createRoot } from "react-dom/client";
+import { RouterProvider } from "react-router-dom";
+import { router } from "./router";
+createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />);
+`,
+        };
+      case "vite":
+      default:
+        return {
+          file: "src/main.tsx — add the bootstrap import (Vite + React)",
+          code: `// src/main.tsx
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import "./cms-bootstrap"; // NEW — kicks off register → verify → migrate → load SDK
-
+${importLine}
 createRoot(document.getElementById("root")!).render(<App />);
-`;
+`,
+        };
+    }
+  }, [framework]);
+
+  const mainTsxPatch = entryPoint.code;
+  const mainTsxLabel = `5. ${entryPoint.file}`;
+
 
   const childEdgeFn = `// supabase/functions/cms-migrate/index.ts — runs in the CHILD project.
 // Receives a SIGNATURE-VERIFIED migration step and forwards to exec_cms_migration.
@@ -537,16 +618,31 @@ $$;
             <Input value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="https://acme.example.com" />
           </div>
         </div>
+        <div>
+          <Label>Target framework</Label>
+          <Select value={framework} onValueChange={(v) => setFramework(v as Framework)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(FRAMEWORK_LABELS) as Framework[]).map((k) => (
+                <SelectItem key={k} value={k}>{FRAMEWORK_LABELS[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Determines which entry-point file the bootstrap snippet targets (step 5).
+          </p>
+        </div>
         <p className="text-xs text-muted-foreground">
           Site ID is auto-generated on first boot and persisted in the child's localStorage.
         </p>
       </Card>
 
+
       <Snippet label="1. No install needed (self-contained bootstrap)" code={installSnippet} copied={copied === "i"} onCopy={() => copy(installSnippet, "i")} />
       <Snippet label="2. .env (child project)" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
       <Snippet label="3. src/cms/trusted-keys.ts (embedded public keys)" code={trustedKeysFile} copied={copied === "tk"} onCopy={() => copy(trustedKeysFile, "tk")} />
       <Snippet label="4. src/cms-bootstrap.ts (self-contained, no npm dep)" code={bootstrap} copied={copied === "boot"} onCopy={() => copy(bootstrap, "boot")} />
-      <Snippet label="5. src/main.tsx — add the bootstrap import" code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
+      <Snippet label={mainTsxLabel} code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
       <Snippet label="6. supabase/functions/cms-migrate/index.ts (child edge function)" code={childEdgeFn} copied={copied === "edge"} onCopy={() => copy(childEdgeFn, "edge")} />
       <Snippet label="7. Child DB migration — exec_cms_migration RPC" code={childMigrationSql} copied={copied === "sql"} onCopy={() => copy(childMigrationSql, "sql")} />
 
