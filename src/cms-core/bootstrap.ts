@@ -150,7 +150,7 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     shim_version: SHIM_VERSION,
   });
 
-  const manifest = await fetchManifest(base);
+  const manifest = await fetchManifest(base, siteId);
   let previousVersion: string | null = null;
   try { previousVersion = localStorage.getItem(INSTALLED_VERSION_KEY); } catch { /* */ }
 
@@ -224,6 +224,8 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
             signature_verified: true,
             signing_key_id: verification.key_id,
             payload_hash: verification.payload_hash,
+            // @ts-expect-error site_id is forwarded for child edge fn convenience
+            site_id: siteId,
           });
           appliedMigrations++;
         }
