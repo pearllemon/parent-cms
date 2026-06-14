@@ -340,6 +340,14 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     }
   }
 
+  /* ---------- (6b) apply populated manifest content ---------- */
+  // Best-effort: upserts pages / posts / templates / sections / tokens into
+  // the child's local tables. Failures are non-fatal — site keeps rendering.
+  if (manifest.manifest && typeof manifest.manifest === "object") {
+    try { await applyManifest(manifest.manifest); } catch { /* non-fatal */ }
+  }
+
+
   const currentVersion = upgradeStatus === "success" ? manifest.version : (previousVersion || manifest.version);
 
   await sendHeartbeat(base, {
