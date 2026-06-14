@@ -89,6 +89,39 @@ export type Database = {
         }
         Relationships: []
       }
+      applied_cms_migrations: {
+        Row: {
+          applied_at: string
+          duration_ms: number | null
+          id: string
+          kind: string
+          migration_id: string
+          order_index: number
+          site_id: string
+          version: string
+        }
+        Insert: {
+          applied_at?: string
+          duration_ms?: number | null
+          id?: string
+          kind: string
+          migration_id: string
+          order_index: number
+          site_id: string
+          version: string
+        }
+        Update: {
+          applied_at?: string
+          duration_ms?: number | null
+          id?: string
+          kind?: string
+          migration_id?: string
+          order_index?: number
+          site_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
       authors: {
         Row: {
           archive_enabled: boolean
@@ -327,9 +360,13 @@ export type Database = {
           is_latest: boolean
           manifest: Json
           min_compatible_child_version: string | null
+          payload_hash: string | null
           published_at: string
           recalled: boolean
           sdk_url: string | null
+          signature: string | null
+          signed_at: string | null
+          signing_key_id: string | null
           updated_at: string
           version: string
         }
@@ -340,9 +377,13 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          payload_hash?: string | null
           published_at?: string
           recalled?: boolean
           sdk_url?: string | null
+          signature?: string | null
+          signed_at?: string | null
+          signing_key_id?: string | null
           updated_at?: string
           version: string
         }
@@ -353,11 +394,51 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          payload_hash?: string | null
           published_at?: string
           recalled?: boolean
           sdk_url?: string | null
+          signature?: string | null
+          signed_at?: string | null
+          signing_key_id?: string | null
           updated_at?: string
           version?: string
+        }
+        Relationships: []
+      }
+      cms_signing_keys: {
+        Row: {
+          algorithm: string
+          created_at: string
+          id: string
+          is_active: boolean
+          key_id: string
+          notes: string | null
+          public_key: string
+          revoked_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          algorithm?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key_id: string
+          notes?: string | null
+          public_key: string
+          revoked_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          algorithm?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key_id?: string
+          notes?: string | null
+          public_key?: string
+          revoked_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2014,6 +2095,19 @@ export type Database = {
       apply_image_asset_replacements: {
         Args: { _job_id?: string }
         Returns: number
+      }
+      exec_cms_migration: {
+        Args: {
+          _current_version?: string
+          _kind: string
+          _migration_id: string
+          _order_index: number
+          _payload: string
+          _signature_verified: boolean
+          _site_id: string
+          _version: string
+        }
+        Returns: Json
       }
     }
     Enums: {
