@@ -92,7 +92,7 @@ export default function AdminInstallations() {
           </div>
         )}
 
-        {items.map((i) => {
+        {filtered.map((i) => {
           const stale = latest && i.current_version && i.current_version !== latest.version;
           return (
             <div key={i.id} className="p-4 flex items-start justify-between gap-4">
