@@ -78,17 +78,28 @@ const AdminMedia = () => {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Cached query — shows the library instantly from cache, refreshes in background.
+  // Cached query — shows the library instantly from cache, refreshes in
+  // background. Sources merged in priority order: media_meta (rich metadata)
+  // → imported_posts featured images (real content) → cloud storage bucket
+  // (anything uploaded outside the admin) → parent media_library.
   const { data, loading, refresh } = useCachedQuery<{ items: MediaRow[]; folders: Folder[] }>(
-    `media:${siteId || "any"}`,
+    `media:v3:${siteId || "any"}`,
     async () => {
       const next: MediaRow[] = [];
+      const seenUrl = new Set<string>();
+      const push = (row: MediaRow) => {
+        if (!row.url || seenUrl.has(row.url)) return;
+        seenUrl.add(row.url);
+        next.push(row);
+      };
+
+      // 1) media_meta (canonical, has alt/title/etc.)
       try {
-        let qb = cloudT("media_meta").select("*").order("created_at", { ascending: false }).limit(500);
+        let qb = cloudT("media_meta").select("*").order("created_at", { ascending: false }).limit(1000);
         if (siteId) qb = qb.eq("site_id", siteId);
         const { data: rows } = await qb;
         for (const r of (rows as any[]) || []) {
-          next.push({
+          push({
             id: `c:${r.id}`,
             source: "cloud",
             url: r.media_url,
@@ -101,14 +112,67 @@ const AdminMedia = () => {
         }
       } catch { /* ignore */ }
 
+      // 2) Featured images discovered in imported_posts — surfaces media
+      // that was imported with WP content but never catalogued in media_meta.
+      try {
+        const { data: rows } = await cloudT("imported_posts")
+          .select("id,title,featured_image_url,featured_image_alt,updated_at")
+          .not("featured_image_url", "is", null)
+          .order("updated_at", { ascending: false })
+          .limit(2000);
+        for (const r of (rows as any[]) || []) {
+          if (!r.featured_image_url) continue;
+          const name = (r.featured_image_url as string).split("/").pop()?.split("?")[0] || "image";
+          push({
+            id: `i:${r.id}`,
+            source: "cloud",
+            url: r.featured_image_url,
+            file_name: name,
+            mime_type: guessMime(name),
+            alt_text: r.featured_image_alt || r.title || null,
+            title: r.title || null,
+            folder: "imported",
+            created_at: r.updated_at,
+          });
+        }
+      } catch { /* ignore */ }
+
+      // 3) Anything sitting in the post-images bucket that nobody catalogued
+      // yet (uploaded via SDK, scripts, etc.).
+      try {
+        const walkBucket = async (prefix: string, depth = 0) => {
+          if (depth > 3) return;
+          const { data: entries } = await cloud.storage.from("post-images")
+            .list(prefix, { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
+          for (const e of entries || []) {
+            const path = prefix ? `${prefix}/${e.name}` : e.name;
+            const isFolder = !(e as any).id;
+            if (isFolder) { await walkBucket(path, depth + 1); continue; }
+            const { data: pub } = cloud.storage.from("post-images").getPublicUrl(path);
+            const size = (e as any).metadata?.size ?? null;
+            const mime = (e as any).metadata?.mimetype ?? guessMime(e.name);
+            push({
+              id: `s:${path}`,
+              source: "cloud",
+              url: pub.publicUrl,
+              file_name: e.name,
+              mime_type: mime,
+              size_bytes: size,
+              folder: prefix.split("/")[0] || "uncategorized",
+              created_at: (e as any).created_at,
+            });
+          }
+        };
+        await walkBucket("");
+      } catch { /* ignore — bucket access may be restricted */ }
+
+      // 4) Parent media_library (cross-site shared assets).
       try {
         const { data: rows } = await parentT("media_library")
           .select("id,file_url,file_name,file_size,mime_type,created_at")
           .order("created_at", { ascending: false }).limit(500);
-        const knownUrls = new Set(next.map((i) => i.url));
         for (const r of (rows as any[]) || []) {
-          if (knownUrls.has(r.file_url)) continue;
-          next.push({
+          push({
             id: `p:${r.id}`,
             source: "parent",
             url: r.file_url,
