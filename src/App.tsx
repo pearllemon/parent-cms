@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteProvider } from "@/providers/SiteProvider";
+import SiteHeadInjection from "@/components/SiteHeadInjection";
 import Index from "./pages/Index.tsx";
 import About from "./pages/About.tsx";
 import Blog from "./pages/Blog.tsx";
@@ -69,6 +70,7 @@ const App = () => (
           <RedirectsGate />
           <PopupManager />
           <PageSchemaInjector />
+          <SiteHeadInjection />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />

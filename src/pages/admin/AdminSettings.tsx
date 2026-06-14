@@ -90,34 +90,63 @@ export default function AdminSettings() {
     </div>
   );
 
+  // Extras-backed helpers (verification + code injection live inside `extras`)
+  const extras: Record<string, any> = (s.extras as Record<string, any>) || {};
+  const setExtra = (path: string[], v: any) => {
+    const next = JSON.parse(JSON.stringify(extras || {}));
+    let cur = next;
+    for (let i = 0; i < path.length - 1; i++) {
+      cur[path[i]] = cur[path[i]] || {};
+      cur = cur[path[i]];
+    }
+    cur[path[path.length - 1]] = v;
+    set("extras", next);
+  };
+  const ver = extras.verification || {};
+  const inj = extras.code_injection || {};
+
+  const TABS = [
+    { id: "general", label: "General" },
+    { id: "branding", label: "Branding" },
+    { id: "seo", label: "SEO Defaults" },
+    { id: "verification", label: "Webmaster Verification" },
+    { id: "injection", label: "Code Injection" },
+    { id: "social", label: "Social / OG" },
+    { id: "analytics", label: "Analytics" },
+    { id: "email", label: "Email" },
+    { id: "performance", label: "Performance" },
+    { id: "security", label: "Security" },
+    { id: "cache", label: "Permalinks & Cache" },
+    { id: "advanced", label: "Advanced" },
+  ];
+
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl">Settings</h1>
+        <div>
+          <h1 className="font-display text-3xl">Settings</h1>
+          <p className="text-sm text-muted-foreground">Site-wide configuration. Changes apply to the live site immediately after save.</p>
+        </div>
         <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1" /> {saving ? "Saving…" : "Save all"}</Button>
       </div>
 
-      <Tabs defaultValue="general">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="branding">Branding</TabsTrigger>
-          <TabsTrigger value="seo">SEO Defaults</TabsTrigger>
-          <TabsTrigger value="social">Social / OG</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="cache">Permalinks & Cache</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+      <Tabs defaultValue="general" orientation="vertical" className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
+        <TabsList className="flex md:flex-col h-auto md:h-fit md:items-stretch md:justify-start bg-muted/40 p-1 rounded-lg flex-wrap">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.id} value={t.id} className="md:justify-start data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="general"><Card className="p-5 space-y-3">
+        <div className="min-w-0">
+        <TabsContent value="general" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Site name</Label><Input value={s.site_name || ""} onChange={(e) => set("site_name", e.target.value)} /></div>
           <div><Label>Tagline</Label><Input value={s.tagline || ""} onChange={(e) => set("tagline", e.target.value)} placeholder="Short description for headers, social cards" /></div>
           <div className="text-xs text-muted-foreground">Site ID: <code className="font-mono">{siteId}</code> · Domain: <code>{config?.site?.domain?.toString()}</code></div>
         </Card></TabsContent>
 
-        <TabsContent value="branding"><Card className="p-5 space-y-3">
+        <TabsContent value="branding" className="mt-0"><Card className="p-5 space-y-3">
           <ImageField field="logo_url" label="Site logo (light backgrounds)" />
           <ImageField field="logo_dark_url" label="Site logo (dark backgrounds)" />
           <ImageField field="favicon_url" label="Favicon" hint="Use a square PNG/ICO, at least 64×64." />
@@ -127,25 +156,74 @@ export default function AdminSettings() {
           </div>
         </Card></TabsContent>
 
-        <TabsContent value="seo"><Card className="p-5 space-y-3">
+        <TabsContent value="seo" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Default meta title</Label><Input value={s.default_meta_title || ""} onChange={(e) => set("default_meta_title", e.target.value)} placeholder="Used when a page has none" /></div>
           <div><Label>Default meta description</Label><Textarea rows={3} value={s.default_meta_description || ""} onChange={(e) => set("default_meta_description", e.target.value)} /></div>
           <ImageField field="default_og_image" label="Default OG/Twitter image" hint="1200×630 recommended" />
+          <p className="text-xs text-muted-foreground">Per-page overrides live in the SEO Workspace. These are global fallbacks.</p>
         </Card></TabsContent>
 
-        <TabsContent value="social"><Card className="p-5 space-y-3">
+        <TabsContent value="verification" className="mt-0"><Card className="p-5 space-y-4">
+          <div>
+            <h3 className="font-medium text-sm">Search-engine ownership verification</h3>
+            <p className="text-xs text-muted-foreground">Paste the verification <em>content</em> value from each console — we inject the matching <code>&lt;meta&gt;</code> tag site-wide. No need to add HTML files.</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Google Search Console</Label>
+              <Input value={ver.google || ""} onChange={(e) => setExtra(["verification","google"], e.target.value)} placeholder="google-site-verification content" />
+            </div>
+            <div>
+              <Label className="text-xs">Bing Webmaster Tools</Label>
+              <Input value={ver.bing || ""} onChange={(e) => setExtra(["verification","bing"], e.target.value)} placeholder="msvalidate.01 content" />
+            </div>
+            <div>
+              <Label className="text-xs">Yandex Webmaster</Label>
+              <Input value={ver.yandex || ""} onChange={(e) => setExtra(["verification","yandex"], e.target.value)} placeholder="yandex-verification content" />
+            </div>
+            <div>
+              <Label className="text-xs">Pinterest</Label>
+              <Input value={ver.pinterest || ""} onChange={(e) => setExtra(["verification","pinterest"], e.target.value)} placeholder="p:domain_verify content" />
+            </div>
+            <div>
+              <Label className="text-xs">Facebook Domain</Label>
+              <Input value={ver.facebook || ""} onChange={(e) => setExtra(["verification","facebook"], e.target.value)} placeholder="facebook-domain-verification content" />
+            </div>
+          </div>
+        </Card></TabsContent>
+
+        <TabsContent value="injection" className="mt-0"><Card className="p-5 space-y-4">
+          <div>
+            <h3 className="font-medium text-sm">Custom code injection</h3>
+            <p className="text-xs text-muted-foreground">Raw HTML inserted on every page. Use this for analytics snippets, chat widgets, A/B-testing scripts. Code runs as-is — paste only sources you trust.</p>
+          </div>
+          <div>
+            <Label className="text-xs">&lt;head&gt; — appended to document head</Label>
+            <Textarea rows={6} className="font-mono text-xs" value={inj.head || ""} onChange={(e) => setExtra(["code_injection","head"], e.target.value)} placeholder="<!-- e.g. <script src='https://cdn.example.com/widget.js'></script> -->" />
+          </div>
+          <div>
+            <Label className="text-xs">&lt;body&gt; open — prepended to body</Label>
+            <Textarea rows={6} className="font-mono text-xs" value={inj.body_open || ""} onChange={(e) => setExtra(["code_injection","body_open"], e.target.value)} placeholder="<!-- e.g. GTM noscript fallback -->" />
+          </div>
+          <div>
+            <Label className="text-xs">&lt;body&gt; close (footer) — appended to body</Label>
+            <Textarea rows={6} className="font-mono text-xs" value={inj.body_close || ""} onChange={(e) => setExtra(["code_injection","body_close"], e.target.value)} placeholder="<!-- e.g. chat widget loader -->" />
+          </div>
+        </Card></TabsContent>
+
+        <TabsContent value="social" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Twitter handle</Label><Input value={s.twitter_handle || ""} onChange={(e) => set("twitter_handle", e.target.value)} placeholder="@yourbrand" /></div>
           <div><Label>Facebook App ID</Label><Input value={s.facebook_app_id || ""} onChange={(e) => set("facebook_app_id", e.target.value)} /></div>
         </Card></TabsContent>
 
-        <TabsContent value="analytics"><Card className="p-5 space-y-3">
+        <TabsContent value="analytics" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Google Analytics measurement ID</Label><Input value={s.google_analytics_id || ""} onChange={(e) => set("google_analytics_id", e.target.value)} placeholder="G-XXXXXXX" /></div>
           <div><Label>Google Tag Manager ID</Label><Input value={s.google_tag_manager_id || ""} onChange={(e) => set("google_tag_manager_id", e.target.value)} placeholder="GTM-XXXXXX" /></div>
           <div><Label>Facebook Pixel ID</Label><Input value={s.facebook_pixel_id || ""} onChange={(e) => set("facebook_pixel_id", e.target.value)} /></div>
           <div><Label>Plausible domain</Label><Input value={s.plausible_domain || ""} onChange={(e) => set("plausible_domain", e.target.value)} placeholder="example.com" /></div>
         </Card></TabsContent>
 
-        <TabsContent value="email"><Card className="p-5 space-y-3">
+        <TabsContent value="email" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Provider</Label>
             <Select value={s.email_provider || "none"} onValueChange={(v) => set("email_provider", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -163,16 +241,16 @@ export default function AdminSettings() {
           <div><Label>Reply-to</Label><Input type="email" value={s.email_reply_to || ""} onChange={(e) => set("email_reply_to", e.target.value)} /></div>
         </Card></TabsContent>
 
-        <TabsContent value="performance"><Card className="p-5 space-y-3">
+        <TabsContent value="performance" className="mt-0"><Card className="p-5 space-y-3">
           <div className="flex items-center justify-between border rounded p-3"><Label>Lazy-load images</Label><Switch checked={s.perf_lazy_images ?? true} onCheckedChange={(v) => set("perf_lazy_images", v)} /></div>
           <div className="flex items-center justify-between border rounded p-3"><Label>Minify HTML/CSS/JS</Label><Switch checked={s.perf_minify ?? true} onCheckedChange={(v) => set("perf_minify", v)} /></div>
           <div className="flex items-center justify-between border rounded p-3"><Label>Image CDN</Label><Switch checked={s.perf_image_cdn ?? true} onCheckedChange={(v) => set("perf_image_cdn", v)} /></div>
           <div><Label>Preconnect domains (comma-separated)</Label>
-            <Input value={(s.perf_preconnect || []).join(", ")} onChange={(e) => set("perf_preconnect", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} placeholder="fonts.googleapis.com, cdn.example.com" />
+            <Input value={(s.perf_preconnect || []).join(", ")} onChange={(e) => set("perf_preconnect", e.target.value.split(",").map((x: string) => x.trim()).filter(Boolean))} placeholder="fonts.googleapis.com, cdn.example.com" />
           </div>
         </Card></TabsContent>
 
-        <TabsContent value="security"><Card className="p-5 space-y-3">
+        <TabsContent value="security" className="mt-0"><Card className="p-5 space-y-3">
           <div className="flex items-center justify-between border rounded p-3"><Label>Force HTTPS</Label><Switch checked={s.sec_force_https ?? true} onCheckedChange={(v) => set("sec_force_https", v)} /></div>
           <div className="flex items-center justify-between border rounded p-3"><Label>HSTS</Label><Switch checked={s.sec_hsts ?? false} onCheckedChange={(v) => set("sec_hsts", v)} /></div>
           <div><Label>Content-Security-Policy (advanced)</Label><Textarea rows={3} className="font-mono text-xs" value={s.sec_csp || ""} onChange={(e) => set("sec_csp", e.target.value)} placeholder="default-src 'self'; …" /></div>
@@ -186,7 +264,7 @@ export default function AdminSettings() {
           </div>
         </Card></TabsContent>
 
-        <TabsContent value="cache"><Card className="p-5 space-y-3">
+        <TabsContent value="cache" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Permalink pattern</Label><Input value={perm} onChange={(e) => setPerm(e.target.value)} placeholder="/%postname%/" /></div>
           <div><Label>Cache TTL (seconds)</Label><Input type="number" min={60} value={cacheTtl} onChange={(e) => setCacheTtl(Number(e.target.value))} /></div>
           <div className="grid grid-cols-3 gap-3 text-sm">
@@ -200,11 +278,12 @@ export default function AdminSettings() {
           </div>
         </Card></TabsContent>
 
-        <TabsContent value="advanced"><Card className="p-5 space-y-3">
+        <TabsContent value="advanced" className="mt-0"><Card className="p-5 space-y-3">
           <Label>Extras (JSON)</Label>
           <Textarea rows={10} className="font-mono text-xs" value={JSON.stringify(s.extras || {}, null, 2)} onChange={(e) => { try { set("extras", JSON.parse(e.target.value)); } catch { /* ignore */ } }} />
-          <p className="text-xs text-muted-foreground">Catch-all bag for project-specific settings.</p>
+          <p className="text-xs text-muted-foreground">Catch-all bag for project-specific settings. The Webmaster Verification and Code Injection tabs read/write keys inside this object.</p>
         </Card></TabsContent>
+        </div>
       </Tabs>
 
       <MediaPicker
