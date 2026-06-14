@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
   Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
-  FolderTree, Tag, Activity, Rocket, Server, History, Wand2, Plug, type LucideIcon,
+  FolderTree, Tag, Activity, Rocket, Server, History, Wand2, Plug, KeyRound, type LucideIcon,
 } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -254,6 +254,7 @@ const AdminShell = () => {
                 <SidebarItem to="/admin/installations" label="Installations" Icon={Server} active={location.pathname.startsWith("/admin/installations")} />
                 <SidebarItem to="/admin/upgrade-log" label="Upgrade Log" Icon={History} active={location.pathname.startsWith("/admin/upgrade-log")} />
                 <SidebarItem to="/admin/apis" label="API Registry" Icon={Plug} active={location.pathname.startsWith("/admin/apis")} />
+                <SidebarItem to="/admin/signing-keys" label="Signing Keys" Icon={KeyRound} active={location.pathname.startsWith("/admin/signing-keys")} />
                 <SidebarItem to="/admin/setup-wizard" label="Child Setup Wizard" Icon={Wand2} active={location.pathname.startsWith("/admin/setup-wizard")} />
               </div>
             </div>
