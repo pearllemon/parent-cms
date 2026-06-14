@@ -56,8 +56,10 @@ import AdminSetupWizard from "./pages/admin/AdminSetupWizard.tsx";
 import AdminApiRegistry from "./pages/admin/AdminApiRegistry.tsx";
 import AdminSigningKeys from "./pages/admin/AdminSigningKeys.tsx";
 import AdminLeads from "./pages/admin/AdminLeads.tsx";
+import AdminComponentCloud from "./pages/admin/AdminComponentCloud.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 import ThemeTokensInjector from "@/components/ThemeTokensInjector";
+import ComponentCloudSync from "@/components/ComponentCloudSync";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +76,7 @@ const App = () => (
           <PageSchemaInjector />
           <SiteHeadInjection />
           <ThemeTokensInjector />
+          <ComponentCloudSync />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
@@ -121,6 +124,7 @@ const App = () => (
               <Route path="theme" element={<AdminThemeDesigner />} />
               <Route path="taxonomies" element={<AdminTaxonomies />} />
               <Route path="leads" element={<AdminLeads />} />
+              <Route path="component-cloud" element={<AdminComponentCloud />} />
               <Route path="activity" element={<AdminActivityLog />} />
               <Route path="categories" element={<Navigate to="/admin/taxonomies?tax=category" replace />} />
               <Route path="tags" element={<Navigate to="/admin/taxonomies?tax=tag" replace />} />
