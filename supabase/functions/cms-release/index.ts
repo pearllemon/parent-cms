@@ -137,6 +137,19 @@ Deno.serve(async (req) => {
     if (req.method === "GET") {
       const version = url.searchParams.get("version");
       const siteId = url.searchParams.get("site_id");
+      const action = url.searchParams.get("action");
+
+      // GET ?action=list — admin convenience listing (no signing required).
+      if (action === "list") {
+        const { data } = await sb
+          .from("cms_releases").select("*")
+          .order("published_at", { ascending: false });
+        return json(
+          { releases: data || [] }, 200,
+          { "Cache-Control": "private, no-store" },
+        );
+      }
+
       let release: any = null;
       if (version) {
         const r = await sb.from("cms_releases").select("*").eq("version", version).maybeSingle();
@@ -147,6 +160,20 @@ Deno.serve(async (req) => {
           .eq("is_latest", true).eq("recalled", false).maybeSingle();
         release = r.data;
       }
+
+      // GET ?action=manifest&version=X — returns ONLY the populated manifest body.
+      if (action === "manifest") {
+        if (!release) {
+          return json({ status: "no_release", manifest: {} }, 200,
+            { "Cache-Control": "public, s-maxage=10" });
+        }
+        return json(
+          { version: release.version, manifest: release.manifest || {}, published_at: release.published_at },
+          200,
+          { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
+        );
+      }
+
       if (!release) {
         // Graceful "no release yet" envelope — children treat this as
         // "connected, waiting for first release" rather than an error.
