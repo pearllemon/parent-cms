@@ -1,9 +1,21 @@
 // cms-release — public edge function for the CMS Core distribution pipeline.
 //
-//   GET  /cms-release[?version=x]    → manifest (latest non-recalled, or specific)
-//   POST /cms-release/register       → idempotent child registration
-//   POST /cms-release/heartbeat      → periodic state report
-//   POST /cms-release/upgrade-log    → migration progress events
+//   GET  /cms-release[?version=x&site_id=y]   → manifest envelope (signed)
+//   POST /cms-release/register                → idempotent child registration
+//   POST /cms-release/heartbeat               → periodic state report
+//   POST /cms-release/upgrade-log             → migration progress events
+//
+// The manifest envelope is shaped EXACTLY as the child SDK expects:
+//
+//   {
+//     siteId, version, previousVersion,
+//     payload: { version, sdk_url, min_compatible_child_version, manifest, migrations: [...] },
+//     payload_canonical: "<the exact bytes that were signed>",
+//     signature_b64, signing_key_id, signed_at,
+//     // legacy / convenience fields (also present at top level):
+//     sdk_url, changelog, recalled, min_compatible_child_version, migrations,
+//     manifest, signature, payload_hash
+//   }
 //
 // All endpoints accept CORS so children running on any origin can reach them.
 
@@ -30,6 +42,17 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   });
 }
 
+// Stable JSON serializer — keys sorted, no whitespace. MUST match the
+// canonicalize() in src/lib/releaseSigning.ts and src/cms-core/verify.ts.
+function canonicalize(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalize).join(",") + "]";
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  return "{" + keys.map((k) =>
+    JSON.stringify(k) + ":" + canonicalize((value as Record<string, unknown>)[k])
+  ).join(",") + "}";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
@@ -53,7 +76,7 @@ Deno.serve(async (req) => {
 
       const row: any = {
         site_id,
-        site_name: site_name || existing?.id ? site_name : null,
+        site_name: site_name || null,
         site_url: site_url || null,
         mode: mode === "hybrid" ? "hybrid" : "child",
         child_shim_version: shim_version || null,
@@ -113,6 +136,7 @@ Deno.serve(async (req) => {
     /* ------------------------- GET manifest ------------------------- */
     if (req.method === "GET") {
       const version = url.searchParams.get("version");
+      const siteId = url.searchParams.get("site_id");
       let release: any = null;
       if (version) {
         const r = await sb.from("cms_releases").select("*").eq("version", version).maybeSingle();
@@ -125,25 +149,57 @@ Deno.serve(async (req) => {
       }
       if (!release) return json({ error: "no release available" }, 404);
 
-      const { data: migrations } = await sb
+      const { data: migrationsRaw } = await sb
         .from("cms_migration_manifest").select("*")
         .eq("version", release.version).order("order_index");
+      const migrations = migrationsRaw || [];
+
+      // Build the payload object EXACTLY as it was signed.
+      const payload = {
+        version: release.version,
+        sdk_url: release.sdk_url ?? null,
+        min_compatible_child_version: release.min_compatible_child_version ?? null,
+        manifest: release.manifest || {},
+        migrations: migrations.map((m: any) => ({
+          order_index: m.order_index,
+          kind: m.kind,
+          payload: m.payload,
+          reversible: m.reversible,
+        })),
+      };
+      const payload_canonical = canonicalize(payload);
+
+      // Best-effort: previousVersion from the installation row (if site_id provided).
+      let previousVersion: string | null = null;
+      if (siteId) {
+        const { data: inst } = await sb
+          .from("child_installations").select("current_version")
+          .eq("site_id", siteId).maybeSingle();
+        previousVersion = inst?.current_version || null;
+      }
 
       return json(
         {
+          // New canonical envelope (what the child SDK consumes).
+          siteId: siteId || null,
           version: release.version,
+          previousVersion,
+          payload,
+          payload_canonical,
+          signature_b64: release.signature || null,
+          signing_key_id: release.signing_key_id || null,
+          signed_at: release.signed_at || null,
+
+          // Convenience / legacy fields.
           sdk_url: release.sdk_url,
           changelog: release.changelog,
           min_compatible_child_version: release.min_compatible_child_version,
           recalled: release.recalled,
           published_at: release.published_at,
           manifest: release.manifest || {},
-          migrations: migrations || [],
-          // Signature envelope — children verify this BEFORE applying anything.
+          migrations,
           signature: release.signature || null,
-          signing_key_id: release.signing_key_id || null,
           payload_hash: release.payload_hash || null,
-          signed_at: release.signed_at || null,
         },
         200,
         { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },

@@ -52,6 +52,7 @@ export type RunMigrationContext = {
   signature_verified: true;        // proof to the child runner
   signing_key_id: string;
   payload_hash: string;
+  site_id: string;
 };
 
 export type BootstrapOptions = {
@@ -106,9 +107,10 @@ async function postJSON(url: string, body: unknown): Promise<Response | null> {
   } catch { return null; }
 }
 
-async function fetchManifest(base: string): Promise<Manifest | null> {
+async function fetchManifest(base: string, siteId: string): Promise<Manifest | null> {
   try {
-    const res = await fetch(base, { cache: "no-store" });
+    const url = `${base}?site_id=${encodeURIComponent(siteId)}`;
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     const m = (await res.json()) as Manifest;
     try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
@@ -149,7 +151,7 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     shim_version: SHIM_VERSION,
   });
 
-  const manifest = await fetchManifest(base);
+  const manifest = await fetchManifest(base, siteId);
   let previousVersion: string | null = null;
   try { previousVersion = localStorage.getItem(INSTALLED_VERSION_KEY); } catch { /* */ }
 
@@ -223,6 +225,7 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
             signature_verified: true,
             signing_key_id: verification.key_id,
             payload_hash: verification.payload_hash,
+            site_id: siteId,
           });
           appliedMigrations++;
         }
