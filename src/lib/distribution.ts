@@ -127,8 +127,8 @@ export async function cutRelease(input: {
     action: "create",
     entity_type: "cms_release",
     entity_id: data.id,
-    summary: `Cut release v${input.version}`,
-    meta: { version: input.version, migrations: input.migrations?.length || 0 },
+    entity_label: `Cut release v${input.version}`,
+    details: { version: input.version, migrations: input.migrations?.length || 0 },
   });
 
   return data as Release;
@@ -153,7 +153,7 @@ export async function recallRelease(id: string, recall: boolean): Promise<void> 
     action: recall ? "delete" : "restore",
     entity_type: "cms_release",
     entity_id: id,
-    summary: `${recall ? "Recalled" : "Restored"} release v${data?.version || ""}`,
+    entity_label: `${recall ? "Recalled" : "Restored"} release v${data?.version || ""}`,
   });
 }
 
@@ -164,7 +164,7 @@ export async function promoteRelease(id: string): Promise<void> {
     action: "update",
     entity_type: "cms_release",
     entity_id: id,
-    summary: "Promoted release to latest",
+    entity_label: "Promoted release to latest",
   });
 }
 
@@ -198,8 +198,8 @@ export async function forceUpgrade(site_id: string, to_version: string): Promise
     action: "update",
     entity_type: "child_installation",
     entity_id: site_id,
-    summary: `Queued force-upgrade to v${to_version}`,
-    meta: { to_version },
+    entity_label: `Queued force-upgrade to v${to_version}`,
+    details: { to_version },
   });
 }
 
