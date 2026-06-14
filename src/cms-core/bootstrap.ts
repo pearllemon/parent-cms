@@ -97,28 +97,55 @@ function getOrCreateSiteId(explicit?: string): string {
   return generated;
 }
 
-async function postJSON(url: string, body: unknown): Promise<Response | null> {
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    return await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch { return null; }
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function postJSON(url: string, body: unknown): Promise<Response | null> {
+  // Best-effort: never throw. Retry once on network failure.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch { /* retry */ }
+  }
+  return null;
 }
 
 async function fetchManifest(base: string, siteId: string): Promise<Manifest | null> {
-  try {
-    const url = `${base}?site_id=${encodeURIComponent(siteId)}`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const m = (await res.json()) as Manifest;
-    try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
-    return m;
-  } catch {
-    try { const raw = localStorage.getItem(MANIFEST_CACHE_KEY); return raw ? JSON.parse(raw) as Manifest : null; }
-    catch { return null; }
+  const url = `${base}?site_id=${encodeURIComponent(siteId)}`;
+  // Retry transient failures (network, 5xx, 429) with small backoff.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { cache: "no-store" });
+      if (res.ok) {
+        const m = (await res.json()) as Manifest;
+        try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
+        return m;
+      }
+      // 4xx (except 408/429) — don't keep retrying.
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        break;
+      }
+    } catch { /* network / abort — fall through to retry */ }
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
   }
+  // Last resort: serve the previously cached manifest so the site keeps working.
+  try {
+    const raw = localStorage.getItem(MANIFEST_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Manifest) : null;
+  } catch { return null; }
 }
 
 function isAllowedSdkUrl(sdkUrl: string, allow: string[]): boolean {
