@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
   Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
-  FolderTree, Tag, Activity, type LucideIcon,
+  FolderTree, Tag, Activity, Rocket, Server, History, type LucideIcon,
 } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -242,6 +242,16 @@ const AdminShell = () => {
               <SidebarItem to="/admin/seo-workspace" label="SEO Workspace" Icon={Search} active={location.pathname.startsWith("/admin/seo")} />
               <SidebarItem to="/admin/activity" label="Activity Log" Icon={Activity} active={location.pathname.startsWith("/admin/activity")} />
               <SidebarItem to="/admin/settings" label="Settings" Icon={Settings} active={location.pathname.startsWith("/admin/settings")} />
+            </div>
+          </div>
+
+          {/* Distribution */}
+          <div>
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Distribution</p>
+            <div className="space-y-0.5">
+              <SidebarItem to="/admin/releases" label="Releases" Icon={Rocket} active={location.pathname.startsWith("/admin/releases")} />
+              <SidebarItem to="/admin/installations" label="Installations" Icon={Server} active={location.pathname.startsWith("/admin/installations")} />
+              <SidebarItem to="/admin/upgrade-log" label="Upgrade Log" Icon={History} active={location.pathname.startsWith("/admin/upgrade-log")} />
             </div>
           </div>
 
