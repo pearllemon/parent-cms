@@ -142,12 +142,15 @@ export type Database = {
       }
       child_installations: {
         Row: {
+          auto_upgrade: boolean
           child_shim_version: string | null
           created_at: string
           current_version: string | null
           id: string
           last_error: string | null
           last_seen_at: string | null
+          mode: string
+          registration_token: string | null
           site_id: string
           site_name: string | null
           site_url: string | null
@@ -155,12 +158,15 @@ export type Database = {
           upgrade_state: string
         }
         Insert: {
+          auto_upgrade?: boolean
           child_shim_version?: string | null
           created_at?: string
           current_version?: string | null
           id?: string
           last_error?: string | null
           last_seen_at?: string | null
+          mode?: string
+          registration_token?: string | null
           site_id: string
           site_name?: string | null
           site_url?: string | null
@@ -168,12 +174,15 @@ export type Database = {
           upgrade_state?: string
         }
         Update: {
+          auto_upgrade?: boolean
           child_shim_version?: string | null
           created_at?: string
           current_version?: string | null
           id?: string
           last_error?: string | null
           last_seen_at?: string | null
+          mode?: string
+          registration_token?: string | null
           site_id?: string
           site_name?: string | null
           site_url?: string | null
@@ -215,6 +224,54 @@ export type Database = {
           snapshot?: Json | null
           status?: string
           to_version?: string
+        }
+        Relationships: []
+      }
+      cms_api_registry: {
+        Row: {
+          api_key: string
+          base_url: string | null
+          config: Json
+          created_at: string
+          description: string | null
+          id: string
+          last_check_at: string | null
+          last_check_status: string | null
+          last_error: string | null
+          name: string
+          scope: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          base_url?: string | null
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_check_at?: string | null
+          last_check_status?: string | null
+          last_error?: string | null
+          name: string
+          scope?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          base_url?: string | null
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_check_at?: string | null
+          last_check_status?: string | null
+          last_error?: string | null
+          name?: string
+          scope?: string
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
