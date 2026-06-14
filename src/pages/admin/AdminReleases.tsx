@@ -125,6 +125,7 @@ export default function AdminReleases() {
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <UploadBundleButton release={r} onDone={load} />
               {!r.is_latest && !r.recalled && (
                 <Button size="sm" variant="outline" onClick={async () => { await promoteRelease(r.id); toast.success("Promoted"); void load(); }}>
                   Promote
