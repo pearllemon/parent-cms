@@ -1,12 +1,18 @@
 // Injects site-wide head/body code and search-engine verification meta tags
-// based on values stored in `site_settings.extras`.
+// stored in the local `site_settings.extras` JSON.
 //
 // extras shape used here:
 //   { verification?: { google?, bing?, yandex?, pinterest?, facebook? },
 //     code_injection?: { head?, body_open?, body_close? } }
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useSiteConfig } from "@/providers/SiteProvider";
+
+type Extras = {
+  verification?: Record<string, string>;
+  code_injection?: { head?: string; body_open?: string; body_close?: string };
+};
 
 const MARK = "data-cms-injection";
 
@@ -21,7 +27,8 @@ function appendHTML(target: ParentNode, position: "prepend" | "append", html: st
   wrap.setAttribute(MARK, tag);
   wrap.style.display = "contents";
   wrap.appendChild(tpl.content);
-  if (position === "prepend") target.prepend(wrap); else target.appendChild(wrap);
+  if (position === "prepend") target.prepend(wrap);
+  else target.appendChild(wrap);
 }
 
 function setMeta(name: string, content: string) {
@@ -35,10 +42,23 @@ function setMeta(name: string, content: string) {
 
 export default function SiteHeadInjection() {
   const { config } = useSiteConfig();
-  const extras = ((config?.settings as Record<string, unknown> | undefined)?.extras ?? {}) as {
-    verification?: Record<string, string>;
-    code_injection?: { head?: string; body_open?: string; body_close?: string };
-  };
+  const siteId = config?.site?.id;
+  const [extras, setExtras] = useState<Extras>({});
+
+  useEffect(() => {
+    if (!siteId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("site_settings")
+        .select("extras")
+        .eq("site_id", siteId)
+        .maybeSingle();
+      if (cancelled) return;
+      setExtras(((data?.extras as Extras) || {}));
+    })();
+    return () => { cancelled = true; };
+  }, [siteId]);
 
   useEffect(() => {
     clearMarked();
@@ -53,7 +73,7 @@ export default function SiteHeadInjection() {
     if (c.body_open) appendHTML(document.body, "prepend", c.body_open, "body-open");
     if (c.body_close) appendHTML(document.body, "append", c.body_close, "body-close");
     return clearMarked;
-  }, [JSON.stringify(extras)]);
+  }, [extras]);
 
   return null;
 }
