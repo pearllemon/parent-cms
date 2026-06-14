@@ -193,30 +193,66 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   let previousVersion: string | null = null;
   try { previousVersion = localStorage.getItem(INSTALLED_VERSION_KEY); } catch { /* */ }
 
-  const failResult = (reason: string): BootstrapResult => ({
-    siteId, version: previousVersion || "0.0.0", previousVersion,
-    sdkLoaded: false, module: null, manifest,
-    appliedMigrations: 0, upgraded: false, verified: false, error: reason,
+  const buildResult = (
+    overrides: Partial<BootstrapResult> & { status: BootstrapStatus; message: string },
+  ): BootstrapResult => ({
+    siteId,
+    version: previousVersion || "0.0.0",
+    previousVersion,
+    sdkLoaded: false,
+    module: null,
+    manifest,
+    appliedMigrations: 0,
+    upgraded: false,
+    verified: false,
+    error: null,
+    ...overrides,
   });
 
-  if (!manifest) {
+  // Parent reachable but no release yet — graceful "connected, waiting" state.
+  const isNoRelease = !!manifest && (
+    (manifest as unknown as { status?: string }).status === "no_release" ||
+    (!manifest.version && !manifest.signature && !manifest.signature_b64)
+  );
+  if (isNoRelease) {
     await sendHeartbeat(base, {
       site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
       current_version: previousVersion, child_shim_version: SHIM_VERSION,
-      upgrade_state: "unknown", last_error: "manifest unavailable",
+      upgrade_state: "awaiting_release",
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult("manifest unavailable");
+    return buildResult({
+      status: "no_release",
+      message: "Connected to parent CMS. Waiting for the first release.",
+    });
+  }
+
+  if (!manifest) {
+    // Parent temporarily unreachable. Site keeps running on cached version.
+    await sendHeartbeat(base, {
+      site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
+      current_version: previousVersion, child_shim_version: SHIM_VERSION,
+      upgrade_state: "unknown",
+    });
+    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    return buildResult({
+      status: "waiting",
+      message: previousVersion
+        ? "Parent CMS temporarily unreachable. Running last known version."
+        : "Connecting to parent CMS… will retry automatically.",
+    });
   }
 
   if (manifest.recalled) {
     await sendHeartbeat(base, {
       site_id: siteId, current_version: previousVersion,
       child_shim_version: SHIM_VERSION, upgrade_state: "rolled_back",
-      last_error: "release recalled",
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult("release recalled");
+    return buildResult({
+      status: "recalled",
+      message: "Latest release was recalled by the parent. Running previous version.",
+    });
   }
 
   /* ---------- (3) signature verification ---------- */
