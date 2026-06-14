@@ -260,6 +260,105 @@ export type Database = {
         }
         Relationships: []
       }
+      cloud_component_installs: {
+        Row: {
+          auto_sync: boolean
+          created_at: string
+          id: string
+          installed_version: number
+          kind: string
+          last_synced_at: string
+          local_id: string | null
+          site_id: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          auto_sync?: boolean
+          created_at?: string
+          id?: string
+          installed_version: number
+          kind: string
+          last_synced_at?: string
+          local_id?: string | null
+          site_id: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          auto_sync?: boolean
+          created_at?: string
+          id?: string
+          installed_version?: number
+          kind?: string
+          last_synced_at?: string
+          local_id?: string | null
+          site_id?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cloud_components: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          metadata: Json
+          name: string
+          payload: Json
+          preview_url: string | null
+          publisher_id: string | null
+          publisher_site_id: string | null
+          recalled: boolean
+          slug: string
+          thumbnail_url: string | null
+          updated_at: string
+          version: number
+          visibility: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: string
+          metadata?: Json
+          name: string
+          payload?: Json
+          preview_url?: string | null
+          publisher_id?: string | null
+          publisher_site_id?: string | null
+          recalled?: boolean
+          slug: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          version?: number
+          visibility?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          name?: string
+          payload?: Json
+          preview_url?: string | null
+          publisher_id?: string | null
+          publisher_site_id?: string | null
+          recalled?: boolean
+          slug?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          version?: number
+          visibility?: string
+        }
+        Relationships: []
+      }
       cms_api_registry: {
         Row: {
           api_key: string
