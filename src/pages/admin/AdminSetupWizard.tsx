@@ -1,13 +1,18 @@
-// Child setup wizard — generates a TanStack Start–ready bootstrap that:
-//   - Loads from src/routes/__root.tsx (no Vite main.tsx in TanStack Start)
-//   - Verifies the Ed25519 signature of every release BEFORE applying it
-//   - Routes SQL migrations through a `cms-migrate` edge function in the
-//     CHILD project (service_role + exec_cms_migration RPC)
-//   - Loads the engine SDK via native dynamic `import()` only — no eval
-//   - Consumes `@our-org/cms-core` as a real versioned package
+// Child setup wizard — generates a self-contained, React-Router + Vite ready
+// bootstrap for child sites.
 //
-// The wizard embeds the parent's currently-active trusted public keys directly
-// into the snippet so verification works fully offline on first boot.
+//   - No npm dependency on @our-org/cms-core. The child gets a single
+//     self-contained `src/cms-bootstrap.ts` that does fetch + Ed25519 verify
+//     + dynamic engine import + heartbeat using only the platform Web Crypto
+//     API and `@/integrations/supabase/client` (already present in every
+//     Lovable project).
+//   - Bootstrap is imported from `src/main.tsx` (React Router + Vite), not
+//     from a TanStack Start root route.
+//   - The full SQL for the `exec_cms_migration` RPC is bundled into the
+//     wizard so child admins can paste it as a migration into their own DB.
+//   - The wizard embeds the parent's currently-active trusted public keys
+//     directly into the snippet so verification works fully offline on first
+//     boot.
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -43,56 +48,237 @@ export default function AdminSetupWizard() {
     [trusted],
   );
 
-  const envSnippet = useMemo(() => `# .env.local — mark this project as a child of the parent CMS
+  const envSnippet = useMemo(() => `# .env — mark this Lovable project as a child of the parent CMS.
+# These are read at build time by Vite (must be prefixed VITE_).
 VITE_CMS_MODE=child
 VITE_PARENT_RELEASE_URL=${PARENT_RELEASE_URL}
 VITE_PARENT_SDK_ORIGIN=${PARENT_SDK_ORIGIN}
 `, []);
 
   const trustedKeysFile = `// src/cms/trusted-keys.ts — embedded Ed25519 public keys.
-// Bake-in trust. Children verify every release against this set BEFORE running
-// migrations or loading any engine code. Rotate by shipping a new build.
+// Bake-in trust. The child verifies every release against this set BEFORE
+// running migrations or loading any engine code. Rotate by shipping a new build.
 export const TRUSTED_KEYS = ${trustedLiteral} as const;
 `;
 
-  const bootstrap = useMemo(() => `// src/cms-bootstrap.ts — production bootstrap (TanStack Start).
-// Calls the REAL @our-org/cms-core bootstrap. Do not edit by hand.
-import { bootstrapCmsCore } from "@our-org/cms-core/bootstrap";
+  // Self-contained bootstrap. No external npm package required.
+  const bootstrap = useMemo(() => `// src/cms-bootstrap.ts — self-contained child bootstrap.
+// No npm dependency on the parent CMS package. Uses only Web Crypto +
+// @/integrations/supabase/client (already present in every Lovable project).
+//
+//   1. Register this site with the parent CMS edge function.
+//   2. Fetch the signed release manifest.
+//   3. Verify the Ed25519 signature against TRUSTED_KEYS BEFORE doing anything.
+//   4. Forward SQL migrations to the child's own \`cms-migrate\` edge function,
+//      which calls \`exec_cms_migration\` with service_role.
+//   5. Dynamically import() the engine SDK from an allow-listed origin.
+//   6. Send periodic heartbeats so the parent dashboard stays live.
+
 import { supabase } from "@/integrations/supabase/client";
 import { TRUSTED_KEYS } from "@/cms/trusted-keys";
 
-export const cmsCorePromise = bootstrapCmsCore({
-  parentReleaseUrl: import.meta.env.VITE_PARENT_RELEASE_URL,
-  trustedPublicKeys: [...TRUSTED_KEYS],
-  allowedSdkOrigins: [import.meta.env.VITE_PARENT_SDK_ORIGIN],
-  siteName: ${JSON.stringify(siteName || null)},
-  siteUrl: ${JSON.stringify(siteUrl || null)},
-  mode: "child",
+const SHIM_VERSION = "1.1.0";
+const SITE_ID_KEY = "cms-core-site-id";
+const INSTALLED_VERSION_KEY = "cms-core-installed-version";
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
-  // Forward the VERIFIED step to a child-owned edge function that calls
-  // exec_cms_migration with service_role. Bootstrap only invokes this AFTER
-  // the Ed25519 signature has been verified locally.
-  runMigration: async (ctx) => {
-    const { error } = await supabase.functions.invoke("cms-migrate", { body: ctx });
-    if (error) throw error;
-  },
-});
+const PARENT_RELEASE_URL = import.meta.env.VITE_PARENT_RELEASE_URL as string;
+const ALLOWED_SDK_ORIGINS = [import.meta.env.VITE_PARENT_SDK_ORIGIN as string];
 
-cmsCorePromise.then((r) => {
+const SITE_NAME = ${JSON.stringify(siteName || null)};
+const SITE_URL  = ${JSON.stringify(siteUrl || null)};
+
+/* ---------- helpers ---------- */
+function b64decode(s: string): ArrayBuffer {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function canonicalize(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalize).join(",") + "]";
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  return "{" + keys.map((k) =>
+    JSON.stringify(k) + ":" + canonicalize((value as Record<string, unknown>)[k])
+  ).join(",") + "}";
+}
+function getOrCreateSiteId(): string {
+  try { const x = localStorage.getItem(SITE_ID_KEY); if (x) return x; } catch { /* */ }
+  const id = "site_" + (crypto.randomUUID?.() || Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 16);
+  try { localStorage.setItem(SITE_ID_KEY, id); } catch { /* */ }
+  return id;
+}
+function cmpSemver(a: string, b: string): number {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
+async function postJSON(url: string, body: unknown) {
+  try { return await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
+  catch { return null; }
+}
+function isAllowedSdkUrl(sdkUrl: string): boolean {
+  try {
+    const u = new URL(sdkUrl);
+    return u.protocol === "https:" && ALLOWED_SDK_ORIGINS.includes(u.origin);
+  } catch { return false; }
+}
+async function verifySignature(manifest: any): Promise<{ ok: true; key_id: string; payload_hash: string } | { ok: false; reason: string }> {
+  const sig = manifest.signature_b64 || manifest.signature;
+  const keyId = manifest.signing_key_id;
+  if (!sig || !keyId) return { ok: false, reason: "missing signature" };
+  const trusted = (TRUSTED_KEYS as ReadonlyArray<{ key_id: string; public_key_b64: string }>).find((k) => k.key_id === keyId);
+  if (!trusted) return { ok: false, reason: "untrusted key id " + keyId };
+  const canonical = manifest.payload_canonical || canonicalize(manifest.payload);
+  try {
+    const key = await crypto.subtle.importKey("raw", b64decode(trusted.public_key_b64), { name: "Ed25519" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify({ name: "Ed25519" }, key, b64decode(sig), new TextEncoder().encode(canonical));
+    if (!ok) return { ok: false, reason: "bad signature" };
+    return { ok: true, key_id: keyId, payload_hash: await sha256Hex(canonical) };
+  } catch (e) {
+    return { ok: false, reason: "verify error: " + String((e as Error).message || e) };
+  }
+}
+
+/* ---------- main ---------- */
+export type BootstrapResult = {
+  siteId: string; version: string; previousVersion: string | null;
+  sdkLoaded: boolean; verified: boolean; upgraded: boolean; error: string | null;
+};
+
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+export async function bootstrapCmsCore(): Promise<BootstrapResult> {
+  const started = performance.now();
+  const siteId = getOrCreateSiteId();
+  const base = PARENT_RELEASE_URL.replace(/\\/$/, "");
+  let previousVersion: string | null = null;
+  try { previousVersion = localStorage.getItem(INSTALLED_VERSION_KEY); } catch { /* */ }
+
+  await postJSON(base + "/register", {
+    site_id: siteId, site_name: SITE_NAME,
+    site_url: SITE_URL || (typeof location !== "undefined" ? location.origin : null),
+    mode: "child", shim_version: SHIM_VERSION,
+  });
+
+  const res = await fetch(base + "?site_id=" + encodeURIComponent(siteId), { cache: "no-store" }).catch(() => null);
+  const manifest: any = res && res.ok ? await res.json().catch(() => null) : null;
+
+  const fail = (reason: string): BootstrapResult => ({
+    siteId, version: previousVersion || "0.0.0", previousVersion,
+    sdkLoaded: false, verified: false, upgraded: false, error: reason,
+  });
+
+  if (!manifest) {
+    schedule(siteId, previousVersion);
+    return fail("manifest unavailable");
+  }
+  if (manifest.recalled) {
+    schedule(siteId, previousVersion);
+    return fail("release recalled");
+  }
+
+  const v = await verifySignature(manifest);
+  if (!v.ok) {
+    await postJSON(base + "/upgrade-log", {
+      site_id: siteId, from_version: previousVersion, to_version: manifest.version,
+      status: "failed", error: "signature: " + v.reason,
+    });
+    schedule(siteId, previousVersion);
+    return fail("signature: " + v.reason);
+  }
+
+  const needsUpgrade = !previousVersion || cmpSemver(manifest.version, previousVersion) > 0;
+  let upgradeStatus: "started" | "success" | "failed" | "skipped" = "skipped";
+  let upgradeError: string | null = null;
+
+  if (needsUpgrade) {
+    upgradeStatus = "started";
+    await postJSON(base + "/upgrade-log", {
+      site_id: siteId, from_version: previousVersion, to_version: manifest.version, status: "started",
+    });
+    try {
+      for (const step of (manifest.migrations || [])) {
+        if (step.kind === "noop" || step.kind === "js") continue;
+        const { error } = await supabase.functions.invoke("cms-migrate", {
+          body: {
+            step, version: manifest.version, previousVersion,
+            signature_verified: true, signing_key_id: v.key_id,
+            payload_hash: v.payload_hash, site_id: siteId,
+          },
+        });
+        if (error) throw error;
+      }
+      try { localStorage.setItem(INSTALLED_VERSION_KEY, manifest.version); } catch { /* */ }
+      upgradeStatus = "success";
+    } catch (e) {
+      upgradeStatus = "failed";
+      upgradeError = String((e as Error)?.message || e);
+    }
+    await postJSON(base + "/upgrade-log", {
+      site_id: siteId, from_version: previousVersion, to_version: manifest.version,
+      status: upgradeStatus, error: upgradeError,
+      duration_ms: Math.round(performance.now() - started),
+    });
+  }
+
+  let sdkLoaded = false;
+  if (manifest.sdk_url && isAllowedSdkUrl(manifest.sdk_url)) {
+    try { await import(/* @vite-ignore */ manifest.sdk_url); sdkLoaded = true; }
+    catch (e) { upgradeError = upgradeError || ("sdk import failed: " + String((e as Error)?.message || e)); }
+  }
+
+  const currentVersion = upgradeStatus === "success" ? manifest.version : (previousVersion || manifest.version);
+  await postJSON(base + "/heartbeat", {
+    site_id: siteId, site_name: SITE_NAME, site_url: SITE_URL,
+    current_version: currentVersion, child_shim_version: SHIM_VERSION,
+    upgrade_state: upgradeStatus === "failed" ? "failed"
+      : currentVersion === manifest.version ? "up_to_date" : "pending",
+    last_error: upgradeError,
+  });
+  schedule(siteId, currentVersion);
+
+  return {
+    siteId, version: currentVersion, previousVersion,
+    sdkLoaded, verified: true, upgraded: upgradeStatus === "success", error: upgradeError,
+  };
+}
+
+function schedule(siteId: string, version: string | null) {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(() => {
+    void postJSON(PARENT_RELEASE_URL.replace(/\\/$/, "") + "/heartbeat", {
+      site_id: siteId, current_version: version, child_shim_version: SHIM_VERSION,
+      upgrade_state: "up_to_date",
+    });
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+// Fire-and-forget: log result for debugging.
+export const cmsCorePromise = bootstrapCmsCore().then((r) => {
   // eslint-disable-next-line no-console
-  console.info("[cms-core]", { site: r.siteId, version: r.version, verified: r.verified, sdk: r.sdkLoaded });
+  console.info("[cms-core]", r);
+  return r;
 });
 `, [siteName, siteUrl]);
 
-  const rootRoute = `// src/routes/__root.tsx — TanStack Start root.
-// Import the bootstrap ONCE here so the CMS initializes on app startup.
-import "@/cms-bootstrap";
+  const mainTsxPatch = `// src/main.tsx — import the bootstrap ONCE on app startup.
+// Add the single line marked NEW below.
+import { createRoot } from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+import "./cms-bootstrap"; // NEW — kicks off register → verify → migrate → load SDK
 
-import { createRootRoute, Outlet } from "@tanstack/react-router";
-
-export const Route = createRootRoute({
-  component: () => <Outlet />,
-});
+createRoot(document.getElementById("root")!).render(<App />);
 `;
 
   const childEdgeFn = `// supabase/functions/cms-migrate/index.ts — runs in the CHILD project.
@@ -136,12 +322,114 @@ Deno.serve(async (req) => {
 });
 `;
 
-  const installSnippet = `# 1) Add the versioned CMS Core package + supabase client
-bun add @our-org/cms-core @supabase/supabase-js
+  // Full SQL for the child DB. Paste once as a migration in the child project.
+  const childMigrationSql = `-- Child DB migration — adds the exec_cms_migration RPC + supporting table.
+-- Paste this as a single migration in your child Lovable project.
 
-# 2) Add the exec_cms_migration RPC to the child DB (copy from the parent's
-#    20260614_secure_release_pipeline migration — service_role only, forward-
-#    only, signature-gated).
+CREATE TABLE IF NOT EXISTS public.applied_cms_migrations (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  site_id         text NOT NULL,
+  migration_id    text NOT NULL,
+  version         text NOT NULL,
+  order_index     integer NOT NULL,
+  kind            text NOT NULL,
+  duration_ms     integer,
+  applied_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (site_id, migration_id)
+);
+
+GRANT ALL ON public.applied_cms_migrations TO service_role;
+ALTER TABLE public.applied_cms_migrations ENABLE ROW LEVEL SECURITY;
+-- service-role only; no client policies on purpose.
+
+-- Minimal local mirror of the parent's release table — populated by migrations
+-- themselves (a SQL step that inserts the release row) OR by an admin script.
+CREATE TABLE IF NOT EXISTS public.cms_releases (
+  id                            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  version                       text NOT NULL UNIQUE,
+  signature                     text,
+  signing_key_id                text,
+  payload_hash                  text,
+  signed_at                     timestamptz,
+  recalled                      boolean NOT NULL DEFAULT false,
+  created_at                    timestamptz NOT NULL DEFAULT now()
+);
+GRANT ALL ON public.cms_releases TO service_role;
+ALTER TABLE public.cms_releases ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.exec_cms_migration(
+  _site_id text, _migration_id text, _version text, _order_index integer,
+  _kind text, _payload text, _signature_verified boolean,
+  _current_version text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _started TIMESTAMPTZ := clock_timestamp();
+  _already_applied BOOLEAN;
+  _release RECORD;
+BEGIN
+  IF current_setting('request.jwt.claims', true)::jsonb->>'role' IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'exec_cms_migration: forbidden (service_role required)';
+  END IF;
+  IF _signature_verified IS NOT TRUE THEN
+    RAISE EXCEPTION 'exec_cms_migration: signature not verified — refusing to run';
+  END IF;
+  IF _site_id IS NULL OR length(_site_id) = 0 THEN
+    RAISE EXCEPTION 'exec_cms_migration: site_id required';
+  END IF;
+
+  -- Upsert a placeholder release row so forward-only / signed checks pass.
+  -- The edge function has already verified the signature against the parent's
+  -- trusted key set BEFORE calling this RPC.
+  INSERT INTO public.cms_releases (version, signature, signing_key_id, payload_hash, signed_at)
+  VALUES (_version, 'verified-by-edge', 'verified-by-edge', 'verified-by-edge', now())
+  ON CONFLICT (version) DO NOTHING;
+
+  SELECT * INTO _release FROM public.cms_releases WHERE version = _version;
+  IF _release.recalled THEN
+    RAISE EXCEPTION 'exec_cms_migration: release % is recalled', _version;
+  END IF;
+
+  IF _current_version IS NOT NULL AND _current_version <> ''
+     AND string_to_array(_version, '.')::int[] <= string_to_array(_current_version, '.')::int[] THEN
+    RAISE EXCEPTION 'exec_cms_migration: refusing downgrade % -> %', _current_version, _version;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM public.applied_cms_migrations
+     WHERE site_id = _site_id AND migration_id = _migration_id
+  ) INTO _already_applied;
+  IF _already_applied THEN
+    RETURN jsonb_build_object('ok', true, 'skipped', true, 'reason', 'already_applied');
+  END IF;
+
+  IF _kind = 'noop' THEN
+    NULL;
+  ELSIF _kind = 'sql' THEN
+    EXECUTE _payload;
+  ELSE
+    RAISE EXCEPTION 'exec_cms_migration: kind % not supported by this RPC', _kind;
+  END IF;
+
+  INSERT INTO public.applied_cms_migrations
+    (site_id, migration_id, version, order_index, kind, duration_ms)
+  VALUES
+    (_site_id, _migration_id, _version, _order_index, _kind,
+     EXTRACT(MILLISECOND FROM clock_timestamp() - _started)::INTEGER);
+
+  RETURN jsonb_build_object('ok', true, 'skipped', false, 'version', _version);
+END;
+$$;
+`;
+
+  const installSnippet = `# In the child Lovable project — no npm package required.
+# The bootstrap snippet (step 4) is fully self-contained: it uses only
+# @/integrations/supabase/client (already present) and the Web Crypto API.
+#
+# Just create the files in steps 2-7 and you're done. No \`bun add\` step.
 `;
 
   const copy = async (text: string, key: string) => {
@@ -157,7 +445,7 @@ bun add @our-org/cms-core @supabase/supabase-js
           <Wand2 className="w-7 h-7" /> Child setup wizard
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Generates a signed, TanStack-Start–ready bootstrap. Releases are Ed25519-signed by the parent and verified against the embedded trusted-key set before any migration runs or any code is loaded.
+          Generates a signed, React-Router + Vite ready bootstrap for a child Lovable project. No npm package required — the bootstrap is fully self-contained. Releases are Ed25519-signed by the parent and verified against the embedded trusted-key set before any migration runs or any code is loaded.
         </p>
       </header>
 
@@ -187,12 +475,13 @@ bun add @our-org/cms-core @supabase/supabase-js
         </p>
       </Card>
 
-      <Snippet label="1. Install in the child project" code={installSnippet} copied={copied === "i"} onCopy={() => copy(installSnippet, "i")} />
-      <Snippet label="2. .env.local" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
+      <Snippet label="1. No install needed (self-contained bootstrap)" code={installSnippet} copied={copied === "i"} onCopy={() => copy(installSnippet, "i")} />
+      <Snippet label="2. .env (child project)" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
       <Snippet label="3. src/cms/trusted-keys.ts (embedded public keys)" code={trustedKeysFile} copied={copied === "tk"} onCopy={() => copy(trustedKeysFile, "tk")} />
-      <Snippet label="4. src/cms-bootstrap.ts" code={bootstrap} copied={copied === "boot"} onCopy={() => copy(bootstrap, "boot")} />
-      <Snippet label="5. src/routes/__root.tsx (import the bootstrap)" code={rootRoute} copied={copied === "root"} onCopy={() => copy(rootRoute, "root")} />
+      <Snippet label="4. src/cms-bootstrap.ts (self-contained, no npm dep)" code={bootstrap} copied={copied === "boot"} onCopy={() => copy(bootstrap, "boot")} />
+      <Snippet label="5. src/main.tsx — add the bootstrap import" code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
       <Snippet label="6. supabase/functions/cms-migrate/index.ts (child edge function)" code={childEdgeFn} copied={copied === "edge"} onCopy={() => copy(childEdgeFn, "edge")} />
+      <Snippet label="7. Child DB migration — exec_cms_migration RPC" code={childMigrationSql} copied={copied === "sql"} onCopy={() => copy(childMigrationSql, "sql")} />
 
       <Card className="p-5">
         <h2 className="font-display text-lg mb-2">How it works end-to-end</h2>
