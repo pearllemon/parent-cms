@@ -81,11 +81,21 @@ export default function AdminApiRegistry() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-3xl flex items-center gap-2"><Plug className="w-7 h-7" /> API Registry</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          External APIs and integrations available to the CMS (parent platform, third-party services, webhooks).
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-3xl flex items-center gap-2"><Plug className="w-7 h-7" /> API Registry</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            External APIs the CMS depends on. The parent platform, release
+            distribution and AI gateway are auto-registered &mdash; no manual
+            setup needed. Add custom integrations below.
+          </p>
+        </div>
+        <Button variant="outline" onClick={async () => {
+          for (const a of items) { try { await pingApi(a); } catch { /* ignore */ } }
+          toast.success("Pinged all"); void load();
+        }}>
+          <Activity className="w-4 h-4 mr-2" /> Ping all
+        </Button>
       </header>
 
       <Card className="p-5 space-y-3">
