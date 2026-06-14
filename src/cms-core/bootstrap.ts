@@ -350,11 +350,24 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   });
   scheduleHeartbeat(base, siteId, opts, currentVersion);
 
+  const finalStatus: BootstrapStatus = upgradeError ? "error" : "ok";
   return {
-    siteId, version: currentVersion, previousVersion,
-    sdkLoaded, module: mod, manifest,
-    appliedMigrations, upgraded: upgradeStatus === "success",
-    verified: true, error: upgradeError,
+    siteId,
+    status: finalStatus,
+    message: upgradeError
+      ? "Site is running, but the latest update could not be applied. Will retry."
+      : sdkLoaded
+        ? "Connected. Engine loaded and up to date."
+        : "Connected. Running current version.",
+    version: currentVersion,
+    previousVersion,
+    sdkLoaded,
+    module: mod,
+    manifest,
+    appliedMigrations,
+    upgraded: upgradeStatus === "success",
+    verified: true,
+    error: upgradeError,
   };
 }
 
