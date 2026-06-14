@@ -37,7 +37,7 @@ export default function AdminInstallations() {
     let upToDate = 0, drift = 0, failed = 0, awaiting = 0;
     for (const i of items) {
       if (i.upgrade_state === "failed") failed++;
-      else if (i.upgrade_state === "awaiting_release" || (!i.current_version && latest)) awaiting++;
+      else if ((i.upgrade_state as string) === "awaiting_release" || (!i.current_version && latest)) awaiting++;
       else if (latest && i.current_version && i.current_version !== latest.version) drift++;
       else if (latest && i.current_version === latest.version) upToDate++;
     }
@@ -46,8 +46,8 @@ export default function AdminInstallations() {
 
   const filtered = useMemo(() => items.filter((i) => {
     if (filter === "all") return true;
-    if (filter === "failed") return i.upgrade_state === "failed";
-    if (filter === "awaiting") return i.upgrade_state === "awaiting_release" || (!i.current_version && !!latest);
+    if (filter === "failed") return (i.upgrade_state as string) === "failed";
+    if (filter === "awaiting") return (i.upgrade_state as string) === "awaiting_release" || (!i.current_version && !!latest);
     if (filter === "up_to_date") return !!latest && i.current_version === latest.version;
     if (filter === "drift") return !!latest && !!i.current_version && i.current_version !== latest.version;
     return true;
