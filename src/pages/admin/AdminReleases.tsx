@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   listReleases, cutRelease, recallRelease, promoteRelease,
   type Release,
 } from "@/lib/distribution";
+import { uploadSdkBundle, updateReleaseSdkUrl } from "@/lib/sdkUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus } from "lucide-react";
+import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminReleases() {
@@ -124,6 +125,7 @@ export default function AdminReleases() {
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <UploadBundleButton release={r} onDone={load} />
               {!r.is_latest && !r.recalled && (
                 <Button size="sm" variant="outline" onClick={async () => { await promoteRelease(r.id); toast.success("Promoted"); void load(); }}>
                   Promote
@@ -139,5 +141,34 @@ export default function AdminReleases() {
         ))}
       </div>
     </div>
+  );
+}
+
+function UploadBundleButton({ release, onDone }: { release: Release; onDone: () => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const url = await uploadSdkBundle(release.version, file);
+      await updateReleaseSdkUrl(release.id, url);
+      toast.success("SDK bundle uploaded");
+      onDone();
+    } catch (err) {
+      toast.error(String((err as Error).message));
+    } finally {
+      setBusy(false);
+      if (ref.current) ref.current.value = "";
+    }
+  };
+  return (
+    <>
+      <input ref={ref} type="file" accept=".js,application/javascript" className="hidden" onChange={handle} />
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => ref.current?.click()}>
+        <Upload className="w-3.5 h-3.5 mr-1" /> {busy ? "Uploading…" : "Upload SDK"}
+      </Button>
+    </>
   );
 }
