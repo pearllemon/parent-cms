@@ -67,17 +67,17 @@ export async function buildManifest(sel: SnapshotSelection): Promise<BuiltManife
 
   if (sel.pages) {
     // "pages" live as CPT entries with cpt_slug='page' in this project.
-    const data = await safe(db.from("cpt_entries").select("*").eq("cpt_slug", "page").eq("status", "published"));
+    const data = await safe<AnyRow[]>(db.from("cpt_entries").select("*").eq("cpt_slug", "page").eq("status", "published"));
     out.pages = data || [];
     out._counts.pages = (data || []).length;
   }
   if (sel.posts) {
-    const data = await safe(db.from("cpt_entries").select("*").eq("cpt_slug", "post").eq("status", "published"));
+    const data = await safe<AnyRow[]>(db.from("cpt_entries").select("*").eq("cpt_slug", "post").eq("status", "published"));
     out.posts = data || [];
     out._counts.posts = (data || []).length;
   }
   if (sel.cpts) {
-    const types = await safe(db.from("custom_post_types").select("*"));
+    const types = await safe<AnyRow[]>(db.from("custom_post_types").select("*"));
     const entries = await safe(
       db.from("cpt_entries").select("*").eq("status", "published").not("cpt_slug", "in", "(page,post)"),
     );
@@ -86,40 +86,40 @@ export async function buildManifest(sel: SnapshotSelection): Promise<BuiltManife
     out._counts.cpt_entries = (entries || []).length;
   }
   if (sel.templates) {
-    const data = await safe(db.from("theme_templates").select("*"));
+    const data = await safe<AnyRow[]>(db.from("theme_templates").select("*"));
     out.templates = data || [];
     out._counts.templates = (data || []).length;
   }
   if (sel.sections) {
-    const data = await safe(db.from("theme_sections").select("*"));
+    const data = await safe<AnyRow[]>(db.from("theme_sections").select("*"));
     out.sections = data || [];
     out._counts.sections = (data || []).length;
   }
   if (sel.tokens) {
-    const data = await safe(db.from("theme_tokens").select("*").limit(1).maybeSingle());
+    const data = await safe<AnyRow>(db.from("theme_tokens").select("*").limit(1).maybeSingle());
     out.theme = { tokens: data || null };
     out._counts.tokens = data ? 1 : 0;
   }
   if (sel.taxonomies) {
-    const taxonomies = await safe(db.from("taxonomies").select("*"));
-    const terms = await safe(db.from("taxonomy_terms").select("*"));
+    const taxonomies = await safe<AnyRow[]>(db.from("taxonomies").select("*"));
+    const terms = await safe<AnyRow[]>(db.from("taxonomy_terms").select("*"));
     out.taxonomies = { taxonomies: taxonomies || [], terms: terms || [] };
     out._counts.taxonomies = (taxonomies || []).length;
     out._counts.terms = (terms || []).length;
   }
   if (sel.redirects) {
-    const data = await safe(db.from("redirects").select("*"));
+    const data = await safe<AnyRow[]>(db.from("redirects").select("*"));
     out.redirects = data || [];
     out._counts.redirects = (data || []).length;
   }
   if (sel.settings) {
-    const data = await safe(db.from("site_settings").select("*").limit(1).maybeSingle());
+    const data = await safe<AnyRow>(db.from("site_settings").select("*").limit(1).maybeSingle());
     out.settings = (data as Record<string, unknown>) || null;
     out._counts.settings = data ? 1 : 0;
   }
   if (sel.components) {
     // Latest version per (kind, slug).
-    const all = await safe(db.from("cloud_components").select("*").eq("is_published", true));
+    const all = await safe<AnyRow[]>(db.from("cloud_components").select("*").eq("is_published", true));
     const latest = new Map<string, unknown>();
     for (const c of (all || []) as Array<Record<string, unknown>>) {
       const key = `${c.kind}::${c.slug}`;
@@ -132,8 +132,8 @@ export async function buildManifest(sel: SnapshotSelection): Promise<BuiltManife
     out._counts.components = out.components.length;
   }
   if (sel.seo) {
-    const settings = await safe(db.from("seo_settings").select("*").limit(1).maybeSingle());
-    const files = await safe(db.from("seo_files").select("*"));
+    const settings = await safe<AnyRow>(db.from("seo_settings").select("*").limit(1).maybeSingle());
+    const files = await safe<AnyRow[]>(db.from("seo_files").select("*"));
     out.seo = { settings, files: files || [] };
     out._counts.seo_files = (files || []).length;
   }
@@ -143,7 +143,7 @@ export async function buildManifest(sel: SnapshotSelection): Promise<BuiltManife
     out._counts.menus = 0;
   }
   if (sel.mediaMeta) {
-    const data = await safe(db.from("media_meta").select("*").limit(2000));
+    const data = await safe<AnyRow[]>(db.from("media_meta").select("*").limit(2000));
     out.media = data || [];
     out._counts.media = (data || []).length;
   }
