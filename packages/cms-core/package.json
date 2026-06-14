@@ -1,0 +1,25 @@
+{
+  "name": "@our-org/cms-core",
+  "version": "1.1.0",
+  "description": "Secure, signed CMS Core SDK consumed by child websites. Provides the bootstrap shim, Ed25519 signature verification, and the public engine surface. Replace the local 'file:../packages/cms-core' link with the published registry version once published.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bootstrap": "./src/bootstrap.ts",
+    "./verify": "./src/verify.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

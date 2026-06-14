@@ -1,24 +1,32 @@
-// Real CMS Core bootstrap loader — runs inside every child website on each
-// page load. Responsibilities:
+// Secure CMS Core bootstrap loader — runs inside every child website on each
+// page load.
 //
-//   1. Auto-register the site on first boot (gets a stable site_id back).
+//   1. Auto-register the site (gets a stable site_id back).
 //   2. Pull the latest release manifest from the parent CMS edge function.
-//   3. Run any pending migrations against the CHILD's own Lovable Cloud DB
-//      (via the supabase client the child passes in).
-//   4. Dynamically import the engine SDK bundle (sdk_url) so the child
-//      automatically picks up new code without a redeploy.
-//   5. Report a heartbeat now AND on a recurring interval.
-//
-// This file is intentionally tiny and stable. Children should NEVER edit it —
-// it is the only piece that doesn't ship via the SDK bundle.
+//   3. VERIFY the Ed25519 signature against an EMBEDDED trusted public key set
+//      BEFORE doing anything else. Unsigned, invalid, or downgraded releases
+//      are rejected.
+//   4. Forward-only: skip if the manifest version is not strictly newer than
+//      the currently installed version.
+//   5. Run forward SQL migrations through the child's `exec_cms_migration`
+//      RPC (the child supplies a `runMigration` hook that calls it server-
+//      side with service_role).
+//   6. Dynamically import the engine SDK bundle via the native module loader
+//      (NO eval, NO new Function — `import()` only). The SDK URL must be on
+//      one of the explicitly allowed origins.
+//   7. Report a heartbeat now AND on a recurring interval.
 
 import { setCmsMode, type CmsMode } from "./mode";
+import {
+  verifyManifestSignature, compareSemver,
+  type TrustedKey, type VerifiableManifest,
+} from "./verify";
 
-const SHIM_VERSION = "1.0.0";
+const SHIM_VERSION = "1.1.0";
 const MANIFEST_CACHE_KEY = "cms-core-manifest-v1";
 const SITE_ID_KEY = "cms-core-site-id";
 const INSTALLED_VERSION_KEY = "cms-core-installed-version";
-const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
 export type ManifestMigration = {
   id: string;
@@ -31,28 +39,37 @@ export type ManifestMigration = {
   down_payload: string | null;
 };
 
-export type Manifest = {
-  version: string;
-  sdk_url: string | null;
+export type Manifest = VerifiableManifest & {
   changelog: string | null;
-  min_compatible_child_version: string | null;
   recalled: boolean;
-  manifest: Record<string, unknown>;
   migrations: ManifestMigration[];
 };
 
+export type RunMigrationContext = {
+  step: ManifestMigration;
+  version: string;
+  previousVersion: string | null;
+  signature_verified: true;        // proof to the child runner
+  signing_key_id: string;
+  payload_hash: string;
+};
+
 export type BootstrapOptions = {
-  /** Parent CMS edge function base, e.g. https://xxx.supabase.co/functions/v1/cms-release */
   parentReleaseUrl: string;
-  /** Optional explicit site_id; otherwise one is auto-generated and persisted. */
+  /** Trusted Ed25519 public keys embedded in the child build. REQUIRED. */
+  trustedPublicKeys: TrustedKey[];
+  /** Explicit allow-list of SDK origins. Defaults to the parent release origin. */
+  allowedSdkOrigins?: string[];
   siteId?: string;
   siteName?: string;
   siteUrl?: string;
-  /** "child" by default in remixes; set "hybrid" for parent-with-children testing. */
   mode?: CmsMode;
-  /** Run a migration step against the child's own DB. Receives the parsed step. */
-  runMigration?: (step: ManifestMigration) => Promise<void>;
-  /** If true (default), starts a setInterval heartbeat. Set false in SSR. */
+  /**
+   * Runs ONE migration step. The child should forward this to a server-side
+   * function (edge function w/ service_role) that calls `exec_cms_migration`.
+   * Only invoked AFTER signature verification has succeeded.
+   */
+  runMigration?: (ctx: RunMigrationContext) => Promise<void>;
   heartbeat?: boolean;
 };
 
@@ -65,22 +82,16 @@ export type BootstrapResult = {
   manifest: Manifest | null;
   appliedMigrations: number;
   upgraded: boolean;
+  verified: boolean;
   error: string | null;
 };
 
 /* ----------------------------- helpers ----------------------------- */
 
 function getOrCreateSiteId(explicit?: string): string {
-  if (explicit) {
-    try { localStorage.setItem(SITE_ID_KEY, explicit); } catch { /* */ }
-    return explicit;
-  }
-  try {
-    const existing = localStorage.getItem(SITE_ID_KEY);
-    if (existing) return existing;
-  } catch { /* */ }
-  const generated =
-    `site_${(globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 16)}`;
+  if (explicit) { try { localStorage.setItem(SITE_ID_KEY, explicit); } catch { /* */ } return explicit; }
+  try { const x = localStorage.getItem(SITE_ID_KEY); if (x) return x; } catch { /* */ }
+  const generated = `site_${(globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 16)}`;
   try { localStorage.setItem(SITE_ID_KEY, generated); } catch { /* */ }
   return generated;
 }
@@ -103,20 +114,17 @@ async function fetchManifest(base: string): Promise<Manifest | null> {
     try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
     return m;
   } catch {
-    try {
-      const raw = localStorage.getItem(MANIFEST_CACHE_KEY);
-      return raw ? (JSON.parse(raw) as Manifest) : null;
-    } catch { return null; }
+    try { const raw = localStorage.getItem(MANIFEST_CACHE_KEY); return raw ? JSON.parse(raw) as Manifest : null; }
+    catch { return null; }
   }
 }
 
-function cmp(a: string, b: string): number {
-  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
-  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
-  }
-  return 0;
+function isAllowedSdkUrl(sdkUrl: string, allow: string[]): boolean {
+  try {
+    const u = new URL(sdkUrl);
+    if (u.protocol !== "https:") return false;
+    return allow.some((origin) => u.origin === origin);
+  } catch { return false; }
 }
 
 /* ----------------------------- main ----------------------------- */
@@ -129,8 +137,10 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
 
   const siteId = getOrCreateSiteId(opts.siteId);
   const base = opts.parentReleaseUrl.replace(/\/$/, "");
+  const allowedOrigins = opts.allowedSdkOrigins?.length
+    ? opts.allowedSdkOrigins
+    : [new URL(base).origin];
 
-  // 1. Register (idempotent — server upserts on site_id).
   await postJSON(`${base}/register`, {
     site_id: siteId,
     site_name: opts.siteName || null,
@@ -139,10 +149,15 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     shim_version: SHIM_VERSION,
   });
 
-  // 2. Pull manifest.
   const manifest = await fetchManifest(base);
   let previousVersion: string | null = null;
   try { previousVersion = localStorage.getItem(INSTALLED_VERSION_KEY); } catch { /* */ }
+
+  const failResult = (reason: string): BootstrapResult => ({
+    siteId, version: previousVersion || "0.0.0", previousVersion,
+    sdkLoaded: false, module: null, manifest,
+    appliedMigrations: 0, upgraded: false, verified: false, error: reason,
+  });
 
   if (!manifest) {
     await sendHeartbeat(base, {
@@ -151,34 +166,64 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
       upgrade_state: "unknown", last_error: "manifest unavailable",
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return {
-      siteId, version: previousVersion || "0.0.0", previousVersion,
-      sdkLoaded: false, module: null, manifest: null,
-      appliedMigrations: 0, upgraded: false, error: "manifest unavailable",
-    };
+    return failResult("manifest unavailable");
   }
 
-  // 3. Decide whether to upgrade.
-  const needsUpgrade = !previousVersion || cmp(manifest.version, previousVersion) > 0;
+  if (manifest.recalled) {
+    await sendHeartbeat(base, {
+      site_id: siteId, current_version: previousVersion,
+      child_shim_version: SHIM_VERSION, upgrade_state: "rolled_back",
+      last_error: "release recalled",
+    });
+    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    return failResult("release recalled");
+  }
+
+  /* ---------- (3) signature verification ---------- */
+  const verification = await verifyManifestSignature(manifest, opts.trustedPublicKeys || []);
+  if (!verification.ok) {
+    await postJSON(`${base}/upgrade-log`, {
+      site_id: siteId, from_version: previousVersion, to_version: manifest.version,
+      status: "failed", error: `signature: ${verification.reason}`,
+    });
+    await sendHeartbeat(base, {
+      site_id: siteId, current_version: previousVersion,
+      child_shim_version: SHIM_VERSION, upgrade_state: "failed",
+      last_error: `signature: ${verification.reason}`,
+    });
+    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    return failResult(`signature: ${verification.reason}`);
+  }
+
+  /* ---------- (4) forward-only check ---------- */
+  const needsUpgrade = !previousVersion || compareSemver(manifest.version, previousVersion) > 0;
+
   let appliedMigrations = 0;
   let upgradeError: string | null = null;
   let upgradeStatus: "started" | "success" | "failed" | "skipped" = "skipped";
 
-  if (needsUpgrade && !manifest.recalled) {
+  if (needsUpgrade) {
     upgradeStatus = "started";
     await postJSON(`${base}/upgrade-log`, {
-      site_id: siteId, from_version: previousVersion, to_version: manifest.version,
-      status: "started",
+      site_id: siteId, from_version: previousVersion, to_version: manifest.version, status: "started",
     });
     try {
       for (const step of manifest.migrations) {
         if (step.kind === "noop") { appliedMigrations++; continue; }
+        if (step.kind === "js") {
+          // JS migrations are NOT executed via eval. They ride with the SDK
+          // module under a registered hook. The runner here is a no-op so we
+          // never run remote strings.
+          appliedMigrations++; continue;
+        }
         if (opts.runMigration) {
-          await opts.runMigration(step);
+          await opts.runMigration({
+            step, version: manifest.version, previousVersion,
+            signature_verified: true,
+            signing_key_id: verification.key_id,
+            payload_hash: verification.payload_hash,
+          });
           appliedMigrations++;
-        } else {
-          // No runner provided — skip but do not block engine load.
-          // Migrations are recorded so admin can replay later.
         }
       }
       try { localStorage.setItem(INSTALLED_VERSION_KEY, manifest.version); } catch { /* */ }
@@ -195,27 +240,29 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     });
   }
 
-  // 4. Dynamically import the engine SDK bundle.
+  /* ---------- (6) dynamic engine load (no eval) ---------- */
   let mod: unknown = null;
   let sdkLoaded = false;
   if (manifest.sdk_url) {
-    try {
-      mod = await import(/* @vite-ignore */ manifest.sdk_url);
-      sdkLoaded = true;
-    } catch (e) {
-      upgradeError = upgradeError || `sdk import failed: ${String((e as Error)?.message || e)}`;
+    if (!isAllowedSdkUrl(manifest.sdk_url, allowedOrigins)) {
+      upgradeError = upgradeError || `sdk origin not allowed: ${manifest.sdk_url}`;
+    } else {
+      try {
+        mod = await import(/* @vite-ignore */ manifest.sdk_url);
+        sdkLoaded = true;
+      } catch (e) {
+        upgradeError = upgradeError || `sdk import failed: ${String((e as Error)?.message || e)}`;
+      }
     }
   }
 
   const currentVersion = upgradeStatus === "success" ? manifest.version : (previousVersion || manifest.version);
 
-  // 5. First heartbeat + recurring heartbeat.
   await sendHeartbeat(base, {
     site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
     current_version: currentVersion, child_shim_version: SHIM_VERSION,
     upgrade_state:
       upgradeStatus === "failed" ? "failed"
-      : upgradeStatus === "success" ? "up_to_date"
       : currentVersion === manifest.version ? "up_to_date" : "pending",
     last_error: upgradeError,
   });
@@ -225,7 +272,7 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     siteId, version: currentVersion, previousVersion,
     sdkLoaded, module: mod, manifest,
     appliedMigrations, upgraded: upgradeStatus === "success",
-    error: upgradeError,
+    verified: true, error: upgradeError,
   };
 }
 
