@@ -618,10 +618,25 @@ $$;
             <Input value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="https://acme.example.com" />
           </div>
         </div>
+        <div>
+          <Label>Target framework</Label>
+          <Select value={framework} onValueChange={(v) => setFramework(v as Framework)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(FRAMEWORK_LABELS) as Framework[]).map((k) => (
+                <SelectItem key={k} value={k}>{FRAMEWORK_LABELS[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Determines which entry-point file the bootstrap snippet targets (step 5).
+          </p>
+        </div>
         <p className="text-xs text-muted-foreground">
           Site ID is auto-generated on first boot and persisted in the child's localStorage.
         </p>
       </Card>
+
 
       <Snippet label="1. No install needed (self-contained bootstrap)" code={installSnippet} copied={copied === "i"} onCopy={() => copy(installSnippet, "i")} />
       <Snippet label="2. .env (child project)" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
