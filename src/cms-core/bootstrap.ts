@@ -106,9 +106,10 @@ async function postJSON(url: string, body: unknown): Promise<Response | null> {
   } catch { return null; }
 }
 
-async function fetchManifest(base: string): Promise<Manifest | null> {
+async function fetchManifest(base: string, siteId: string): Promise<Manifest | null> {
   try {
-    const res = await fetch(base, { cache: "no-store" });
+    const url = `${base}?site_id=${encodeURIComponent(siteId)}`;
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     const m = (await res.json()) as Manifest;
     try { localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(m)); } catch { /* */ }
