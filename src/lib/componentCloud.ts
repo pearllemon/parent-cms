@@ -4,7 +4,9 @@
 // `cloud_component_installs` tracks per-site installs, including an `auto_sync`
 // flag so a child can opt into receiving new versions automatically.
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const supabase = _supabase as any;
 
 export type ComponentKind = "section" | "template" | "widget";
 export type Visibility = "public" | "unlisted" | "private";
