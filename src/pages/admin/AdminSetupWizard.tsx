@@ -352,15 +352,82 @@ export const cmsCorePromise = bootstrapCmsCore().then((r) => {
 });
 `, [siteName, siteUrl]);
 
-  const mainTsxPatch = `// src/main.tsx — import the bootstrap ONCE on app startup.
-// Add the single line marked NEW below.
+  const entryPoint = useMemo<{ file: string; code: string }>(() => {
+    const importLine = `import "@/cms-bootstrap"; // NEW — register → verify → migrate → load SDK`;
+    switch (framework) {
+      case "next-app":
+        return {
+          file: "app/layout.tsx — add a tiny client component that imports the bootstrap",
+          code: `// app/cms-bootstrap-client.tsx (NEW)
+"use client";
+import "@/cms-bootstrap";
+export default function CmsBootstrap() { return null; }
+
+// app/layout.tsx — add <CmsBootstrap /> inside <body>
+import CmsBootstrap from "./cms-bootstrap-client";
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (<html><body><CmsBootstrap />{children}</body></html>);
+}
+`,
+        };
+      case "next-pages":
+        return {
+          file: "pages/_app.tsx — add the bootstrap import at the top",
+          code: `// pages/_app.tsx
+${importLine}
+import type { AppProps } from "next/app";
+export default function App({ Component, pageProps }: AppProps) {
+  return <Component {...pageProps} />;
+}
+`,
+        };
+      case "tanstack":
+        return {
+          file: "src/routes/__root.tsx — import the bootstrap in the root route",
+          code: `// src/routes/__root.tsx
+${importLine}
+import { Outlet, createRootRoute } from "@tanstack/react-router";
+export const Route = createRootRoute({ component: () => <Outlet /> });
+`,
+        };
+      case "remix":
+        return {
+          file: "app/root.tsx — import the bootstrap once",
+          code: `// app/root.tsx
+${importLine}
+import { Outlet } from "@remix-run/react";
+export default function Root() { return <Outlet />; }
+`,
+        };
+      case "react-router":
+        return {
+          file: "src/main.tsx — import the bootstrap before mounting the router",
+          code: `// src/main.tsx
+${importLine}
+import { createRoot } from "react-dom/client";
+import { RouterProvider } from "react-router-dom";
+import { router } from "./router";
+createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />);
+`,
+        };
+      case "vite":
+      default:
+        return {
+          file: "src/main.tsx — add the bootstrap import (Vite + React)",
+          code: `// src/main.tsx
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import "./cms-bootstrap"; // NEW — kicks off register → verify → migrate → load SDK
-
+${importLine}
 createRoot(document.getElementById("root")!).render(<App />);
-`;
+`,
+        };
+    }
+  }, [framework]);
+
+  const mainTsxPatch = entryPoint.code;
+  const mainTsxLabel = `5. ${entryPoint.file}`;
+
 
   const childEdgeFn = `// supabase/functions/cms-migrate/index.ts — runs in the CHILD project.
 // Receives a SIGNATURE-VERIFIED migration step and forwards to exec_cms_migration.
