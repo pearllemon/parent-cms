@@ -69,6 +69,7 @@ const App = () => (
           <RedirectsGate />
           <PopupManager />
           <PageSchemaInjector />
+          <SiteHeadInjection />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
