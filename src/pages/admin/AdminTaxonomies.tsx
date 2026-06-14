@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Edit3, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Edit3, ChevronRight, RefreshCcw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   listTaxonomies, saveTaxonomy, deleteTaxonomy,
   listTerms, saveTerm, deleteTerm, buildTermTree,
