@@ -108,13 +108,19 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const body = await req.json();
-  const { step, version, previousVersion, signature_verified, signing_key_id, payload_hash } = body || {};
+  const {
+    step, version, previousVersion,
+    signature_verified, signing_key_id, payload_hash, site_id,
+  } = body || {};
   if (signature_verified !== true) {
     return new Response(JSON.stringify({ error: "unverified" }), { status: 400, headers: cors });
   }
+  if (!site_id) {
+    return new Response(JSON.stringify({ error: "site_id required" }), { status: 400, headers: cors });
+  }
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { data, error } = await sb.rpc("exec_cms_migration", {
-    _site_id: req.headers.get("x-site-id") || "unknown",
+    _site_id: site_id,
     _migration_id: step.id,
     _version: version,
     _order_index: step.order_index,
