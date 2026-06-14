@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import {
   listReleases, cutRelease, recallRelease, promoteRelease,
+  listMigrationsForVersion,
   type Release,
 } from "@/lib/distribution";
 import { uploadSdkBundle, updateReleaseSdkUrl } from "@/lib/sdkUpload";
+import {
+  loadLocalSigner, signReleasePayload, attachSignatureToRelease,
+} from "@/lib/releaseSigning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload } from "lucide-react";
+import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload, ShieldCheck, ShieldAlert, PenLine } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminReleases() {
@@ -123,9 +127,15 @@ export default function AdminReleases() {
               {r.sdk_url && (
                 <p className="text-xs text-muted-foreground mt-1 truncate">SDK: <code>{r.sdk_url}</code></p>
               )}
+              <div className="mt-1">
+                {r.signature
+                  ? <Badge variant="outline" className="gap-1"><ShieldCheck className="w-3 h-3" /> signed · {r.signing_key_id}</Badge>
+                  : <Badge variant="destructive" className="gap-1"><ShieldAlert className="w-3 h-3" /> unsigned — children will refuse</Badge>}
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <UploadBundleButton release={r} onDone={load} />
+              <SignButton release={r} onDone={load} />
               {!r.is_latest && !r.recalled && (
                 <Button size="sm" variant="outline" onClick={async () => { await promoteRelease(r.id); toast.success("Promoted"); void load(); }}>
                   Promote
@@ -141,6 +151,37 @@ export default function AdminReleases() {
         ))}
       </div>
     </div>
+  );
+}
+
+function SignButton({ release, onDone }: { release: Release; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const handle = async () => {
+    const signer = loadLocalSigner();
+    if (!signer) return toast.error("No local signing key — generate one in Signing Keys.");
+    setBusy(true);
+    try {
+      const migrations = await listMigrationsForVersion(release.version);
+      const signed = await signReleasePayload({
+        version: release.version,
+        sdk_url: release.sdk_url,
+        min_compatible_child_version: release.min_compatible_child_version,
+        manifest: release.manifest || {},
+        migrations: migrations.map((m) => ({
+          order_index: m.order_index, kind: m.kind, payload: m.payload, reversible: m.reversible,
+        })),
+      }, signer);
+      await attachSignatureToRelease(release.id, signed);
+      toast.success(`Signed with ${signed.signing_key_id}`);
+      onDone();
+    } catch (e) {
+      toast.error(String((e as Error).message));
+    } finally { setBusy(false); }
+  };
+  return (
+    <Button size="sm" variant={release.signature ? "ghost" : "default"} disabled={busy} onClick={handle}>
+      <PenLine className="w-3.5 h-3.5 mr-1" /> {release.signature ? "Re-sign" : "Sign"}
+    </Button>
   );
 }
 
