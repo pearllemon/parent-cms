@@ -100,7 +100,7 @@ export async function publishComponent(input: {
   };
   const { data, error } = await supabase
     .from("cloud_components")
-    .insert(insert)
+    .insert([insert])
     .select()
     .single();
   if (error) throw error;
