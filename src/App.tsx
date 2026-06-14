@@ -119,6 +119,7 @@ const App = () => (
               <Route path="releases" element={<AdminReleases />} />
               <Route path="installations" element={<AdminInstallations />} />
               <Route path="upgrade-log" element={<AdminUpgradeLog />} />
+              <Route path="setup-wizard" element={<AdminSetupWizard />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
