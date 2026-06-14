@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  listReleases, cutRelease, recallRelease, promoteRelease,
+  listReleases, recallRelease, promoteRelease,
   listMigrationsForVersion,
   type Release,
 } from "@/lib/distribution";
@@ -9,13 +9,25 @@ import {
   loadLocalSigner, signReleasePayload, attachSignatureToRelease,
 } from "@/lib/releaseSigning";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload, ShieldCheck, ShieldAlert, PenLine } from "lucide-react";
 import { toast } from "sonner";
+import BuildReleaseDialog from "@/components/admin/BuildReleaseDialog";
+
+export default function AdminReleases() {
+  const [releases, setReleases] = useState<Release[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setReleases(await listReleases());
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, []);
+
+
 
 export default function AdminReleases() {
   const [releases, setReleases] = useState<Release[]>([]);
