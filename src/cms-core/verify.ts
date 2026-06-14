@@ -1,9 +1,10 @@
 // Child-side signature verification for incoming release manifests.
 //
-// The trusted public key set is EMBEDDED in the child build (the strongest
-// guarantee) and may optionally be extended from the parent's signing_keys
-// registry. Verification happens BEFORE any migration is executed and BEFORE
-// the SDK bundle is loaded.
+// The parent always ships `payload_canonical` — the EXACT bytes that were
+// signed — alongside the parsed `payload`. The child verifies the signature
+// over those literal bytes, removing any JSON key-order ambiguity.
+//
+// Falls back to recomputing canonicalize(payload) for older parents.
 
 const enc = new TextEncoder();
 
@@ -30,7 +31,7 @@ export function canonicalize(value: unknown): string {
 
 export type TrustedKey = { key_id: string; public_key_b64: string };
 
-export type VerifiableManifest = {
+export type SignablePayload = {
   version: string;
   sdk_url: string | null;
   min_compatible_child_version: string | null;
@@ -41,8 +42,35 @@ export type VerifiableManifest = {
     payload: string;
     reversible: boolean;
   }>;
-  signature: string | null;
+};
+
+/**
+ * The envelope returned by the parent's /cms-release endpoint. New fields
+ * (`payload`, `payload_canonical`, `signature_b64`) are authoritative; the
+ * legacy top-level fields are kept for backward compatibility.
+ */
+export type VerifiableManifest = {
+  // New envelope
+  siteId?: string | null;
+  version: string;
+  previousVersion?: string | null;
+  payload?: SignablePayload;
+  payload_canonical?: string | null;
+  signature_b64?: string | null;
   signing_key_id: string | null;
+  signed_at?: string | null;
+
+  // Legacy / convenience
+  sdk_url: string | null;
+  min_compatible_child_version: string | null;
+  manifest: Record<string, unknown>;
+  migrations: Array<{
+    order_index: number;
+    kind: string;
+    payload: string;
+    reversible: boolean;
+  }>;
+  signature: string | null;
   payload_hash: string | null;
 };
 
@@ -58,22 +86,35 @@ export async function verifyManifestSignature(
   manifest: VerifiableManifest,
   trusted: TrustedKey[],
 ): Promise<VerificationResult> {
-  if (!manifest.signature || !manifest.signing_key_id) {
+  const signature = manifest.signature_b64 || manifest.signature;
+  if (!signature || !manifest.signing_key_id) {
     return { ok: false, reason: "manifest is unsigned" };
   }
   const trustedKey = trusted.find((k) => k.key_id === manifest.signing_key_id);
   if (!trustedKey) {
     return { ok: false, reason: `signing key ${manifest.signing_key_id} not trusted` };
   }
-  const canonical = canonicalize({
-    version: manifest.version,
-    sdk_url: manifest.sdk_url,
-    min_compatible_child_version: manifest.min_compatible_child_version,
-    manifest: manifest.manifest,
-    migrations: manifest.migrations.map((m) => ({
-      order_index: m.order_index, kind: m.kind, payload: m.payload, reversible: m.reversible,
-    })),
-  });
+
+  // Prefer the bytes the parent says it signed. Fall back to recomputing
+  // canonical(payload) — and finally to the legacy top-level shape — for
+  // older parents that haven't shipped payload_canonical yet.
+  let canonical: string;
+  if (typeof manifest.payload_canonical === "string" && manifest.payload_canonical.length > 0) {
+    canonical = manifest.payload_canonical;
+  } else if (manifest.payload) {
+    canonical = canonicalize(manifest.payload);
+  } else {
+    canonical = canonicalize({
+      version: manifest.version,
+      sdk_url: manifest.sdk_url,
+      min_compatible_child_version: manifest.min_compatible_child_version,
+      manifest: manifest.manifest,
+      migrations: manifest.migrations.map((m) => ({
+        order_index: m.order_index, kind: m.kind, payload: m.payload, reversible: m.reversible,
+      })),
+    });
+  }
+
   const expectedHash = await sha256Hex(canonical);
   if (manifest.payload_hash && manifest.payload_hash !== expectedHash) {
     return { ok: false, reason: "payload hash mismatch" };
@@ -82,7 +123,7 @@ export async function verifyManifestSignature(
     const key = await importEd25519PublicKey(trustedKey.public_key_b64);
     const okSig = await crypto.subtle.verify(
       { name: "Ed25519" }, key,
-      b64decode(manifest.signature),
+      b64decode(signature),
       enc.encode(canonical),
     );
     if (!okSig) return { ok: false, reason: "invalid signature" };
