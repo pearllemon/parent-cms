@@ -181,18 +181,19 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
 
   /* ---------- (3) signature verification ---------- */
   const verification = await verifyManifestSignature(manifest, opts.trustedPublicKeys || []);
-  if (!verification.ok) {
+  if (verification.ok !== true) {
+    const reason = (verification as { ok: false; reason: string }).reason;
     await postJSON(`${base}/upgrade-log`, {
       site_id: siteId, from_version: previousVersion, to_version: manifest.version,
-      status: "failed", error: `signature: ${verification.reason}`,
+      status: "failed", error: `signature: ${reason}`,
     });
     await sendHeartbeat(base, {
       site_id: siteId, current_version: previousVersion,
       child_shim_version: SHIM_VERSION, upgrade_state: "failed",
-      last_error: `signature: ${verification.reason}`,
+      last_error: `signature: ${reason}`,
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult(`signature: ${verification.reason}`);
+    return failResult(`signature: ${reason}`);
   }
 
   /* ---------- (4) forward-only check ---------- */
