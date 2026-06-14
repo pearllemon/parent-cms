@@ -52,6 +52,7 @@ export type RunMigrationContext = {
   signature_verified: true;        // proof to the child runner
   signing_key_id: string;
   payload_hash: string;
+  site_id: string;
 };
 
 export type BootstrapOptions = {
@@ -224,7 +225,6 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
             signature_verified: true,
             signing_key_id: verification.key_id,
             payload_hash: verification.payload_hash,
-            // @ts-expect-error site_id is forwarded for child edge fn convenience
             site_id: siteId,
           });
           appliedMigrations++;
