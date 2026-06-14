@@ -51,6 +51,7 @@ import AdminActivityLog from "./pages/admin/AdminActivityLog.tsx";
 import AdminReleases from "./pages/admin/AdminReleases.tsx";
 import AdminInstallations from "./pages/admin/AdminInstallations.tsx";
 import AdminUpgradeLog from "./pages/admin/AdminUpgradeLog.tsx";
+import AdminSetupWizard from "./pages/admin/AdminSetupWizard.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
