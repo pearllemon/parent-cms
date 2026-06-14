@@ -115,6 +115,9 @@ const App = () => (
               <Route path="activity" element={<AdminActivityLog />} />
               <Route path="categories" element={<Navigate to="/admin/taxonomies?tax=category" replace />} />
               <Route path="tags" element={<Navigate to="/admin/taxonomies?tax=tag" replace />} />
+              <Route path="releases" element={<AdminReleases />} />
+              <Route path="installations" element={<AdminInstallations />} />
+              <Route path="upgrade-log" element={<AdminUpgradeLog />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
