@@ -52,6 +52,7 @@ import AdminReleases from "./pages/admin/AdminReleases.tsx";
 import AdminInstallations from "./pages/admin/AdminInstallations.tsx";
 import AdminUpgradeLog from "./pages/admin/AdminUpgradeLog.tsx";
 import AdminSetupWizard from "./pages/admin/AdminSetupWizard.tsx";
+import AdminApiRegistry from "./pages/admin/AdminApiRegistry.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 
 const queryClient = new QueryClient();
@@ -120,6 +121,7 @@ const App = () => (
               <Route path="installations" element={<AdminInstallations />} />
               <Route path="upgrade-log" element={<AdminUpgradeLog />} />
               <Route path="setup-wizard" element={<AdminSetupWizard />} />
+              <Route path="apis" element={<AdminApiRegistry />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
