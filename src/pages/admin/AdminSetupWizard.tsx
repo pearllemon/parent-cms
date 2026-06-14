@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wand2, Copy, Check, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { listPublicKeys } from "@/lib/releaseSigning";
@@ -28,11 +29,24 @@ const PARENT_SDK_ORIGIN = new URL(import.meta.env.VITE_SUPABASE_URL).origin;
 
 type Row = { key_id: string; public_key: string; is_active: boolean };
 
+type Framework = "vite" | "next-app" | "next-pages" | "tanstack" | "remix" | "react-router";
+
+const FRAMEWORK_LABELS: Record<Framework, string> = {
+  "vite":         "Vite + React (Lovable default)",
+  "next-app":     "Next.js — App Router",
+  "next-pages":   "Next.js — Pages Router",
+  "tanstack":     "TanStack Start",
+  "remix":        "Remix",
+  "react-router": "React Router (data router)",
+};
+
 export default function AdminSetupWizard() {
   const [siteName, setSiteName] = useState("");
   const [siteUrl, setSiteUrl] = useState("");
+  const [framework, setFramework] = useState<Framework>("vite");
   const [copied, setCopied] = useState<string | null>(null);
   const [trusted, setTrusted] = useState<Row[]>([]);
+
 
   useEffect(() => {
     listPublicKeys().then((rows) =>
