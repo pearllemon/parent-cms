@@ -6,7 +6,7 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
-  Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
+  Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus, Inbox,
   FolderTree, Tag, Activity, Rocket, Server, History, Wand2, Plug, KeyRound, type LucideIcon,
 } from "lucide-react";
 
