@@ -269,7 +269,11 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
       last_error: `signature: ${reason}`,
     });
     scheduleHeartbeat(base, siteId, opts, previousVersion);
-    return failResult(`signature: ${reason}`);
+    return buildResult({
+      status: "untrusted",
+      message: "Latest release could not be verified. Running previous version.",
+      error: `signature: ${reason}`,
+    });
   }
 
   /* ---------- (4) forward-only check ---------- */
