@@ -245,6 +245,16 @@ const AdminShell = () => {
             </div>
           </div>
 
+          {/* Distribution */}
+          <div>
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Distribution</p>
+            <div className="space-y-0.5">
+              <SidebarItem to="/admin/releases" label="Releases" Icon={Rocket} active={location.pathname.startsWith("/admin/releases")} />
+              <SidebarItem to="/admin/installations" label="Installations" Icon={Server} active={location.pathname.startsWith("/admin/installations")} />
+              <SidebarItem to="/admin/upgrade-log" label="Upgrade Log" Icon={History} active={location.pathname.startsWith("/admin/upgrade-log")} />
+            </div>
+          </div>
+
           {/* Data */}
           {dynamicRoutes.length > 0 && (
             <div>
