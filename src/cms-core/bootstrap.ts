@@ -74,8 +74,19 @@ export type BootstrapOptions = {
   heartbeat?: boolean;
 };
 
+export type BootstrapStatus =
+  | "ok"               // verified + (possibly) upgraded + SDK loaded
+  | "no_release"       // parent reachable, but no release has been published yet
+  | "waiting"          // parent temporarily unreachable; running cached/current version
+  | "recalled"         // latest release was pulled by the parent
+  | "untrusted"        // signature failed verification
+  | "error";           // unexpected failure (still non-fatal — site keeps rendering)
+
 export type BootstrapResult = {
   siteId: string;
+  status: BootstrapStatus;
+  /** Human-friendly status message — safe to surface to the customer. */
+  message: string;
   version: string;
   previousVersion: string | null;
   sdkLoaded: boolean;
