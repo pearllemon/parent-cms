@@ -1,7 +1,11 @@
-// cms-release — public edge function consumed by child sites.
-// GET ?version=x     → manifest for that version (or latest if omitted)
-// POST /heartbeat    → child reports current state
-// POST /rollback     → admin recalls a release (auth required)
+// cms-release — public edge function for the CMS Core distribution pipeline.
+//
+//   GET  /cms-release[?version=x]    → manifest (latest non-recalled, or specific)
+//   POST /cms-release/register       → idempotent child registration
+//   POST /cms-release/heartbeat      → periodic state report
+//   POST /cms-release/upgrade-log    → migration progress events
+//
+// All endpoints accept CORS so children running on any origin can reach them.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -34,9 +38,41 @@ Deno.serve(async (req) => {
   try {
     const sb = admin();
 
-    // POST /heartbeat
+    /* ------------------------- POST /register ------------------------- */
+    if (req.method === "POST" && path.startsWith("/register")) {
+      const body = await req.json().catch(() => ({} as any));
+      const { site_id, site_name, site_url, mode, shim_version } = body || {};
+      if (!site_id) return json({ error: "site_id required" }, 400);
+
+      const { data: existing } = await sb
+        .from("child_installations").select("id, registration_token")
+        .eq("site_id", site_id).maybeSingle();
+
+      const token = existing?.registration_token ||
+        crypto.randomUUID().replace(/-/g, "");
+
+      const row: any = {
+        site_id,
+        site_name: site_name || existing?.id ? site_name : null,
+        site_url: site_url || null,
+        mode: mode === "hybrid" ? "hybrid" : "child",
+        child_shim_version: shim_version || null,
+        registration_token: token,
+        upgrade_state: "pending",
+        last_seen_at: new Date().toISOString(),
+      };
+
+      if (existing?.id) {
+        await sb.from("child_installations").update(row).eq("id", existing.id);
+      } else {
+        await sb.from("child_installations").insert(row);
+      }
+      return json({ ok: true, site_id, registration_token: token });
+    }
+
+    /* ------------------------- POST /heartbeat ------------------------- */
     if (req.method === "POST" && path.startsWith("/heartbeat")) {
-      const body = await req.json().catch(() => ({}));
+      const body = await req.json().catch(() => ({} as any));
       const {
         site_id, site_name, site_url, current_version, child_shim_version,
         upgrade_state, last_error,
@@ -46,8 +82,10 @@ Deno.serve(async (req) => {
       const { data: existing } = await sb
         .from("child_installations").select("id").eq("site_id", site_id).maybeSingle();
 
-      const row = {
-        site_id, site_name: site_name || null, site_url: site_url || null,
+      const row: any = {
+        site_id,
+        site_name: site_name || null,
+        site_url: site_url || null,
         current_version: current_version || null,
         child_shim_version: child_shim_version || null,
         upgrade_state: upgrade_state || "unknown",
@@ -60,9 +98,9 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    // POST /upgrade-log
+    /* ------------------------- POST /upgrade-log ------------------------- */
     if (req.method === "POST" && path.startsWith("/upgrade-log")) {
-      const body = await req.json().catch(() => ({}));
+      const body = await req.json().catch(() => ({} as any));
       const { site_id, from_version, to_version, status, snapshot, error, duration_ms } = body || {};
       if (!site_id || !to_version || !status) return json({ error: "missing fields" }, 400);
       await sb.from("child_upgrade_log").insert({
@@ -72,7 +110,7 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    // GET manifest
+    /* ------------------------- GET manifest ------------------------- */
     if (req.method === "GET") {
       const version = url.searchParams.get("version");
       let release: any = null;
@@ -103,7 +141,7 @@ Deno.serve(async (req) => {
           migrations: migrations || [],
         },
         200,
-        { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
+        { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },
       );
     }
 

@@ -3,6 +3,7 @@
 
 export * from "./registry";
 export * from "./bootstrap";
+export * from "./mode";
 
 // Renderers / editors
 export { default as ThemeBlocksRenderer } from "@/components/site/ThemeBlocksRenderer";

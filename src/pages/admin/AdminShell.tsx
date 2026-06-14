@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
   Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
-  FolderTree, Tag, Activity, Rocket, Server, History, Wand2, type LucideIcon,
+  FolderTree, Tag, Activity, Rocket, Server, History, Wand2, Plug, type LucideIcon,
 } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -245,16 +245,19 @@ const AdminShell = () => {
             </div>
           </div>
 
-          {/* Distribution */}
-          <div>
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Distribution</p>
-            <div className="space-y-0.5">
-              <SidebarItem to="/admin/releases" label="Releases" Icon={Rocket} active={location.pathname.startsWith("/admin/releases")} />
-              <SidebarItem to="/admin/installations" label="Installations" Icon={Server} active={location.pathname.startsWith("/admin/installations")} />
-              <SidebarItem to="/admin/upgrade-log" label="Upgrade Log" Icon={History} active={location.pathname.startsWith("/admin/upgrade-log")} />
-              <SidebarItem to="/admin/setup-wizard" label="Child Setup Wizard" Icon={Wand2} active={location.pathname.startsWith("/admin/setup-wizard")} />
+          {/* Distribution — parent-only */}
+          {(import.meta.env.VITE_CMS_MODE || "parent") !== "child" && (
+            <div>
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Distribution</p>
+              <div className="space-y-0.5">
+                <SidebarItem to="/admin/releases" label="Releases" Icon={Rocket} active={location.pathname.startsWith("/admin/releases")} />
+                <SidebarItem to="/admin/installations" label="Installations" Icon={Server} active={location.pathname.startsWith("/admin/installations")} />
+                <SidebarItem to="/admin/upgrade-log" label="Upgrade Log" Icon={History} active={location.pathname.startsWith("/admin/upgrade-log")} />
+                <SidebarItem to="/admin/apis" label="API Registry" Icon={Plug} active={location.pathname.startsWith("/admin/apis")} />
+                <SidebarItem to="/admin/setup-wizard" label="Child Setup Wizard" Icon={Wand2} active={location.pathname.startsWith("/admin/setup-wizard")} />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Data */}
           {dynamicRoutes.length > 0 && (
