@@ -21,6 +21,8 @@ import {
   verifyManifestSignature, compareSemver,
   type TrustedKey, type VerifiableManifest,
 } from "./verify";
+import { applyManifest } from "./applyManifest";
+
 
 const SHIM_VERSION = "1.1.0";
 const MANIFEST_CACHE_KEY = "cms-core-manifest-v1";
