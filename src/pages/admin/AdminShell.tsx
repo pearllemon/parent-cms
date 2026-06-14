@@ -6,7 +6,7 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, FileText, File, Layers, Image, Settings, LogOut,
-  Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus,
+  Database, Upload, Cloud, Search, Users, Palette, ChevronDown, ChevronRight, Plus, Inbox,
   FolderTree, Tag, Activity, Rocket, Server, History, Wand2, Plug, KeyRound, type LucideIcon,
 } from "lucide-react";
 
@@ -249,6 +249,7 @@ const AdminShell = () => {
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Manage</p>
             <div className="space-y-0.5">
               <SidebarItem to="/admin/users" label="Users" Icon={Users} active={location.pathname.startsWith("/admin/users")} />
+              <SidebarItem to="/admin/leads" label="Leads" Icon={Inbox} active={location.pathname.startsWith("/admin/leads")} />
               <SidebarItem to="/admin/import" label="Import (WP XML)" Icon={Upload} active={location.pathname.startsWith("/admin/import")} />
               <SidebarItem to="/admin/sync" label="Sync" Icon={Cloud} active={location.pathname.startsWith("/admin/sync")} />
               <SidebarItem to="/admin/seo-workspace" label="SEO Workspace" Icon={Search} active={location.pathname.startsWith("/admin/seo")} />

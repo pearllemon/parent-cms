@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { submitLead } from "@/lib/parent";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const ContactBlock = () => {
@@ -18,7 +19,16 @@ const ContactBlock = () => {
     }
     setLoading(true);
     try {
-      await submitLead(form);
+      // Mirror into local leads CRM (non-blocking) and parent CMS in parallel.
+      const localInsert = supabase.from("leads").insert({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone || null,
+        message: form.message || null,
+        source: "contact_form",
+        source_url: typeof window !== "undefined" ? window.location.href : null,
+      });
+      await Promise.allSettled([submitLead(form), localInsert]);
       toast.success("Got it — I’ll be in touch.");
       setForm({ name: "", email: "", phone: "", message: "" });
     } catch {
