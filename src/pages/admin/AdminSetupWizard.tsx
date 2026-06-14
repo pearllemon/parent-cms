@@ -122,9 +122,35 @@ function cmpSemver(a: string, b: string): number {
   }
   return 0;
 }
+const DEFAULT_TIMEOUT_MS = 10000;
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try { return await fetch(input, { ...init, signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+}
 async function postJSON(url: string, body: unknown) {
-  try { return await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
-  catch { return null; }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch { /* retry */ }
+  }
+  return null;
+}
+async function fetchManifestWithRetry(url: string): Promise<any | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { cache: "no-store" });
+      if (res.ok) return await res.json().catch(() => null);
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) return null;
+    } catch { /* network — retry */ }
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+  }
+  return null;
 }
 function isAllowedSdkUrl(sdkUrl: string): boolean {
   try {
