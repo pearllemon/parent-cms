@@ -78,9 +78,10 @@ export async function buildManifest(sel: SnapshotSelection): Promise<BuiltManife
   }
   if (sel.cpts) {
     const types = await safe<AnyRow[]>(db.from("custom_post_types").select("*"));
-    const entries = await safe(
+    const entries = await safe<AnyRow[]>(
       db.from("cpt_entries").select("*").eq("status", "published").not("cpt_slug", "in", "(page,post)"),
     );
+
     out.cpts = { types: types || [], entries: entries || [] };
     out._counts.cpts = (types || []).length;
     out._counts.cpt_entries = (entries || []).length;
