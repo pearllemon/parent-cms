@@ -56,35 +56,47 @@ const AdminShell = () => {
 
   useEffect(() => { getSchema().then(setSchema); }, []);
 
-  // Load CPTs + taxonomies
+  // Load CPTs + taxonomies and keep them fresh via realtime, so newly
+  // created CPTs/taxonomies show up in the sidebar without a page reload.
   useEffect(() => {
-    (cloud.from("custom_post_types" as any) as any)
+    let cancelled = false;
+    const loadCpts = () => (cloud.from("custom_post_types" as any) as any)
       .select("slug,label,plural_label")
       .not("slug", "in", "(__global__,__entry__)")
       .order("label")
-      .then(({ data }: any) => setCpts((data as CPT[]) || []));
-    (cloud.from("taxonomies" as any) as any)
+      .then(({ data }: any) => { if (!cancelled) setCpts((data as CPT[]) || []); });
+    const loadTax = () => (cloud.from("taxonomies" as any) as any)
       .select("id,slug,name,applies_to")
       .order("name")
-      .then(({ data }: any) => setTaxonomies((data as Taxonomy[]) || []));
+      .then(({ data }: any) => { if (!cancelled) setTaxonomies((data as Taxonomy[]) || []); });
+    void loadCpts(); void loadTax();
+    const ch = cloud.channel("admin-sidebar-meta");
+    (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "custom_post_types" }, loadCpts);
+    (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "taxonomies" }, loadTax);
+    ch.subscribe();
+    return () => { cancelled = true; cloud.removeChannel(ch); };
   }, []);
 
-  // Discover post types on the current site
+  // Discover post types from BOTH cloud (imported_posts) and parent (posts).
+  // Parent may not have a posts table for this project; cloud is authoritative.
   useEffect(() => {
-    if (!config?.site?.id) return;
     let cancelled = false;
-    supabase
-      .from("posts")
-      .select("type")
-      .eq("site_id", config.site.id)
-      .limit(2000)
-      .then(({ data, error }) => {
-        if (cancelled || error || !data) return;
-        const types = Array.from(new Set((data as { type: string | null }[])
-          .map((r) => r.type || "post").filter(Boolean)));
-        ["post", "page"].forEach((t) => { if (!types.includes(t)) types.push(t); });
-        setPostTypes(types);
-      });
+    (async () => {
+      const types = new Set<string>(["post", "page"]);
+      try {
+        const { data } = await cloud.from("imported_posts" as any)
+          .select("type").limit(5000);
+        for (const r of (data as any[]) || []) if (r?.type) types.add(r.type);
+      } catch { /* ignore */ }
+      if (config?.site?.id) {
+        try {
+          const { data } = await supabase.from("posts")
+            .select("type").eq("site_id", config.site.id).limit(2000);
+          for (const r of (data as any[]) || []) if (r?.type) types.add(r.type);
+        } catch { /* ignore — parent may not expose posts */ }
+      }
+      if (!cancelled) setPostTypes(Array.from(types));
+    })();
     return () => { cancelled = true; };
   }, [config?.site?.id]);
 

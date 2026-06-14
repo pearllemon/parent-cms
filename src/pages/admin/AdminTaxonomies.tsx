@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Edit3, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Edit3, ChevronRight, RefreshCcw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   listTaxonomies, saveTaxonomy, deleteTaxonomy,
   listTerms, saveTerm, deleteTerm, buildTermTree,
@@ -113,6 +114,38 @@ function TaxonomyPanel({ taxonomy, onEditTaxonomy, onDeletedTaxonomy }: { taxono
             toast.success("Deleted"); onDeletedTaxonomy();
           }}>
             <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+        {(taxonomy.slug === "category" || taxonomy.slug === "tag") && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              const key = taxonomy.slug === "category" ? "categories" : "tags";
+              const { data } = await (supabase.from("imported_posts" as any) as any)
+                .select("raw").limit(5000);
+              const seen = new Map<string, string>();
+              for (const r of (data as any[]) || []) {
+                const list = r?.raw?.[key];
+                if (!Array.isArray(list)) continue;
+                for (const t of list) {
+                  if (t?.slug && t?.name && !seen.has(t.slug)) seen.set(t.slug, t.name);
+                }
+              }
+              if (seen.size === 0) { toast.message("No terms found in imported posts"); return; }
+              let created = 0;
+              for (const [slug, name] of seen) {
+                const existing = await (supabase.from("taxonomy_terms" as any) as any)
+                  .select("id").eq("taxonomy_id", taxonomy.id).eq("slug", slug).maybeSingle();
+                if (existing.data) continue;
+                await saveTerm({ taxonomy_id: taxonomy.id, slug, name });
+                created++;
+              }
+              toast.success(`Synced ${created} new ${taxonomy.label_singular.toLowerCase()}${created === 1 ? "" : "s"} from posts`);
+              await reload();
+            }}
+          >
+            <RefreshCcw className="w-4 h-4 mr-1" /> Sync from posts
           </Button>
         )}
         <Button size="sm" onClick={() => setEditing({ taxonomy_id: taxonomy.id, name: "", slug: "" })}>

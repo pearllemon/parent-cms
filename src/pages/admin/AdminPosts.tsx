@@ -64,11 +64,14 @@ const AdminPosts = () => {
 
   // Cached query — list renders instantly from cache, refreshes in background.
   const { data, loading, refresh } = useCachedQuery<Post[]>(
-    siteId ? `posts:${siteId}` : null,
+    siteId ? `posts:v2:${siteId}` : null,
     async () => {
+      // Parent: keep the select to columns we KNOW exist. The parent schema
+      // doesn't have categories/tags/comment_count, and selecting them used
+      // to fail the whole query, leaving the list empty.
       const parentReq = supabase
         .from("posts")
-        .select("id,title,slug,status,type,publish_date,updated_at,author,categories,tags,comment_count")
+        .select("id,title,slug,status,type,publish_date,updated_at")
         .eq("site_id", siteId!)
         .order("updated_at", { ascending: false })
         .limit(500);
@@ -77,21 +80,21 @@ const AdminPosts = () => {
         .from("imported_posts")
         .select("id,title,slug,status,type,publish_date,updated_at,raw")
         .order("updated_at", { ascending: false })
-        .limit(1000);
+        .limit(2000);
 
       const [parentRes, cloudRes] = await Promise.all([parentReq, cloudReq]);
 
-      if (parentRes.error) console.error(parentRes.error.message);
-      if (cloudRes.error) console.error(cloudRes.error.message);
+      if (parentRes.error) console.warn("[posts] parent fetch:", parentRes.error.message);
+      if (cloudRes.error) console.warn("[posts] cloud fetch:", cloudRes.error.message);
 
       const parentRows: Post[] = (parentRes.data || []).map((p: any) => ({
         id: p.id, title: p.title, slug: p.slug, status: p.status, type: p.type,
         publish_date: p.publish_date, updated_at: p.updated_at,
         source: "parent" as const,
-        author: typeof p.author === "object" ? p.author?.name : p.author,
-        categories: Array.isArray(p.categories) ? p.categories : [],
-        tags: Array.isArray(p.tags) ? p.tags : [],
-        comments: p.comment_count ?? 0,
+        author: null,
+        categories: [],
+        tags: [],
+        comments: 0,
       }));
       const cloudRows: Post[] = (cloudRes.data || []).map((p: any) => {
         const raw = p.raw || {};
