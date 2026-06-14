@@ -13,13 +13,63 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   active: "default", degraded: "secondary", down: "destructive", disabled: "outline",
 };
 
+// Auto-seed entries: things the CMS already knows about (parent management
+// platform, cms-release distribution endpoint) so the user doesn't have to
+// fill out a form to register them by hand.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const PARENT_URL = (import.meta.env.VITE_PARENT_SUPABASE_URL as string | undefined)
+  || "https://zvaiqrewtqvsokzbxnxt.supabase.co";
+
+const AUTO_ENTRIES: Array<Partial<CmsApi> & { api_key: string; name: string }> = [
+  {
+    api_key: "parent_management",
+    name: "Parent Management Platform",
+    base_url: PARENT_URL ? `${PARENT_URL}/functions/v1/site-config` : null,
+    description: "Resolves site config, dynamic sections, leads, page views from the parent CMS.",
+    scope: "child",
+  },
+  {
+    api_key: "cms_release",
+    name: "CMS Release Distribution",
+    base_url: SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/cms-release` : null,
+    description: "Signed release manifests, child registration, heartbeats, upgrade log.",
+    scope: "both",
+  },
+  {
+    api_key: "lovable_ai",
+    name: "Lovable AI Gateway",
+    base_url: "https://ai.gateway.lovable.dev",
+    description: "Built-in AI model gateway used by SEO automations and content tools.",
+    scope: "parent",
+  },
+];
+
 export default function AdminApiRegistry() {
   const [items, setItems] = useState<CmsApi[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeded, setSeeded] = useState(false);
   const [form, setForm] = useState({ api_key: "", name: "", base_url: "", description: "", scope: "parent" as CmsApi["scope"] });
 
-  const load = async () => { setLoading(true); setItems(await listApis()); setLoading(false); };
-  useEffect(() => { void load(); }, []);
+  const load = async () => {
+    setLoading(true);
+    const list = await listApis();
+    // Auto-seed missing well-known entries the first time the page is opened.
+    if (!seeded) {
+      const have = new Set(list.map((a) => a.api_key));
+      const missing = AUTO_ENTRIES.filter((e) => !have.has(e.api_key));
+      for (const entry of missing) {
+        try { await upsertApi(entry); } catch { /* ignore */ }
+      }
+      setSeeded(true);
+      if (missing.length) {
+        const fresh = await listApis();
+        setItems(fresh); setLoading(false); return;
+      }
+    }
+    setItems(list);
+    setLoading(false);
+  };
+  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
 
   const save = async () => {
     if (!form.api_key || !form.name) return toast.error("api_key and name required");
