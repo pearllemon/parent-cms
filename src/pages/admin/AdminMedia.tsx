@@ -384,60 +384,78 @@ const AdminMedia = () => {
           <p className="text-sm">No media. Drop files or click <b>Upload</b>.</p>
         </div>
       ) : view === "grid" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {filtered.map((it) => (
-            <div key={it.id} className="group relative border rounded-xl overflow-hidden bg-background">
-              <Checkbox
-                checked={selected.has(it.id)}
-                onCheckedChange={() => toggle(it.id)}
-                className="absolute top-2 left-2 z-10 bg-background/90"
-              />
-              <button onClick={() => setEditing(it)} className="block w-full text-left">
-                {(it.mime_type || guessMime(it.file_name) || "").startsWith("image/") ? (
-                  <img src={it.url} alt={it.alt_text || it.file_name} className="w-full h-32 object-cover" loading="lazy" />
-                ) : (
-                  <div className="w-full h-32 bg-muted flex items-center justify-center text-xs text-muted-foreground text-center p-2">
-                    {it.mime_type || it.file_name.split(".").pop()?.toUpperCase()}
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {visible.map((it) => (
+              <div key={it.id} className="group relative border rounded-xl overflow-hidden bg-background">
+                <Checkbox
+                  checked={selected.has(it.id)}
+                  onCheckedChange={() => toggle(it.id)}
+                  className="absolute top-2 left-2 z-10 bg-background/90"
+                />
+                <button onClick={() => setEditing(it)} className="block w-full text-left">
+                  {(it.mime_type || guessMime(it.file_name) || "").startsWith("image/") ? (
+                    <img src={it.url} alt={it.alt_text || it.file_name} className="w-full h-32 object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-32 bg-muted flex items-center justify-center text-xs text-muted-foreground text-center p-2">
+                      {it.mime_type || it.file_name.split(".").pop()?.toUpperCase()}
+                    </div>
+                  )}
+                  <div className="p-2">
+                    <div className="text-xs truncate">{it.file_name}</div>
+                    <div className="text-[10px] text-muted-foreground flex justify-between">
+                      <span>{fmtSize(it.size_bytes)}</span><span>{it.source}</span>
+                    </div>
                   </div>
-                )}
-                <div className="p-2">
-                  <div className="text-xs truncate">{it.file_name}</div>
-                  <div className="text-[10px] text-muted-foreground flex justify-between">
-                    <span>{fmtSize(it.size_bytes)}</span><span>{it.source}</span>
-                  </div>
-                </div>
-              </button>
+                </button>
+              </div>
+            ))}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                Load more ({filtered.length - visible.length} remaining)
+              </Button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       ) : (
-        <div className="border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs">
-              <tr><th className="p-2 w-8"></th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Type</th><th className="p-2 text-left">Size</th><th className="p-2 text-left">Folder</th><th className="p-2 text-left">Alt text</th><th className="p-2"></th></tr>
-            </thead>
-            <tbody>
-              {filtered.map((it) => (
-                <tr key={it.id} className="border-t hover:bg-muted/30">
-                  <td className="p-2"><Checkbox checked={selected.has(it.id)} onCheckedChange={() => toggle(it.id)} /></td>
-                  <td className="p-2 flex items-center gap-2">
-                    {(it.mime_type || "").startsWith("image/") ? <img src={it.url} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted" />}
-                    <button className="underline truncate max-w-[200px]" onClick={() => setEditing(it)}>{it.file_name}</button>
-                  </td>
-                  <td className="p-2 text-xs text-muted-foreground">{it.mime_type || "—"}</td>
-                  <td className="p-2 text-xs">{fmtSize(it.size_bytes)}</td>
-                  <td className="p-2 text-xs">{it.folder || "—"}</td>
-                  <td className="p-2 text-xs truncate max-w-[180px]">{it.alt_text || "—"}</td>
-                  <td className="p-2 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(it.url); toast.success("URL copied"); }}><Copy className="w-3 h-3" /></Button>
-                    <Button size="sm" variant="ghost" asChild><a href={it.url} target="_blank" rel="noreferrer"><ExternalLink className="w-3 h-3" /></a></Button>
-                    <Button size="sm" variant="ghost" className="text-red-600" onClick={() => del([it])}><Trash2 className="w-3 h-3" /></Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs">
+                <tr><th className="p-2 w-8"></th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Type</th><th className="p-2 text-left">Size</th><th className="p-2 text-left">Folder</th><th className="p-2 text-left">Alt text</th><th className="p-2"></th></tr>
+              </thead>
+              <tbody>
+                {visible.map((it) => (
+                  <tr key={it.id} className="border-t hover:bg-muted/30">
+                    <td className="p-2"><Checkbox checked={selected.has(it.id)} onCheckedChange={() => toggle(it.id)} /></td>
+                    <td className="p-2 flex items-center gap-2">
+                      {(it.mime_type || "").startsWith("image/") ? <img src={it.url} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted" />}
+                      <button className="underline truncate max-w-[200px]" onClick={() => setEditing(it)}>{it.file_name}</button>
+                    </td>
+                    <td className="p-2 text-xs text-muted-foreground">{it.mime_type || "—"}</td>
+                    <td className="p-2 text-xs">{fmtSize(it.size_bytes)}</td>
+                    <td className="p-2 text-xs">{it.folder || "—"}</td>
+                    <td className="p-2 text-xs truncate max-w-[180px]">{it.alt_text || "—"}</td>
+                    <td className="p-2 text-right">
+                      <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(it.url); toast.success("URL copied"); }}><Copy className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" asChild><a href={it.url} target="_blank" rel="noreferrer"><ExternalLink className="w-3 h-3" /></a></Button>
+                      <Button size="sm" variant="ghost" className="text-red-600" onClick={() => del([it])}><Trash2 className="w-3 h-3" /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                Load more ({filtered.length - visible.length} remaining)
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
