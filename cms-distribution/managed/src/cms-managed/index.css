@@ -1,0 +1,166 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Deepak Shukla — Pearl Lemon child site design system
+   All colors HSL. Brand: #11a92e green, #2c5f2d deep green,
+   #f3fbf4 mint, #f6f6f6/#f4f4f4 grays, #000 ink.
+============================================================ */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 6%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 6%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 6%;
+
+    /* Brand green #11a92e */
+    --primary: 132 82% 37%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 132 82% 47%;
+
+    /* Deep forest #2c5f2d */
+    --forest: 121 37% 28%;
+    --forest-foreground: 0 0% 100%;
+
+    /* Mint #f3fbf4 */
+    --mint: 130 56% 97%;
+    --mint-foreground: 121 37% 18%;
+
+    --secondary: 0 0% 96%;          /* #f4f4f4 */
+    --secondary-foreground: 0 0% 6%;
+
+    --muted: 0 0% 97%;              /* #f6f6f6 */
+    --muted-foreground: 0 0% 40%;
+
+    --accent: 130 56% 97%;
+    --accent-foreground: 121 37% 18%;
+
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 92%;
+    --ring: 132 82% 37%;
+
+    --radius: 0.875rem;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(180deg, hsl(130 56% 97%) 0%, hsl(0 0% 100%) 100%);
+    --gradient-forest: linear-gradient(135deg, hsl(121 37% 22%) 0%, hsl(121 37% 32%) 100%);
+    --gradient-leaf: linear-gradient(135deg, hsl(132 82% 37%) 0%, hsl(132 82% 47%) 100%);
+
+    /* Shadows */
+    --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.04), 0 8px 24px -12px hsl(132 82% 20% / 0.18);
+    --shadow-soft: 0 2px 6px hsl(0 0% 0% / 0.04);
+    --shadow-lift: 0 20px 40px -20px hsl(132 82% 20% / 0.35);
+    --shadow-pop: 0 30px 60px -25px hsl(121 37% 18% / 0.45);
+
+    /* Motion */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-base: 280ms var(--ease-out-expo);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 20%;
+    --sidebar-primary: 132 82% 37%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 130 56% 97%;
+    --sidebar-accent-foreground: 121 37% 18%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 132 82% 37%;
+  }
+
+  .dark {
+    --background: 121 20% 6%;
+    --foreground: 0 0% 98%;
+    --card: 121 20% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 121 20% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 132 82% 47%;
+    --primary-foreground: 0 0% 8%;
+    --secondary: 121 15% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 121 15% 14%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 121 15% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 121 15% 16%;
+    --input: 121 15% 16%;
+    --ring: 132 82% 47%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+}
+
+@layer utilities {
+  .container-px { @apply px-5 md:px-8 lg:px-12; }
+  .text-balance { text-wrap: balance; }
+
+  .marquee-track {
+    animation: marquee 38s linear infinite;
+  }
+
+  .lift {
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+  }
+  .lift:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .underline-grow {
+    position: relative;
+  }
+  .underline-grow::after {
+    content: "";
+    position: absolute;
+    left: 0; bottom: -2px;
+    width: 100%; height: 2px;
+    background: hsl(var(--primary));
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 320ms var(--ease-out-expo);
+  }
+  .underline-grow:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+
+  .grain::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(hsl(0 0% 100% / 0.05) 1px, transparent 1px);
+    background-size: 4px 4px;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
