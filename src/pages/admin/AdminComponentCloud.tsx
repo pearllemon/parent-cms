@@ -1,7 +1,7 @@
-// Component Cloud — browse, install, manage auto-sync, and publish from local.
+// Component Cloud — browse, install, manage auto-sync, publish, and review.
 //
-// Parent operators publish reusable sections/templates here; child sites
-// install from here (and optionally subscribe to auto-updates).
+// Parent admins approve submissions in the Review queue; once approved,
+// the component is visible to other child sites in the Browse library.
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,10 +19,12 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Cloud, CloudUpload, Search, Download, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Cloud, CloudUpload, Search, Download, Trash2, RefreshCw, CheckCircle2, Eye, ShieldCheck, ShieldAlert, ExternalLink } from "lucide-react";
 import {
   listCloudComponents, listInstalls, installComponent, publishComponent,
-  setAutoSync, uninstall, type CloudComponent, type Install, type ComponentKind,
+  setAutoSync, uninstall, listPendingReviews, approveComponent, rejectComponent,
+  previewUrl,
+  type CloudComponent, type Install, type ComponentKind,
 } from "@/lib/componentCloud";
 
 const KIND_LABEL: Record<ComponentKind, string> = {
@@ -34,9 +36,10 @@ const KIND_LABEL: Record<ComponentKind, string> = {
 export default function AdminComponentCloud() {
   const { config } = useSiteConfig();
   const siteId = config?.site?.id;
-  const [tab, setTab] = useState<"browse" | "publish" | "installed">("browse");
+  const [tab, setTab] = useState<"browse" | "publish" | "installed" | "review">("browse");
   const [items, setItems] = useState<CloudComponent[]>([]);
   const [installs, setInstalls] = useState<Install[]>([]);
+  const [pending, setPending] = useState<CloudComponent[]>([]);
   const [q, setQ] = useState("");
   const [kindFilter, setKindFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -45,18 +48,28 @@ export default function AdminComponentCloud() {
   const load = async () => {
     setLoading(true);
     try {
-      const [c, i] = await Promise.all([
+      const [c, i, p] = await Promise.all([
         listCloudComponents(),
         siteId ? listInstalls(siteId) : Promise.resolve([] as Install[]),
+        listPendingReviews().catch(() => [] as CloudComponent[]),
       ]);
       setItems(c);
       setInstalls(i);
+      setPending(p);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load library");
     }
     setLoading(false);
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, [siteId]);
+
+  // Realtime: refresh on approvals
+  useEffect(() => {
+    const ch = supabase.channel("asset_updates")
+      .on("broadcast", { event: "asset_approved" }, () => { void load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const installMap = useMemo(() => {
     const m = new Map<string, Install>();
@@ -69,11 +82,11 @@ export default function AdminComponentCloud() {
     (!q || `${c.name} ${c.slug} ${c.description || ""}`.toLowerCase().includes(q.toLowerCase()))
   ), [items, q, kindFilter]);
 
-  const onInstall = async (c: CloudComponent) => {
+  const onInstall = async (c: CloudComponent, mode: "link" | "fork" = "link") => {
     if (!siteId) { toast.error("No site context"); return; }
     try {
-      await installComponent(c, siteId);
-      toast.success(`Installed ${c.name} v${c.version}`);
+      await installComponent(c, siteId, mode);
+      toast.success(`${mode === "fork" ? "Forked" : "Installed"} ${c.name} v${c.version}`);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Install failed");
@@ -86,12 +99,30 @@ export default function AdminComponentCloud() {
     await load();
   };
 
+  const onApprove = async (c: CloudComponent) => {
+    try {
+      await approveComponent(c.id);
+      toast.success(`Approved ${c.name} v${c.version}`);
+      await load();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Approve failed"); }
+  };
+
+  const onReject = async (c: CloudComponent) => {
+    const notes = window.prompt(`Reject ${c.name}? Optional notes:`);
+    if (notes === null) return;
+    try {
+      await rejectComponent(c.id, notes || undefined);
+      toast.success(`Rejected ${c.name}`);
+      await load();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Reject failed"); }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 className="font-display text-3xl flex items-center gap-2"><Cloud className="w-7 h-7" /> Component Cloud</h1>
-          <p className="text-sm text-muted-foreground">Shared library of sections, templates, and widgets — published by the parent CMS, installable on any child site.</p>
+          <p className="text-sm text-muted-foreground">Shared library of sections, templates, and widgets — publish locally, share globally after review.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={load}><RefreshCw className="w-4 h-4 mr-1" /> Refresh</Button>
@@ -104,6 +135,9 @@ export default function AdminComponentCloud() {
           <TabsTrigger value="browse">Browse library</TabsTrigger>
           <TabsTrigger value="installed">Installed ({installs.length})</TabsTrigger>
           <TabsTrigger value="publish">Publish from local</TabsTrigger>
+          <TabsTrigger value="review">
+            Review queue {pending.length > 0 && <Badge variant="destructive" className="ml-1.5">{pending.length}</Badge>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="browse" className="pt-4 space-y-3">
@@ -124,19 +158,19 @@ export default function AdminComponentCloud() {
           </Card>
 
           {loading ? <p className="text-sm text-muted-foreground">Loading library…</p>
-            : filtered.length === 0 ? <Card className="p-8 text-center text-muted-foreground">Library is empty. Publish your first component from the <strong>Publish from local</strong> tab.</Card>
+            : filtered.length === 0 ? <Card className="p-8 text-center text-muted-foreground">No approved components yet. Publish your first one from the <strong>Publish from local</strong> tab.</Card>
             : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filtered.map((c) => {
                   const inst = installMap.get(`${c.kind}:${c.slug}`);
                   const upgradeable = inst && c.version > inst.installed_version;
                   return (
-                    <Card key={c.id} className="overflow-hidden">
+                    <Card key={c.id} className="overflow-hidden flex flex-col">
                       <div className="aspect-video bg-muted relative">
                         {c.thumbnail_url ? <img src={c.thumbnail_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">No preview</div>}
                         <Badge className="absolute top-2 left-2 capitalize" variant="secondary">{KIND_LABEL[c.kind]}</Badge>
                       </div>
-                      <div className="p-3 space-y-2">
+                      <div className="p-3 space-y-2 flex-1 flex flex-col">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="font-medium truncate">{c.name}</div>
@@ -145,10 +179,16 @@ export default function AdminComponentCloud() {
                           {inst && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
                         </div>
                         {c.description && <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>}
-                        <div className="flex gap-2 pt-1">
-                          <Button size="sm" variant={inst ? "outline" : "default"} className="flex-1" onClick={() => onInstall(c)}>
+                        <div className="flex gap-2 pt-1 mt-auto">
+                          <Button size="sm" variant="outline" onClick={() => window.open(previewUrl(c, siteId), "_blank")}>
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant={inst ? "outline" : "default"} className="flex-1" onClick={() => onInstall(c, "link")}>
                             <Download className="w-3.5 h-3.5 mr-1" />
-                            {inst ? (upgradeable ? `Upgrade to v${c.version}` : "Reinstall") : "Install"}
+                            {inst ? (upgradeable ? `Upgrade v${c.version}` : "Reinstall") : "Install"}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => onInstall(c, "fork")} title="Fork (clone, breaks upgrade link)">
+                            Fork
                           </Button>
                         </div>
                         {inst && (
@@ -193,7 +233,50 @@ export default function AdminComponentCloud() {
         </TabsContent>
 
         <TabsContent value="publish" className="pt-4">
-          <PublishFromLocal onPublished={() => { void load(); setTab("browse"); }} />
+          <PublishFromLocal onPublished={() => { void load(); }} />
+        </TabsContent>
+
+        <TabsContent value="review" className="pt-4 space-y-3">
+          {pending.length === 0 ? (
+            <Card className="p-8 text-center text-muted-foreground">
+              <ShieldCheck className="w-8 h-8 mx-auto mb-2 text-emerald-600" />
+              No submissions waiting for review.
+            </Card>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pending.map((c) => (
+                <Card key={c.id} className="overflow-hidden flex flex-col">
+                  <div className="aspect-video bg-muted relative">
+                    {c.thumbnail_url ? <img src={c.thumbnail_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">No preview</div>}
+                    <Badge variant="secondary" className="absolute top-2 left-2 capitalize">{KIND_LABEL[c.kind]}</Badge>
+                    <Badge className="absolute top-2 right-2 bg-amber-500"><ShieldAlert className="w-3 h-3 mr-1" /> Pending</Badge>
+                  </div>
+                  <div className="p-3 space-y-2 flex-1 flex flex-col">
+                    <div>
+                      <div className="font-medium truncate">{c.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{c.slug} · v{c.version}</div>
+                    </div>
+                    {c.description && <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>}
+                    <div className="text-[11px] text-muted-foreground">
+                      Submitted {new Date(c.submitted_at).toLocaleString()}
+                      {c.publisher_site_id && <> · from <span className="font-mono">{c.publisher_site_id.slice(0, 8)}</span></>}
+                    </div>
+                    <div className="flex gap-2 pt-1 mt-auto">
+                      <Button size="sm" variant="outline" onClick={() => window.open(previewUrl(c, siteId), "_blank")}>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => onApprove(c)}>
+                        Approve
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => onReject(c)}>
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -224,7 +307,7 @@ function PublishFromLocal({ onPublished }: { onPublished: () => void }) {
   const pub = async (kind: ComponentKind, row: Record<string, unknown>) => {
     setBusy(String(row.id));
     try {
-      const c = await publishComponent({
+      const { asset, status } = await publishComponent({
         kind,
         slug: row.slug as string,
         name: row.name as string,
@@ -236,7 +319,11 @@ function PublishFromLocal({ onPublished }: { onPublished: () => void }) {
         preview_url: (row.preview_url as string) || null,
         publisher_site_id: siteId || null,
       });
-      toast.success(`Published ${c.name} v${c.version}`);
+      if (status === "pending_review") {
+        toast.success(`Submitted ${asset.name} v${asset.version} for review`);
+      } else {
+        toast.success(`Published ${asset.name} v${asset.version}`);
+      }
       onPublished();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Publish failed");
@@ -254,7 +341,7 @@ function PublishFromLocal({ onPublished }: { onPublished: () => void }) {
               <div className="truncate font-medium">{String(s.name)}</div>
               <div className="text-xs text-muted-foreground truncate">{String(s.slug)} · v{String(s.version || 1)}</div>
             </div>
-            <Button size="sm" disabled={busy === s.id} onClick={() => pub("section", s)}>Publish</Button>
+            <Button size="sm" disabled={busy === String(s.id)} onClick={() => pub("section", s)}>Publish</Button>
           </div>
         ))}
       </Card>
@@ -266,7 +353,7 @@ function PublishFromLocal({ onPublished }: { onPublished: () => void }) {
               <div className="truncate font-medium">{String(t.name)}</div>
               <div className="text-xs text-muted-foreground truncate">{String(t.slug)} · v{String(t.version || 1)}</div>
             </div>
-            <Button size="sm" disabled={busy === t.id} onClick={() => pub("template", t)}>Publish</Button>
+            <Button size="sm" disabled={busy === String(t.id)} onClick={() => pub("template", t)}>Publish</Button>
           </div>
         ))}
       </Card>
@@ -276,6 +363,8 @@ function PublishFromLocal({ onPublished }: { onPublished: () => void }) {
 
 // ---- Manual publish dialog (paste JSON / widget) ----
 function PublishDialog({ open, onOpenChange, onPublished }: { open: boolean; onOpenChange: (o: boolean) => void; onPublished: () => void }) {
+  const { config } = useSiteConfig();
+  const siteId = config?.site?.id;
   const [form, setForm] = useState<{ kind: ComponentKind; slug: string; name: string; description: string; payload: string; thumbnail_url: string }>({
     kind: "widget", slug: "", name: "", description: "", payload: "{}", thumbnail_url: "",
   });
@@ -288,15 +377,16 @@ function PublishDialog({ open, onOpenChange, onPublished }: { open: boolean; onO
     catch { toast.error("Payload must be valid JSON"); return; }
     setSaving(true);
     try {
-      await publishComponent({
+      const { status, asset } = await publishComponent({
         kind: form.kind,
         slug: form.slug,
         name: form.name,
         description: form.description || null,
         payload,
         thumbnail_url: form.thumbnail_url || null,
+        publisher_site_id: siteId || null,
       });
-      toast.success("Published");
+      toast.success(status === "pending_review" ? `Submitted ${asset.name} for review` : `Published ${asset.name}`);
       onPublished();
       setForm({ kind: "widget", slug: "", name: "", description: "", payload: "{}", thumbnail_url: "" });
     } catch (e) {
@@ -331,7 +421,7 @@ function PublishDialog({ open, onOpenChange, onPublished }: { open: boolean; onO
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={saving} onClick={save}>{saving ? "Publishing…" : "Publish v1"}</Button>
+          <Button disabled={saving} onClick={save}>{saving ? "Publishing…" : "Submit v1"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
