@@ -74,8 +74,17 @@ const AdminShell = () => {
     (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "custom_post_types" }, loadCpts);
     (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "taxonomies" }, loadTax);
     ch.subscribe();
-    return () => { cancelled = true; cloud.removeChannel(ch); };
-  }, []);
+    // Safety net: realtime publication may not be enabled, so also refresh
+    // on window focus and route change so newly created CPTs/taxonomies
+    // reliably appear in the sidebar without a full page reload.
+    const onFocus = () => { void loadCpts(); void loadTax(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      cloud.removeChannel(ch);
+    };
+  }, [location.pathname]);
 
   // Discover post types from BOTH cloud (imported_posts) and parent (posts).
   // Parent may not have a posts table for this project; cloud is authoritative.
@@ -173,45 +182,39 @@ const AdminShell = () => {
           {/* Dashboard */}
           <SidebarItem to="/admin" label="Dashboard" Icon={LayoutDashboard} end active={location.pathname === "/admin"} />
 
-          {/* Content (per post type, collapsible) */}
+          {/* Content (per post type — direct nav, no accordion) */}
           <div>
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Content</p>
             <div className="space-y-0.5">
               {allTypes.map((t) => {
-                const groupKey = `pt:${t.slug}`;
+                const listPath = builtInListPath(t.slug);
+                const newPath = builtInNewPath(t.slug);
                 const taxes = taxonomiesFor(t.slug);
                 const params = new URLSearchParams(location.search);
                 const groupActive =
-                  location.pathname.startsWith("/admin/posts") && params.get("type") === t.slug ||
-                  location.pathname.startsWith(`/admin/cpt/${t.slug}`) ||
-                  (location.pathname === "/admin/taxonomies" && taxes.some((tx) => tx.slug === params.get("tax")));
+                  (location.pathname.startsWith("/admin/posts") && params.get("type") === t.slug) ||
+                  location.pathname.startsWith(`/admin/cpt/${t.slug}`);
                 return (
                   <div key={t.slug}>
-                    <button
-                      type="button"
-                      onClick={() => toggle(groupKey)}
-                      className={`w-full flex items-center gap-2 py-2 px-3 rounded text-left ${
-                        groupActive && !isOpen(groupKey) ? "bg-primary/30" : "hover:bg-background/10"
-                      }`}
-                    >
-                      {isOpen(groupKey) ? <ChevronDown className="w-3.5 h-3.5 opacity-70" /> : <ChevronRight className="w-3.5 h-3.5 opacity-70" />}
-                      <t.icon className="w-4 h-4" />
-                      <span className="flex-1">{t.plural}</span>
-                    </button>
-
-                    {isOpen(groupKey) && (
+                    <div className={`group flex items-center rounded ${groupActive ? "bg-primary text-primary-foreground" : "hover:bg-background/10"}`}>
+                      <NavLink
+                        to={listPath}
+                        className="flex-1 flex items-center gap-2 py-2 px-3 min-w-0"
+                        title={`All ${t.plural}`}
+                      >
+                        <t.icon className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{t.plural}</span>
+                      </NavLink>
+                      <NavLink
+                        to={newPath}
+                        title={`Add New ${t.singular}`}
+                        className="opacity-70 hover:opacity-100 px-2 py-2"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </NavLink>
+                    </div>
+                    {groupActive && taxes.length > 0 && (
                       <div className="ml-3 pl-3 border-l border-background/10 space-y-0.5 py-1">
-                        <SubItem
-                          to={builtInListPath(t.slug)}
-                          label={`All ${t.plural}`}
-                          active={isActivePath(builtInListPath(t.slug))}
-                        />
-                        <SubItem
-                          to={builtInNewPath(t.slug)}
-                          label={`Add New ${t.singular}`}
-                          Icon={Plus}
-                          active={isActivePath(builtInNewPath(t.slug))}
-                        />
                         {taxes.map((tx) => (
                           <SubItem
                             key={tx.id}
@@ -310,8 +313,8 @@ const builtInListPath = (typeSlug: string) =>
 
 const builtInNewPath = (typeSlug: string) =>
   typeSlug === "post" || typeSlug === "page"
-    ? `/admin/posts?type=${typeSlug}&new=1`
-    : `/admin/cpt/${typeSlug}/entries?new=1`;
+    ? `/admin/posts/new?type=${typeSlug}`
+    : `/admin/cpt/${typeSlug}/entries/new`;
 
 function SidebarItem({ to, label, Icon, active, end }: { to: string; label: string; Icon: LucideIcon; active?: boolean; end?: boolean }) {
   return (

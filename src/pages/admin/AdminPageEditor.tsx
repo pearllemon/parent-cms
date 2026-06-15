@@ -45,8 +45,17 @@ export default function AdminPageEditor() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   useEffect(() => {
     if (!id) return;
+    // Guard: visual editor only works on a saved post. If id is "new" or
+    // not a uuid, bounce back to the post editor so the user can save first.
+    if (!UUID_RE.test(id)) {
+      toast.message("Save the post first, then click Edit Visually.");
+      nav("/admin/posts/new", { replace: true });
+      return;
+    }
     (async () => {
       setLoading(true);
       const { data, error } = await supabase
@@ -69,7 +78,7 @@ export default function AdminPageEditor() {
       setBody(data.body || "");
       setLoading(false);
     })();
-  }, [id]);
+  }, [id, nav]);
 
   const hasElementor = useMemo(
     () => tree.length > 0 && post?.render_mode !== "template",

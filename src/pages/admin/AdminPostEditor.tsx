@@ -265,7 +265,13 @@ const AdminPostEditorWP = () => {
           <h1 className="font-display text-2xl">{isNew ? `New ${form.type}` : `Edit ${form.type}`}</h1>
           <div className="flex items-center gap-2">
             <SeoScoreBadge score={liveScore} onClick={() => setSeoOpen(true)} />
-            <Button variant="outline" size="sm" onClick={() => nav(`/admin/edit/${id || "new"}`)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isNew}
+              title={isNew ? "Save the post first" : "Open visual editor"}
+              onClick={() => id && nav(`/admin/edit/${id}`)}
+            >
               <LayoutTemplate className="w-4 h-4 mr-1" /> Edit Visually
             </Button>
             <Button variant="outline" disabled={saving} onClick={() => save()}>Save draft</Button>

@@ -69,6 +69,7 @@ const AdminMedia = () => {
   const { config } = useSiteConfig();
   const siteId = config?.site?.id;
 
+  const PAGE_SIZE = 500;
   const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video" | "audio" | "document" | "other">("all");
@@ -76,6 +77,7 @@ const AdminMedia = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<MediaRow | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Cached query — shows the library instantly from cache, refreshes in
@@ -307,6 +309,11 @@ const AdminMedia = () => {
     return true;
   }), [items, q, typeFilter, folderFilter]);
 
+  // Reset pagination when filters change
+  useMemo(() => { setVisibleCount(PAGE_SIZE); }, [q, typeFilter, folderFilter]);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visible.length < filtered.length;
+
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   return (
@@ -377,68 +384,88 @@ const AdminMedia = () => {
           <p className="text-sm">No media. Drop files or click <b>Upload</b>.</p>
         </div>
       ) : view === "grid" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {filtered.map((it) => (
-            <div key={it.id} className="group relative border rounded-xl overflow-hidden bg-background">
-              <Checkbox
-                checked={selected.has(it.id)}
-                onCheckedChange={() => toggle(it.id)}
-                className="absolute top-2 left-2 z-10 bg-background/90"
-              />
-              <button onClick={() => setEditing(it)} className="block w-full text-left">
-                {(it.mime_type || guessMime(it.file_name) || "").startsWith("image/") ? (
-                  <img src={it.url} alt={it.alt_text || it.file_name} className="w-full h-32 object-cover" loading="lazy" />
-                ) : (
-                  <div className="w-full h-32 bg-muted flex items-center justify-center text-xs text-muted-foreground text-center p-2">
-                    {it.mime_type || it.file_name.split(".").pop()?.toUpperCase()}
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {visible.map((it) => (
+              <div key={it.id} className="group relative border rounded-xl overflow-hidden bg-background">
+                <Checkbox
+                  checked={selected.has(it.id)}
+                  onCheckedChange={() => toggle(it.id)}
+                  className="absolute top-2 left-2 z-10 bg-background/90"
+                />
+                <button onClick={() => setEditing(it)} className="block w-full text-left">
+                  {(it.mime_type || guessMime(it.file_name) || "").startsWith("image/") ? (
+                    <img src={it.url} alt={it.alt_text || it.file_name} className="w-full h-32 object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-32 bg-muted flex items-center justify-center text-xs text-muted-foreground text-center p-2">
+                      {it.mime_type || it.file_name.split(".").pop()?.toUpperCase()}
+                    </div>
+                  )}
+                  <div className="p-2">
+                    <div className="text-xs truncate">{it.file_name}</div>
+                    <div className="text-[10px] text-muted-foreground flex justify-between">
+                      <span>{fmtSize(it.size_bytes)}</span><span>{it.source}</span>
+                    </div>
                   </div>
-                )}
-                <div className="p-2">
-                  <div className="text-xs truncate">{it.file_name}</div>
-                  <div className="text-[10px] text-muted-foreground flex justify-between">
-                    <span>{fmtSize(it.size_bytes)}</span><span>{it.source}</span>
-                  </div>
-                </div>
-              </button>
+                </button>
+              </div>
+            ))}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                Load more ({filtered.length - visible.length} remaining)
+              </Button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       ) : (
-        <div className="border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs">
-              <tr><th className="p-2 w-8"></th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Type</th><th className="p-2 text-left">Size</th><th className="p-2 text-left">Folder</th><th className="p-2 text-left">Alt text</th><th className="p-2"></th></tr>
-            </thead>
-            <tbody>
-              {filtered.map((it) => (
-                <tr key={it.id} className="border-t hover:bg-muted/30">
-                  <td className="p-2"><Checkbox checked={selected.has(it.id)} onCheckedChange={() => toggle(it.id)} /></td>
-                  <td className="p-2 flex items-center gap-2">
-                    {(it.mime_type || "").startsWith("image/") ? <img src={it.url} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted" />}
-                    <button className="underline truncate max-w-[200px]" onClick={() => setEditing(it)}>{it.file_name}</button>
-                  </td>
-                  <td className="p-2 text-xs text-muted-foreground">{it.mime_type || "—"}</td>
-                  <td className="p-2 text-xs">{fmtSize(it.size_bytes)}</td>
-                  <td className="p-2 text-xs">{it.folder || "—"}</td>
-                  <td className="p-2 text-xs truncate max-w-[180px]">{it.alt_text || "—"}</td>
-                  <td className="p-2 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(it.url); toast.success("URL copied"); }}><Copy className="w-3 h-3" /></Button>
-                    <Button size="sm" variant="ghost" asChild><a href={it.url} target="_blank" rel="noreferrer"><ExternalLink className="w-3 h-3" /></a></Button>
-                    <Button size="sm" variant="ghost" className="text-red-600" onClick={() => del([it])}><Trash2 className="w-3 h-3" /></Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs">
+                <tr><th className="p-2 w-8"></th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Type</th><th className="p-2 text-left">Size</th><th className="p-2 text-left">Folder</th><th className="p-2 text-left">Alt text</th><th className="p-2"></th></tr>
+              </thead>
+              <tbody>
+                {visible.map((it) => (
+                  <tr key={it.id} className="border-t hover:bg-muted/30">
+                    <td className="p-2"><Checkbox checked={selected.has(it.id)} onCheckedChange={() => toggle(it.id)} /></td>
+                    <td className="p-2 flex items-center gap-2">
+                      {(it.mime_type || "").startsWith("image/") ? <img src={it.url} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted" />}
+                      <button className="underline truncate max-w-[200px]" onClick={() => setEditing(it)}>{it.file_name}</button>
+                    </td>
+                    <td className="p-2 text-xs text-muted-foreground">{it.mime_type || "—"}</td>
+                    <td className="p-2 text-xs">{fmtSize(it.size_bytes)}</td>
+                    <td className="p-2 text-xs">{it.folder || "—"}</td>
+                    <td className="p-2 text-xs truncate max-w-[180px]">{it.alt_text || "—"}</td>
+                    <td className="p-2 text-right">
+                      <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(it.url); toast.success("URL copied"); }}><Copy className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" asChild><a href={it.url} target="_blank" rel="noreferrer"><ExternalLink className="w-3 h-3" /></a></Button>
+                      <Button size="sm" variant="ghost" className="text-red-600" onClick={() => del([it])}><Trash2 className="w-3 h-3" /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                Load more ({filtered.length - visible.length} remaining)
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         {editing && (
-          <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle className="truncate">{editing.file_name}</DialogTitle></DialogHeader>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
+          <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="p-6 pb-3 border-b">
+              <DialogTitle className="truncate">{editing.file_name}</DialogTitle>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-4 p-6 overflow-y-auto flex-1 min-h-0">
+              <div className="min-w-0">
                 {(editing.mime_type || "").startsWith("image/") ? (
                   <img src={editing.url} alt={editing.alt_text || ""} className="w-full rounded border" />
                 ) : (
@@ -449,12 +476,12 @@ const AdminMedia = () => {
                   <div>Type: {editing.mime_type || "—"}</div>
                   <div>Source: {editing.source}</div>
                   <div className="flex items-center gap-1">
-                    <span className="truncate flex-1">{editing.url}</span>
+                    <span className="truncate flex-1 min-w-0">{editing.url}</span>
                     <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(editing.url); toast.success("Copied"); }}><Copy className="w-3 h-3" /></Button>
                   </div>
                 </div>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 min-w-0">
                 <div><Label className="text-xs">Alt text</Label><Input value={editing.alt_text || ""} onChange={(e) => setEditing({ ...editing, alt_text: e.target.value })} placeholder="Describe the image for accessibility/SEO" /></div>
                 <div><Label className="text-xs">Title</Label><Input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></div>
                 <div><Label className="text-xs">Caption</Label><Input value={editing.caption || ""} onChange={(e) => setEditing({ ...editing, caption: e.target.value })} /></div>
@@ -473,7 +500,7 @@ const AdminMedia = () => {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="p-4 border-t flex-wrap gap-2">
               <Button variant="destructive" onClick={() => del([editing])}><Trash2 className="w-4 h-4 mr-1" /> Delete</Button>
               <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
               <Button onClick={() => saveMeta(editing)}>Save</Button>
