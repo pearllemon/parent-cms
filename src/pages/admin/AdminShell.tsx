@@ -304,8 +304,8 @@ const builtInListPath = (typeSlug: string) =>
 
 const builtInNewPath = (typeSlug: string) =>
   typeSlug === "post" || typeSlug === "page"
-    ? `/admin/posts?type=${typeSlug}&new=1`
-    : `/admin/cpt/${typeSlug}/entries?new=1`;
+    ? `/admin/posts/new?type=${typeSlug}`
+    : `/admin/cpt/${typeSlug}/entries/new`;
 
 function SidebarItem({ to, label, Icon, active, end }: { to: string; label: string; Icon: LucideIcon; active?: boolean; end?: boolean }) {
   return (
