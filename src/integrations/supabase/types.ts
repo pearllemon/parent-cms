@@ -506,6 +506,10 @@ export type Database = {
       }
       cms_releases: {
         Row: {
+          bundle_css_url: string | null
+          bundle_sha256: string | null
+          bundle_size: number | null
+          bundle_url: string | null
           changelog: string | null
           created_at: string
           id: string
@@ -528,6 +532,10 @@ export type Database = {
           version: string
         }
         Insert: {
+          bundle_css_url?: string | null
+          bundle_sha256?: string | null
+          bundle_size?: number | null
+          bundle_url?: string | null
           changelog?: string | null
           created_at?: string
           id?: string
@@ -550,6 +558,10 @@ export type Database = {
           version: string
         }
         Update: {
+          bundle_css_url?: string | null
+          bundle_sha256?: string | null
+          bundle_size?: number | null
+          bundle_url?: string | null
           changelog?: string | null
           created_at?: string
           id?: string
