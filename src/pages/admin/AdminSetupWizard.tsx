@@ -1,18 +1,8 @@
-// Child setup wizard — generates a self-contained, React-Router + Vite ready
-// bootstrap for child sites.
-//
-//   - No npm dependency on @our-org/cms-core. The child gets a single
-//     self-contained `src/cms-bootstrap.ts` that does fetch + Ed25519 verify
-//     + dynamic engine import + heartbeat using only the platform Web Crypto
-//     API and `@/integrations/supabase/client` (already present in every
-//     Lovable project).
-//   - Bootstrap is imported from `src/main.tsx` (React Router + Vite), not
-//     from a TanStack Start root route.
-//   - The full SQL for the `exec_cms_migration` RPC is bundled into the
-//     wizard so child admins can paste it as a migration into their own DB.
-//   - The wizard embeds the parent's currently-active trusted public keys
-//     directly into the snippet so verification works fully offline on first
-//     boot.
+// Child setup wizard — generates a self-contained bootstrap for a child site
+// in the framework the user selects (Vite, Next.js App/Pages, TanStack Start,
+// Remix, or React Router). Every snippet — env file, trusted keys, bootstrap,
+// and entry-point patch — is rendered for the selected framework so the docs
+// and the code always match.
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -62,12 +52,20 @@ export default function AdminSetupWizard() {
     [trusted],
   );
 
-  const envSnippet = useMemo(() => `# .env — mark this Lovable project as a child of the parent CMS.
-# These are read at build time by Vite (must be prefixed VITE_).
-VITE_CMS_MODE=child
-VITE_PARENT_RELEASE_URL=${PARENT_RELEASE_URL}
-VITE_PARENT_SDK_ORIGIN=${PARENT_SDK_ORIGIN}
-`, []);
+  // Frameworks split into two env conventions:
+  //   - Vite / TanStack Start / Remix (Vite) / React-Router (Vite): VITE_* + import.meta.env
+  //   - Next.js (App & Pages router): NEXT_PUBLIC_* + process.env
+  const envStyle: "vite" | "next" = framework.startsWith("next") ? "next" : "vite";
+  const envPrefix = envStyle === "next" ? "NEXT_PUBLIC_" : "VITE_";
+  const envAccess = envStyle === "next" ? "process.env" : "import.meta.env";
+  const envFile   = envStyle === "next" ? ".env.local" : ".env";
+
+  const envSnippet = useMemo(() => `# ${envFile} — mark this project as a child of the parent CMS.
+# These are read at build time (must be prefixed ${envPrefix}).
+${envPrefix}CMS_MODE=child
+${envPrefix}PARENT_RELEASE_URL=${PARENT_RELEASE_URL}
+${envPrefix}PARENT_SDK_ORIGIN=${PARENT_SDK_ORIGIN}
+`, [envFile, envPrefix]);
 
   const trustedKeysFile = `// src/cms/trusted-keys.ts — embedded Ed25519 public keys.
 // Bake-in trust. The child verifies every release against this set BEFORE
@@ -76,7 +74,7 @@ export const TRUSTED_KEYS = ${trustedLiteral} as const;
 `;
 
   // Self-contained bootstrap. No external npm package required.
-  const bootstrap = useMemo(() => `// src/cms-bootstrap.ts — self-contained child bootstrap.
+  const bootstrap = useMemo(() => `// src/cms-bootstrap.ts — self-contained child bootstrap (${FRAMEWORK_LABELS[framework]}).
 // No npm dependency on the parent CMS package. Uses only Web Crypto +
 // @/integrations/supabase/client (already present in every Lovable project).
 //
@@ -96,8 +94,8 @@ const SITE_ID_KEY = "cms-core-site-id";
 const INSTALLED_VERSION_KEY = "cms-core-installed-version";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
-const PARENT_RELEASE_URL = import.meta.env.VITE_PARENT_RELEASE_URL as string;
-const ALLOWED_SDK_ORIGINS = [import.meta.env.VITE_PARENT_SDK_ORIGIN as string];
+const PARENT_RELEASE_URL = ${envAccess}.${envPrefix}PARENT_RELEASE_URL as string;
+const ALLOWED_SDK_ORIGINS = [${envAccess}.${envPrefix}PARENT_SDK_ORIGIN as string];
 
 const SITE_NAME = ${JSON.stringify(siteName || null)};
 const SITE_URL  = ${JSON.stringify(siteUrl || null)};
@@ -350,7 +348,7 @@ export const cmsCorePromise = bootstrapCmsCore().then((r) => {
   console.warn("[cms-core] bootstrap soft-failed:", e);
   return null;
 });
-`, [siteName, siteUrl]);
+`, [siteName, siteUrl, framework, envAccess, envPrefix]);
 
   const entryPoint = useMemo<{ file: string; code: string }>(() => {
     const importLine = `import "@/cms-bootstrap"; // NEW — register → verify → migrate → load SDK`;
@@ -593,7 +591,7 @@ $$;
           <Wand2 className="w-7 h-7" /> Child setup wizard
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Generates a signed, React-Router + Vite ready bootstrap for a child Lovable project. No npm package required — the bootstrap is fully self-contained. Releases are Ed25519-signed by the parent and verified against the embedded trusted-key set before any migration runs or any code is loaded.
+          Generates a signed, self-contained bootstrap for <strong>{FRAMEWORK_LABELS[framework]}</strong>. Every snippet below ({envFile}, trusted keys, bootstrap, entry-point patch) is tailored to the selected framework. Releases are Ed25519-signed by the parent and verified against the embedded trusted-key set before any migration runs or any code is loaded.
         </p>
       </header>
 
@@ -639,7 +637,7 @@ $$;
 
 
       <Snippet label="1. No install needed (self-contained bootstrap)" code={installSnippet} copied={copied === "i"} onCopy={() => copy(installSnippet, "i")} />
-      <Snippet label="2. .env (child project)" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
+      <Snippet label={`2. ${envFile} (child project)`} code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
       <Snippet label="3. src/cms/trusted-keys.ts (embedded public keys)" code={trustedKeysFile} copied={copied === "tk"} onCopy={() => copy(trustedKeysFile, "tk")} />
       <Snippet label="4. src/cms-bootstrap.ts (self-contained, no npm dep)" code={bootstrap} copied={copied === "boot"} onCopy={() => copy(bootstrap, "boot")} />
       <Snippet label={mainTsxLabel} code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
