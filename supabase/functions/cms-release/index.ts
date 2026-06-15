@@ -98,15 +98,21 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({} as any));
       const {
         site_id, site_name, site_url, current_version, child_shim_version,
-        upgrade_state, last_error,
+        upgrade_state, last_error, registration_token,
       } = body || {};
       if (!site_id) return json({ error: "site_id required" }, 400);
+      if (!registration_token) return json({ error: "registration_token required" }, 401);
 
       const { data: existing } = await sb
-        .from("child_installations").select("id").eq("site_id", site_id).maybeSingle();
+        .from("child_installations")
+        .select("id, registration_token")
+        .eq("site_id", site_id).maybeSingle();
+      if (!existing) return json({ error: "unknown site_id — call /register first" }, 404);
+      if (existing.registration_token !== registration_token) {
+        return json({ error: "invalid registration_token for site_id" }, 403);
+      }
 
-      const row: any = {
-        site_id,
+      await sb.from("child_installations").update({
         site_name: site_name || null,
         site_url: site_url || null,
         current_version: current_version || null,
@@ -114,18 +120,29 @@ Deno.serve(async (req) => {
         upgrade_state: upgrade_state || "unknown",
         last_error: last_error || null,
         last_seen_at: new Date().toISOString(),
-      };
-
-      if (existing?.id) await sb.from("child_installations").update(row).eq("id", existing.id);
-      else await sb.from("child_installations").insert(row);
+      }).eq("id", existing.id);
       return json({ ok: true });
     }
 
     /* ------------------------- POST /upgrade-log ------------------------- */
     if (req.method === "POST" && path.startsWith("/upgrade-log")) {
       const body = await req.json().catch(() => ({} as any));
-      const { site_id, from_version, to_version, status, snapshot, error, duration_ms } = body || {};
+      const {
+        site_id, from_version, to_version, status, snapshot, error,
+        duration_ms, registration_token,
+      } = body || {};
       if (!site_id || !to_version || !status) return json({ error: "missing fields" }, 400);
+      if (!registration_token) return json({ error: "registration_token required" }, 401);
+
+      const { data: existing } = await sb
+        .from("child_installations")
+        .select("id, registration_token")
+        .eq("site_id", site_id).maybeSingle();
+      if (!existing) return json({ error: "unknown site_id" }, 404);
+      if (existing.registration_token !== registration_token) {
+        return json({ error: "invalid registration_token for site_id" }, 403);
+      }
+
       await sb.from("child_upgrade_log").insert({
         site_id, from_version: from_version || null, to_version, status,
         snapshot: snapshot || null, error: error || null, duration_ms: duration_ms || null,
@@ -208,22 +225,26 @@ Deno.serve(async (req) => {
       const { data: migrationsRaw } = await sb
         .from("cms_migration_manifest").select("*")
         .eq("version", release.version).order("order_index");
-      const migrations = migrationsRaw || [];
+      const migrations = (migrationsRaw || []).map((m: any) => ({
+        id: m.migration_id || `${release.version}:${m.order_index}`,
+        order_index: m.order_index,
+        kind: m.kind,
+        payload: m.payload,
+        reversible: !!m.reversible,
+      }));
 
       // Build the payload object EXACTLY as it was signed.
-      const payload = {
+      const payloadComputed = {
         version: release.version,
         sdk_url: release.sdk_url ?? null,
         min_compatible_child_version: release.min_compatible_child_version ?? null,
         manifest: release.manifest || {},
-        migrations: migrations.map((m: any) => ({
-          order_index: m.order_index,
-          kind: m.kind,
-          payload: m.payload,
-          reversible: m.reversible,
-        })),
+        migrations,
       };
-      const payload_canonical = canonicalize(payload);
+      // PREFER the stored canonical bytes (frozen at signing time). Fall back
+      // to recompute for legacy releases signed before payload_canonical was
+      // persisted.
+      const payload_canonical = release.payload_canonical || canonicalize(payloadComputed);
 
       // Best-effort: previousVersion from the installation row (if site_id provided).
       let previousVersion: string | null = null;
@@ -236,17 +257,16 @@ Deno.serve(async (req) => {
 
       return json(
         {
-          // New canonical envelope (what the child SDK consumes).
           siteId: siteId || null,
           version: release.version,
           previousVersion,
-          payload,
+          payload: payloadComputed,
           payload_canonical,
           signature_b64: release.signature || null,
           signing_key_id: release.signing_key_id || null,
           signed_at: release.signed_at || null,
 
-          // Convenience / legacy fields.
+          // Top-level convenience / legacy fields.
           sdk_url: release.sdk_url,
           changelog: release.changelog,
           min_compatible_child_version: release.min_compatible_child_version,

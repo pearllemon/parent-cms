@@ -414,6 +414,7 @@ export type Database = {
           down_payload: string | null
           id: string
           kind: string
+          migration_id: string | null
           order_index: number
           payload: string
           reversible: boolean
@@ -425,6 +426,7 @@ export type Database = {
           down_payload?: string | null
           id?: string
           kind: string
+          migration_id?: string | null
           order_index?: number
           payload?: string
           reversible?: boolean
@@ -436,6 +438,7 @@ export type Database = {
           down_payload?: string | null
           id?: string
           kind?: string
+          migration_id?: string | null
           order_index?: number
           payload?: string
           reversible?: boolean
@@ -459,6 +462,7 @@ export type Database = {
           is_latest: boolean
           manifest: Json
           min_compatible_child_version: string | null
+          payload_canonical: string | null
           payload_hash: string | null
           published_at: string
           recalled: boolean
@@ -476,6 +480,7 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          payload_canonical?: string | null
           payload_hash?: string | null
           published_at?: string
           recalled?: boolean
@@ -493,6 +498,7 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          payload_canonical?: string | null
           payload_hash?: string | null
           published_at?: string
           recalled?: boolean
