@@ -4,7 +4,7 @@ import {
   listMigrationsForVersion,
   type Release,
 } from "@/lib/distribution";
-import { uploadSdkBundle, updateReleaseSdkUrl } from "@/lib/sdkUpload";
+import { uploadSdkBundle, updateReleaseSdkUrl, captureAndUploadAdminBundle, updateReleaseBundleMeta } from "@/lib/sdkUpload";
 import {
   loadLocalSigner, signReleasePayload, attachSignatureToRelease,
 } from "@/lib/releaseSigning";
@@ -81,6 +81,11 @@ export default function AdminReleases() {
                   ZIP: <code>{r.package_sha256?.slice(0, 12)}…</code> · {Math.round((r.package_size || 0) / 1024)} KB
                 </p>
               )}
+              {r.bundle_url && (
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  Admin bundle: <code>{r.bundle_sha256?.slice(0, 12)}…</code> · {Math.round((r.bundle_size || 0) / 1024)} KB
+                </p>
+              )}
               <div className="mt-1">
                 {r.signature
                   ? <Badge variant="outline" className="gap-1"><ShieldCheck className="w-3 h-3" /> signed · {r.signing_key_id}</Badge>
@@ -95,6 +100,7 @@ export default function AdminReleases() {
                   </a>
                 </Button>
               )}
+              {!r.signature && !r.bundle_url && <CaptureBundleButton release={r} onDone={load} />}
               {!r.signature && <UploadBundleButton release={r} onDone={load} />}
               <SignButton release={r} onDone={load} />
               {!r.is_latest && !r.recalled && (
@@ -131,6 +137,10 @@ function SignButton({ release, onDone }: { release: Release; onDone: () => void 
         package_sha256: release.package_sha256,
         package_size: release.package_size,
         package_format: release.package_format,
+        bundle_url: release.bundle_url,
+        bundle_sha256: release.bundle_sha256,
+        bundle_css_url: release.bundle_css_url,
+        bundle_size: release.bundle_size,
         min_compatible_child_version: release.min_compatible_child_version,
         manifest: release.manifest || {},
         migrations: migrations.map((m) => ({
@@ -147,6 +157,26 @@ function SignButton({ release, onDone }: { release: Release; onDone: () => void 
   return (
     <Button size="sm" variant={release.signature ? "ghost" : "default"} disabled={busy} onClick={handle}>
       <PenLine className="w-3.5 h-3.5 mr-1" /> {release.signature ? "Signed" : "Sign"}
+    </Button>
+  );
+}
+
+function CaptureBundleButton({ release, onDone }: { release: Release; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const handle = async () => {
+    setBusy(true);
+    try {
+      const meta = await captureAndUploadAdminBundle(release.version);
+      await updateReleaseBundleMeta(release.id, meta);
+      toast.success(`Captured admin bundle (${Math.round(meta.bundle_size / 1024)} KB)`);
+      onDone();
+    } catch (e) {
+      toast.error(String((e as Error).message));
+    } finally { setBusy(false); }
+  };
+  return (
+    <Button size="sm" variant="outline" disabled={busy} onClick={handle}>
+      <PackageOpen className="w-3.5 h-3.5 mr-1" /> {busy ? "Capturing…" : "Capture admin bundle"}
     </Button>
   );
 }
