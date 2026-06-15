@@ -184,13 +184,22 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     ? opts.allowedSdkOrigins
     : [new URL(base).origin];
 
-  await postJSON(`${base}/register`, {
+  const regResp = await postJSON(`${base}/register`, {
     site_id: siteId,
     site_name: opts.siteName || null,
     site_url: opts.siteUrl || (typeof location !== "undefined" ? location.origin : null),
     mode: opts.mode || "child",
     shim_version: SHIM_VERSION,
   });
+  let regToken: string | null = null;
+  try { regToken = localStorage.getItem(REG_TOKEN_KEY); } catch { /* */ }
+  try {
+    const j = regResp && regResp.ok ? await regResp.json() : null;
+    if (j?.registration_token) {
+      regToken = j.registration_token;
+      try { localStorage.setItem(REG_TOKEN_KEY, regToken!); } catch { /* */ }
+    }
+  } catch { /* */ }
 
   const manifest = await fetchManifest(base, siteId);
   let previousVersion: string | null = null;
