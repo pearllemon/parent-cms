@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { API, SUPABASE_ANON_KEY, getSiteId } from "@/lib/parent";
 import ThemeBlocksRenderer from "./ThemeBlocksRenderer";
+import NotFound from "@/pages/NotFound";
 
 type DynamicPage = {
   type:
@@ -46,7 +47,8 @@ export default function DynamicRouter() {
   }, [page]);
 
   if (loading) return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
-  if (!page) return null;
+  if (!page) return <NotFound />;
+  if (page.type === "404") return <NotFound />;
 
   // All built-in page types currently flow through the block renderer.
   // Specific React templates (BlogPost, ServiceDetail, …) can subscribe by
