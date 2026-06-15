@@ -435,10 +435,12 @@ const AdminMedia = () => {
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         {editing && (
-          <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle className="truncate">{editing.file_name}</DialogTitle></DialogHeader>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
+          <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="p-6 pb-3 border-b">
+              <DialogTitle className="truncate">{editing.file_name}</DialogTitle>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-4 p-6 overflow-y-auto flex-1 min-h-0">
+              <div className="min-w-0">
                 {(editing.mime_type || "").startsWith("image/") ? (
                   <img src={editing.url} alt={editing.alt_text || ""} className="w-full rounded border" />
                 ) : (
@@ -449,12 +451,12 @@ const AdminMedia = () => {
                   <div>Type: {editing.mime_type || "—"}</div>
                   <div>Source: {editing.source}</div>
                   <div className="flex items-center gap-1">
-                    <span className="truncate flex-1">{editing.url}</span>
+                    <span className="truncate flex-1 min-w-0">{editing.url}</span>
                     <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(editing.url); toast.success("Copied"); }}><Copy className="w-3 h-3" /></Button>
                   </div>
                 </div>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 min-w-0">
                 <div><Label className="text-xs">Alt text</Label><Input value={editing.alt_text || ""} onChange={(e) => setEditing({ ...editing, alt_text: e.target.value })} placeholder="Describe the image for accessibility/SEO" /></div>
                 <div><Label className="text-xs">Title</Label><Input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></div>
                 <div><Label className="text-xs">Caption</Label><Input value={editing.caption || ""} onChange={(e) => setEditing({ ...editing, caption: e.target.value })} /></div>
@@ -473,7 +475,7 @@ const AdminMedia = () => {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="p-4 border-t flex-wrap gap-2">
               <Button variant="destructive" onClick={() => del([editing])}><Trash2 className="w-4 h-4 mr-1" /> Delete</Button>
               <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
               <Button onClick={() => saveMeta(editing)}>Save</Button>
