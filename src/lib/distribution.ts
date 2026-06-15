@@ -13,6 +13,10 @@ export type Release = {
   id: string;
   version: string;
   sdk_url: string | null;
+  package_url: string | null;
+  package_sha256: string | null;
+  package_size: number | null;
+  package_format: string | null;
   manifest: Record<string, unknown>;
   changelog: string | null;
   min_compatible_child_version: string | null;
@@ -89,8 +93,8 @@ export async function getRelease(version: string): Promise<Release | null> {
 }
 
 function semverCmp(a: string, b: string): number {
-  const pa = a.replace(/[-.].*$/, "").split(".").map((n) => parseInt(n, 10) || 0);
-  const pb = b.replace(/[-.].*$/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const pa = a.split("-")[0].split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split("-")[0].split(".").map((n) => parseInt(n, 10) || 0);
   for (let i = 0; i < 3; i++) {
     const d = (pa[i] || 0) - (pb[i] || 0);
     if (d !== 0) return d;
@@ -102,6 +106,10 @@ export async function cutRelease(input: {
   version: string;
   changelog?: string;
   sdk_url?: string;
+  package_url?: string;
+  package_sha256?: string;
+  package_size?: number;
+  package_format?: string;
   manifest?: Record<string, unknown>;
   min_compatible_child_version?: string;
   migrations?: Array<Omit<MigrationStep, "id" | "version" | "created_at"> & { migration_id?: string }>;
@@ -112,15 +120,12 @@ export async function cutRelease(input: {
   // Client-side forward-only check (DB also enforces, but fail fast for UX).
   const { data: top } = await db
     .from("cms_releases").select("version")
-    .order("published_at", { ascending: false }).limit(50);
+    .order("created_at", { ascending: false }).limit(50);
   for (const r of (top || []) as Array<{ version: string }>) {
     if (semverCmp(input.version, r.version) <= 0) {
       throw new Error(`Forward-only: ${input.version} must be strictly greater than ${r.version}.`);
     }
   }
-
-  // Demote any previous latest
-  await db.from("cms_releases").update({ is_latest: false }).eq("is_latest", true);
 
   const { data, error } = await db
     .from("cms_releases")
@@ -128,14 +133,23 @@ export async function cutRelease(input: {
       version: input.version,
       changelog: input.changelog || null,
       sdk_url: input.sdk_url || null,
+      package_url: input.package_url || null,
+      package_sha256: input.package_sha256 || null,
+      package_size: input.package_size ?? null,
+      package_format: input.package_format || "zip",
       manifest: input.manifest || {},
       min_compatible_child_version: input.min_compatible_child_version || null,
-      is_latest: true,
+      is_latest: false,
       recalled: false,
     })
     .select("*")
     .single();
   if (error) throw error;
+
+  await db.from("cms_releases").update({ is_latest: false }).eq("is_latest", true);
+  const { error: promoteError } = await db.from("cms_releases").update({ is_latest: true }).eq("id", data.id);
+  if (promoteError) throw promoteError;
+  data.is_latest = true;
 
   if (input.migrations?.length) {
     const rows = input.migrations.map((m, i) => ({
