@@ -1,0 +1,20 @@
+{
+  "name": "@our-org/cms-managed",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reusable Child CMS source (bootstrap, dashboard shell, posts, pages, CPTs, media, forms, users/roles, SEO, theme). Distributed via GitHub from cms-distribution/managed. Children must not edit these files; use src/cms-custom for overrides.",
+  "type": "module",
+  "main": "./src/cms-managed/index.ts",
+  "exports": {
+    ".": "./src/cms-managed/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "react-router-dom": ">=6"
+  }
+}
