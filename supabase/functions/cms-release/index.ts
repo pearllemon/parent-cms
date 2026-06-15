@@ -98,15 +98,21 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({} as any));
       const {
         site_id, site_name, site_url, current_version, child_shim_version,
-        upgrade_state, last_error,
+        upgrade_state, last_error, registration_token,
       } = body || {};
       if (!site_id) return json({ error: "site_id required" }, 400);
+      if (!registration_token) return json({ error: "registration_token required" }, 401);
 
       const { data: existing } = await sb
-        .from("child_installations").select("id").eq("site_id", site_id).maybeSingle();
+        .from("child_installations")
+        .select("id, registration_token")
+        .eq("site_id", site_id).maybeSingle();
+      if (!existing) return json({ error: "unknown site_id — call /register first" }, 404);
+      if (existing.registration_token !== registration_token) {
+        return json({ error: "invalid registration_token for site_id" }, 403);
+      }
 
-      const row: any = {
-        site_id,
+      await sb.from("child_installations").update({
         site_name: site_name || null,
         site_url: site_url || null,
         current_version: current_version || null,
@@ -114,18 +120,29 @@ Deno.serve(async (req) => {
         upgrade_state: upgrade_state || "unknown",
         last_error: last_error || null,
         last_seen_at: new Date().toISOString(),
-      };
-
-      if (existing?.id) await sb.from("child_installations").update(row).eq("id", existing.id);
-      else await sb.from("child_installations").insert(row);
+      }).eq("id", existing.id);
       return json({ ok: true });
     }
 
     /* ------------------------- POST /upgrade-log ------------------------- */
     if (req.method === "POST" && path.startsWith("/upgrade-log")) {
       const body = await req.json().catch(() => ({} as any));
-      const { site_id, from_version, to_version, status, snapshot, error, duration_ms } = body || {};
+      const {
+        site_id, from_version, to_version, status, snapshot, error,
+        duration_ms, registration_token,
+      } = body || {};
       if (!site_id || !to_version || !status) return json({ error: "missing fields" }, 400);
+      if (!registration_token) return json({ error: "registration_token required" }, 401);
+
+      const { data: existing } = await sb
+        .from("child_installations")
+        .select("id, registration_token")
+        .eq("site_id", site_id).maybeSingle();
+      if (!existing) return json({ error: "unknown site_id" }, 404);
+      if (existing.registration_token !== registration_token) {
+        return json({ error: "invalid registration_token for site_id" }, 403);
+      }
+
       await sb.from("child_upgrade_log").insert({
         site_id, from_version: from_version || null, to_version, status,
         snapshot: snapshot || null, error: error || null, duration_ms: duration_ms || null,
