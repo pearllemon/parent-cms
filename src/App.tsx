@@ -20,7 +20,6 @@ import BlogTaxonomy from "./pages/BlogTaxonomy.tsx";
 import DynamicPage from "./pages/DynamicPage.tsx";
 import AuthorArchive from "./pages/AuthorArchive.tsx";
 import TaxonomyArchive from "./pages/TaxonomyArchive.tsx";
-import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
 import PopupManager from "./components/PopupManager.tsx";
 import PageSchemaInjector from "./components/PageSchemaInjector.tsx";
