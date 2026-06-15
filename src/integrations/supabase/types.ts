@@ -299,6 +299,41 @@ export type Database = {
         }
         Relationships: []
       }
+      cloud_component_reviews: {
+        Row: {
+          action: string
+          component_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          reviewer_id: string | null
+        }
+        Insert: {
+          action: string
+          component_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reviewer_id?: string | null
+        }
+        Update: {
+          action?: string
+          component_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reviewer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cloud_component_reviews_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "cloud_components"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cloud_components: {
         Row: {
           category: string | null
@@ -313,7 +348,12 @@ export type Database = {
           publisher_id: string | null
           publisher_site_id: string | null
           recalled: boolean
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           slug: string
+          status: string
+          submitted_at: string
           thumbnail_url: string | null
           updated_at: string
           version: number
@@ -332,7 +372,12 @@ export type Database = {
           publisher_id?: string | null
           publisher_site_id?: string | null
           recalled?: boolean
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           slug: string
+          status?: string
+          submitted_at?: string
           thumbnail_url?: string | null
           updated_at?: string
           version?: number
@@ -351,7 +396,12 @@ export type Database = {
           publisher_id?: string | null
           publisher_site_id?: string | null
           recalled?: boolean
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           slug?: string
+          status?: string
+          submitted_at?: string
           thumbnail_url?: string | null
           updated_at?: string
           version?: number

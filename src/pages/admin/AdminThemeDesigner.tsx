@@ -10,7 +10,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2 } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2, CloudUpload } from "lucide-react";
+import { publishComponent } from "@/lib/componentCloud";
+import { useSiteConfig } from "@/providers/SiteProvider";
 import VisualCanvas, { type Block as VCBlock } from "@/components/admin/VisualCanvas";
 import {
   listSections, listTemplates, saveSection, saveTemplate, deleteSection, deleteTemplate,
@@ -53,11 +55,33 @@ export default function AdminThemeDesigner() {
 
 // ---------------- Sections ----------------
 function SectionsTab() {
+  const { config } = useSiteConfig();
+  const siteId = config?.site?.id;
   const [items, setItems] = useState<ThemeSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [editing, setEditing] = useState<Partial<ThemeSection> | null>(null);
+  const [publishing, setPublishing] = useState<string | null>(null);
+
+  const publishToCloud = async (s: ThemeSection) => {
+    setPublishing(s.id);
+    try {
+      const { status, asset } = await publishComponent({
+        kind: "section",
+        slug: s.slug,
+        name: s.name,
+        description: s.description || null,
+        category: s.category || null,
+        payload: { blocks: s.blocks, category: s.category, design_tokens: s.design_tokens, variants: s.variants },
+        publisher_site_id: siteId || null,
+      });
+      toast.success(status === "pending_review" ? `Submitted "${asset.name}" for review` : `Published "${asset.name}" v${asset.version}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Publish failed");
+    }
+    setPublishing(null);
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -124,9 +148,19 @@ function SectionsTab() {
                   <div className="text-[10px] text-muted-foreground">
                     v{s.version} · {(s.variants || []).length} variant{(s.variants || []).length === 1 ? "" : "s"}
                   </div>
-                  <div className="flex gap-2 mt-auto pt-2">
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditing(s)}>
+                  <div className="flex gap-1 mt-auto pt-2 flex-wrap">
+                    <Button size="sm" variant="outline" className="flex-1 min-w-[80px]" onClick={() => setEditing(s)}>
                       <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={publishing === s.id}
+                      onClick={() => publishToCloud(s)}
+                      title="Submit to Component Cloud"
+                    >
+                      <CloudUpload className="w-3.5 h-3.5 mr-1" />
+                      {publishing === s.id ? "…" : "Publish"}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={async () => {
                       if (!confirm(`Delete "${s.name}"?`)) return;
