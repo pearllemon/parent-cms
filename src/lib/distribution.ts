@@ -17,6 +17,10 @@ export type Release = {
   package_sha256: string | null;
   package_size: number | null;
   package_format: string | null;
+  bundle_url: string | null;
+  bundle_sha256: string | null;
+  bundle_css_url: string | null;
+  bundle_size: number | null;
   manifest: Record<string, unknown>;
   changelog: string | null;
   min_compatible_child_version: string | null;

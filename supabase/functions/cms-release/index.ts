@@ -175,6 +175,21 @@ Deno.serve(async (req) => {
       const version = url.searchParams.get("version");
       const siteId = url.searchParams.get("site_id");
       const action = url.searchParams.get("action");
+      const wantKeys = url.searchParams.get("keys");
+
+      // GET ?keys=1 — trusted Ed25519 public keys for child-side verification.
+      if (wantKeys) {
+        const { data } = await sb
+          .from("cms_signing_keys").select("key_id, public_key, algorithm, is_active")
+          .eq("is_active", true);
+        const trusted: Record<string, string> = {};
+        for (const k of data || []) trusted[k.key_id] = k.public_key;
+        return json(
+          { trusted_keys: trusted },
+          200,
+          { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=600" },
+        );
+      }
 
       // GET ?action=list — admin convenience listing (no signing required).
       if (action === "list") {
@@ -212,8 +227,6 @@ Deno.serve(async (req) => {
       }
 
       if (!release) {
-        // Graceful "no release yet" envelope — children treat this as
-        // "connected, waiting for first release" rather than an error.
         return json(
           {
             status: "no_release",
@@ -231,6 +244,10 @@ Deno.serve(async (req) => {
             package_sha256: null,
             package_size: null,
             package_format: null,
+            bundle_url: null,
+            bundle_sha256: null,
+            bundle_css_url: null,
+            bundle_size: null,
             changelog: null,
             min_compatible_child_version: null,
             recalled: false,
@@ -257,8 +274,8 @@ Deno.serve(async (req) => {
         reversible: !!m.reversible,
       }));
 
-      // Build the payload object EXACTLY as it was signed.
       const hasPackage = !!(release.package_url || release.package_sha256 || release.package_size);
+      const hasBundle = !!(release.bundle_url || release.bundle_sha256);
       const payloadComputed: Record<string, unknown> = {
         version: release.version,
         sdk_url: release.sdk_url ?? null,
@@ -272,12 +289,14 @@ Deno.serve(async (req) => {
         payloadComputed.package_size = release.package_size ?? null;
         payloadComputed.package_format = release.package_format ?? "zip";
       }
-      // PREFER the stored canonical bytes (frozen at signing time). Fall back
-      // to recompute for legacy releases signed before payload_canonical was
-      // persisted.
+      if (hasBundle) {
+        payloadComputed.bundle_url = release.bundle_url ?? null;
+        payloadComputed.bundle_sha256 = release.bundle_sha256 ?? null;
+        payloadComputed.bundle_css_url = release.bundle_css_url ?? null;
+        payloadComputed.bundle_size = release.bundle_size ?? null;
+      }
       const payload_canonical = release.payload_canonical || canonicalize(payloadComputed);
 
-      // Best-effort: previousVersion from the installation row (if site_id provided).
       let previousVersion: string | null = null;
       if (siteId) {
         const { data: inst } = await sb
@@ -297,12 +316,15 @@ Deno.serve(async (req) => {
           signing_key_id: release.signing_key_id || null,
           signed_at: release.signed_at || null,
 
-          // Top-level convenience / legacy fields.
           sdk_url: release.sdk_url,
           package_url: release.package_url,
           package_sha256: release.package_sha256,
           package_size: release.package_size,
           package_format: release.package_format || "zip",
+          bundle_url: release.bundle_url,
+          bundle_sha256: release.bundle_sha256,
+          bundle_css_url: release.bundle_css_url,
+          bundle_size: release.bundle_size,
           changelog: release.changelog,
           min_compatible_child_version: release.min_compatible_child_version,
           recalled: release.recalled,
