@@ -4,9 +4,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { cachedFetch } from "./cache";
 
-export const SUPABASE_URL = "https://zvaiqrewtqvsokzbxnxt.supabase.co";
-export const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2YWlxcmV3dHF2c29remJ4bnh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDcwNDQsImV4cCI6MjA5MTEyMzA0NH0.1EJJiOnH51FzKuAtU8QTpmu2GgZCgX1FjaLpHTtdl-k";
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string;
 
 export const API = `${SUPABASE_URL}/functions/v1/site-config`;
 const HEADERS = { apikey: SUPABASE_ANON_KEY } as const;
