@@ -79,69 +79,107 @@ export default function AdminAuthors() {
     const setF = (k: string, v: any) => setEditing({ ...editing, [k]: v });
     const setSocial = (k: string, v: string) => setEditing({ ...editing, social: { ...(editing.social || {}), [k]: v } });
     return (
-      <div className="space-y-4 max-w-3xl">
-        <Button variant="ghost" onClick={() => setEditing(null)}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-        <div className="flex items-center gap-4">
-          <Avatar className="w-20 h-20">
-            <AvatarImage src={e.profile_image_url} />
-            <AvatarFallback>{(e.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <h1 className="font-display text-2xl">{e.id ? "Edit" : "New"} Author</h1>
-            <p className="text-sm text-muted-foreground">Profile, bio, social, SEO and archive settings.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+        <div className="space-y-4 min-w-0">
+          <Button variant="ghost" onClick={() => setEditing(null)}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+          <div className="flex items-center gap-4">
+            <Avatar className="w-20 h-20">
+              <AvatarImage src={e.profile_image_url} />
+              <AvatarFallback>{(e.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h1 className="font-display text-2xl">{e.id ? "Edit" : "New"} Author</h1>
+              <p className="text-sm text-muted-foreground">Profile, bio, social, SEO and archive settings.</p>
+            </div>
+            <Button onClick={save}><Save className="w-4 h-4 mr-2" /> Save</Button>
           </div>
-          <Button onClick={save}><Save className="w-4 h-4 mr-2" /> Save</Button>
+
+          <Card className="p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Name</Label><Input value={e.name || ""} onChange={(ev) => setF("name", ev.target.value)} /></div>
+              <div><Label>Slug</Label><Input value={e.slug || ""} onChange={(ev) => setF("slug", slugify(ev.target.value))} placeholder={slugify(e.name || "")} /></div>
+              <div><Label>Job Title</Label><Input value={e.job_title || ""} onChange={(ev) => setF("job_title", ev.target.value)} /></div>
+              <div><Label>Email</Label><Input type="email" value={e.email || ""} onChange={(ev) => setF("email", ev.target.value)} /></div>
+              <div className="col-span-2"><Label>Profile Image</Label>
+                <div className="flex items-center gap-2">
+                  {e.profile_image_url ? <img src={e.profile_image_url} alt="" className="w-12 h-12 rounded border object-cover" /> : <div className="w-12 h-12 rounded border bg-muted flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground" /></div>}
+                  <Input className="flex-1" value={e.profile_image_url || ""} onChange={(ev) => setF("profile_image_url", ev.target.value)} placeholder="https://… or pick from library" />
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>Browse media</Button>
+                  {e.profile_image_url && <Button type="button" size="sm" variant="ghost" onClick={() => setF("profile_image_url", "")}>Clear</Button>}
+                </div>
+              </div>
+              <div className="col-span-2"><Label>Bio</Label>
+                <Textarea rows={4} value={e.bio || ""} onChange={(ev) => setF("bio", ev.target.value)} />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4 space-y-3">
+            <h3 className="font-medium">Social Links</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {["twitter", "linkedin", "facebook", "instagram", "youtube", "website"].map((k) => (
+                <div key={k}><Label className="capitalize">{k}</Label>
+                  <Input value={(e.social || {})[k] || ""} onChange={(ev) => setSocial(k, ev.target.value)} placeholder={`https://${k}.com/…`} />
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-4 space-y-3">
+            <h3 className="font-medium">SEO & Archive</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Meta title</Label><Input value={e.seo?.title || ""} onChange={(ev) => setF("seo", { ...(e.seo || {}), title: ev.target.value })} /></div>
+              <div><Label>Meta description</Label><Input value={e.seo?.description || ""} onChange={(ev) => setF("seo", { ...(e.seo || {}), description: ev.target.value })} /></div>
+              <div className="col-span-2 flex items-center gap-2">
+                <Switch checked={!!e.archive_enabled} onCheckedChange={(v) => setF("archive_enabled", v)} />
+                <Label>Enable /author/{e.slug || "slug"} archive page</Label>
+              </div>
+            </div>
+          </Card>
+
+          <MediaPicker
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            onPick={(it) => setF("profile_image_url", it.url)}
+            title="Pick profile image"
+          />
         </div>
 
-        <Card className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Name</Label><Input value={e.name || ""} onChange={(ev) => setF("name", ev.target.value)} /></div>
-            <div><Label>Slug</Label><Input value={e.slug || ""} onChange={(ev) => setF("slug", slugify(ev.target.value))} placeholder={slugify(e.name || "")} /></div>
-            <div><Label>Job Title</Label><Input value={e.job_title || ""} onChange={(ev) => setF("job_title", ev.target.value)} /></div>
-            <div><Label>Email</Label><Input type="email" value={e.email || ""} onChange={(ev) => setF("email", ev.target.value)} /></div>
-            <div className="col-span-2"><Label>Profile Image</Label>
-              <div className="flex items-center gap-2">
-                {e.profile_image_url ? <img src={e.profile_image_url} alt="" className="w-12 h-12 rounded border object-cover" /> : <div className="w-12 h-12 rounded border bg-muted flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground" /></div>}
-                <Input className="flex-1" value={e.profile_image_url || ""} onChange={(ev) => setF("profile_image_url", ev.target.value)} placeholder="https://… or pick from library" />
-                <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>Browse media</Button>
-                {e.profile_image_url && <Button type="button" size="sm" variant="ghost" onClick={() => setF("profile_image_url", "")}>Clear</Button>}
+        {/* Live preview pane */}
+        <aside className="lg:sticky lg:top-4 space-y-3">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Live preview</div>
+          <Card className="p-5 space-y-4">
+            <div className="flex items-start gap-4">
+              <Avatar className="w-16 h-16">
+                <AvatarImage src={e.profile_image_url} />
+                <AvatarFallback>{(e.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-lg leading-tight truncate">{e.name || "Author name"}</div>
+                {e.job_title && <div className="text-sm text-muted-foreground truncate">{e.job_title}</div>}
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  {Object.entries(e.social || {}).filter(([, v]) => v).map(([k, v]) => (
+                    <a key={k} href={v as string} target="_blank" rel="noreferrer" className="text-xs underline text-muted-foreground capitalize hover:text-foreground">{k}</a>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="col-span-2"><Label>Bio</Label>
-              <Textarea rows={4} value={e.bio || ""} onChange={(ev) => setF("bio", ev.target.value)} />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <h3 className="font-medium">Social Links</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {["twitter", "linkedin", "facebook", "instagram", "youtube", "website"].map((k) => (
-              <div key={k}><Label className="capitalize">{k}</Label>
-                <Input value={(e.social || {})[k] || ""} onChange={(ev) => setSocial(k, ev.target.value)} placeholder={`https://${k}.com/…`} />
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <h3 className="font-medium">SEO & Archive</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Meta title</Label><Input value={e.seo?.title || ""} onChange={(ev) => setF("seo", { ...(e.seo || {}), title: ev.target.value })} /></div>
-            <div><Label>Meta description</Label><Input value={e.seo?.description || ""} onChange={(ev) => setF("seo", { ...(e.seo || {}), description: ev.target.value })} /></div>
-            <div className="col-span-2 flex items-center gap-2">
-              <Switch checked={!!e.archive_enabled} onCheckedChange={(v) => setF("archive_enabled", v)} />
-              <Label>Enable /author/{e.slug || "slug"} archive page</Label>
-            </div>
-          </div>
-        </Card>
-
-        <MediaPicker
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          onPick={(it) => setF("profile_image_url", it.url)}
-          title="Pick profile image"
-        />
+            {e.bio && <p className="text-sm text-muted-foreground whitespace-pre-line">{e.bio}</p>}
+            {e.archive_enabled && (
+              <a
+                href={`/author/${e.slug || slugify(e.name || "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs underline text-primary"
+              >
+                View archive page <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </Card>
+          <p className="text-[11px] text-muted-foreground">
+            This is roughly how the author box renders below post content on the frontend.
+          </p>
+        </aside>
       </div>
     );
   }
