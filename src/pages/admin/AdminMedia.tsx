@@ -309,6 +309,11 @@ const AdminMedia = () => {
     return true;
   }), [items, q, typeFilter, folderFilter]);
 
+  // Reset pagination when filters change
+  useMemo(() => { setVisibleCount(PAGE_SIZE); }, [q, typeFilter, folderFilter]);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visible.length < filtered.length;
+
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   return (
