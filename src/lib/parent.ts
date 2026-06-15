@@ -104,7 +104,16 @@ export function getSiteConfig(force = false): Promise<SiteConfig | null> {
 
 export async function getSiteId(): Promise<string | null> {
   const cfg = await getSiteConfig();
-  return cfg?.site?.id ?? null;
+  if (cfg?.site?.id) return cfg.site.id;
+  try {
+    const existing = localStorage.getItem("cms-core-site-id");
+    if (existing) return existing;
+    const generated = `site_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    localStorage.setItem("cms-core-site-id", generated);
+    return generated;
+  } catch {
+    return null;
+  }
 }
 
 // ----- Page view tracking ----------------------------------------------------
