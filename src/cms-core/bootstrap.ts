@@ -221,18 +221,23 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     ...overrides,
   });
 
+  // Helper: every heartbeat/upgrade-log call carries the registration_token
+  // so the parent can refuse spoofed reports from other site_ids.
+  const auth = <T extends Record<string, unknown>>(body: T) =>
+    ({ ...body, registration_token: regToken });
+
   // Parent reachable but no release yet — graceful "connected, waiting" state.
   const isNoRelease = !!manifest && (
     (manifest as unknown as { status?: string }).status === "no_release" ||
     (!manifest.version && !manifest.signature && !manifest.signature_b64)
   );
   if (isNoRelease) {
-    await sendHeartbeat(base, {
+    await sendHeartbeat(base, auth({
       site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
       current_version: previousVersion, child_shim_version: SHIM_VERSION,
       upgrade_state: "awaiting_release",
-    });
-    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    }));
+    scheduleHeartbeat(base, siteId, opts, previousVersion, regToken);
     return buildResult({
       status: "no_release",
       message: "Connected to parent CMS. Waiting for the first release.",
@@ -240,13 +245,12 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   }
 
   if (!manifest) {
-    // Parent temporarily unreachable. Site keeps running on cached version.
-    await sendHeartbeat(base, {
+    await sendHeartbeat(base, auth({
       site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
       current_version: previousVersion, child_shim_version: SHIM_VERSION,
       upgrade_state: "unknown",
-    });
-    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    }));
+    scheduleHeartbeat(base, siteId, opts, previousVersion, regToken);
     return buildResult({
       status: "waiting",
       message: previousVersion
@@ -256,11 +260,11 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   }
 
   if (manifest.recalled) {
-    await sendHeartbeat(base, {
+    await sendHeartbeat(base, auth({
       site_id: siteId, current_version: previousVersion,
       child_shim_version: SHIM_VERSION, upgrade_state: "rolled_back",
-    });
-    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    }));
+    scheduleHeartbeat(base, siteId, opts, previousVersion, regToken);
     return buildResult({
       status: "recalled",
       message: "Latest release was recalled by the parent. Running previous version.",
@@ -271,16 +275,16 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
   const verification = await verifyManifestSignature(manifest, opts.trustedPublicKeys || []);
   if (verification.ok !== true) {
     const reason = (verification as { ok: false; reason: string }).reason;
-    await postJSON(`${base}/upgrade-log`, {
+    await postJSON(`${base}/upgrade-log`, auth({
       site_id: siteId, from_version: previousVersion, to_version: manifest.version,
       status: "failed", error: `signature: ${reason}`,
-    });
-    await sendHeartbeat(base, {
+    }));
+    await sendHeartbeat(base, auth({
       site_id: siteId, current_version: previousVersion,
       child_shim_version: SHIM_VERSION, upgrade_state: "failed",
       last_error: `signature: ${reason}`,
-    });
-    scheduleHeartbeat(base, siteId, opts, previousVersion);
+    }));
+    scheduleHeartbeat(base, siteId, opts, previousVersion, regToken);
     return buildResult({
       status: "untrusted",
       message: "Latest release could not be verified. Running previous version.",
@@ -297,18 +301,13 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
 
   if (needsUpgrade) {
     upgradeStatus = "started";
-    await postJSON(`${base}/upgrade-log`, {
+    await postJSON(`${base}/upgrade-log`, auth({
       site_id: siteId, from_version: previousVersion, to_version: manifest.version, status: "started",
-    });
+    }));
     try {
       for (const step of manifest.migrations) {
         if (step.kind === "noop") { appliedMigrations++; continue; }
-        if (step.kind === "js") {
-          // JS migrations are NOT executed via eval. They ride with the SDK
-          // module under a registered hook. The runner here is a no-op so we
-          // never run remote strings.
-          appliedMigrations++; continue;
-        }
+        if (step.kind === "js") { appliedMigrations++; continue; }
         if (opts.runMigration) {
           await opts.runMigration({
             step, version: manifest.version, previousVersion,
@@ -327,11 +326,11 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
       upgradeError = String((e as Error)?.message || e);
     }
 
-    await postJSON(`${base}/upgrade-log`, {
+    await postJSON(`${base}/upgrade-log`, auth({
       site_id: siteId, from_version: previousVersion, to_version: manifest.version,
       status: upgradeStatus, error: upgradeError,
       duration_ms: Math.round(performance.now() - started),
-    });
+    }));
   }
 
   /* ---------- (6) dynamic engine load (no eval) ---------- */
@@ -350,25 +349,21 @@ export async function bootstrapCmsCore(opts: BootstrapOptions): Promise<Bootstra
     }
   }
 
-  /* ---------- (6b) apply populated manifest content ---------- */
-  // Best-effort: upserts pages / posts / templates / sections / tokens into
-  // the child's local tables. Failures are non-fatal — site keeps rendering.
   if (manifest.manifest && typeof manifest.manifest === "object") {
     try { await applyManifest(manifest.manifest); } catch { /* non-fatal */ }
   }
 
-
   const currentVersion = upgradeStatus === "success" ? manifest.version : (previousVersion || manifest.version);
 
-  await sendHeartbeat(base, {
+  await sendHeartbeat(base, auth({
     site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
     current_version: currentVersion, child_shim_version: SHIM_VERSION,
     upgrade_state:
       upgradeStatus === "failed" ? "failed"
       : currentVersion === manifest.version ? "up_to_date" : "pending",
     last_error: upgradeError,
-  });
-  scheduleHeartbeat(base, siteId, opts, currentVersion);
+  }));
+  scheduleHeartbeat(base, siteId, opts, currentVersion, regToken);
 
   const finalStatus: BootstrapStatus = upgradeError ? "error" : "ok";
   return {
@@ -395,7 +390,10 @@ async function sendHeartbeat(base: string, payload: Record<string, unknown>) {
   await postJSON(`${base}/heartbeat`, payload);
 }
 
-function scheduleHeartbeat(base: string, siteId: string, opts: BootstrapOptions, version: string | null) {
+function scheduleHeartbeat(
+  base: string, siteId: string, opts: BootstrapOptions,
+  version: string | null, regToken: string | null,
+) {
   if (opts.heartbeat === false) return;
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   heartbeatTimer = setInterval(() => {
@@ -403,6 +401,7 @@ function scheduleHeartbeat(base: string, siteId: string, opts: BootstrapOptions,
       site_id: siteId, site_name: opts.siteName, site_url: opts.siteUrl,
       current_version: version, child_shim_version: SHIM_VERSION,
       upgrade_state: "up_to_date",
+      registration_token: regToken,
     });
   }, HEARTBEAT_INTERVAL_MS);
 }
