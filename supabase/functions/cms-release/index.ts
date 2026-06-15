@@ -225,22 +225,26 @@ Deno.serve(async (req) => {
       const { data: migrationsRaw } = await sb
         .from("cms_migration_manifest").select("*")
         .eq("version", release.version).order("order_index");
-      const migrations = migrationsRaw || [];
+      const migrations = (migrationsRaw || []).map((m: any) => ({
+        id: m.migration_id || `${release.version}:${m.order_index}`,
+        order_index: m.order_index,
+        kind: m.kind,
+        payload: m.payload,
+        reversible: !!m.reversible,
+      }));
 
       // Build the payload object EXACTLY as it was signed.
-      const payload = {
+      const payloadComputed = {
         version: release.version,
         sdk_url: release.sdk_url ?? null,
         min_compatible_child_version: release.min_compatible_child_version ?? null,
         manifest: release.manifest || {},
-        migrations: migrations.map((m: any) => ({
-          order_index: m.order_index,
-          kind: m.kind,
-          payload: m.payload,
-          reversible: m.reversible,
-        })),
+        migrations,
       };
-      const payload_canonical = canonicalize(payload);
+      // PREFER the stored canonical bytes (frozen at signing time). Fall back
+      // to recompute for legacy releases signed before payload_canonical was
+      // persisted.
+      const payload_canonical = release.payload_canonical || canonicalize(payloadComputed);
 
       // Best-effort: previousVersion from the installation row (if site_id provided).
       let previousVersion: string | null = null;
@@ -253,17 +257,16 @@ Deno.serve(async (req) => {
 
       return json(
         {
-          // New canonical envelope (what the child SDK consumes).
           siteId: siteId || null,
           version: release.version,
           previousVersion,
-          payload,
+          payload: payloadComputed,
           payload_canonical,
           signature_b64: release.signature || null,
           signing_key_id: release.signing_key_id || null,
           signed_at: release.signed_at || null,
 
-          // Convenience / legacy fields.
+          // Top-level convenience / legacy fields.
           sdk_url: release.sdk_url,
           changelog: release.changelog,
           min_compatible_child_version: release.min_compatible_child_version,
