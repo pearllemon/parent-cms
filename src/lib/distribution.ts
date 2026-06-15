@@ -73,7 +73,8 @@ export type UpgradeLog = {
 /* ---------------- Releases ---------------- */
 
 export async function listReleases(): Promise<Release[]> {
-  const { data } = await db.from("cms_releases").select("*").order("published_at", { ascending: false });
+  const { data, error } = await db.from("cms_releases").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
   return (data || []) as Release[];
 }
 
@@ -162,7 +163,8 @@ export async function cutRelease(input: {
       reversible: !!m.reversible,
       down_payload: m.down_payload ?? null,
     }));
-    await db.from("cms_migration_manifest").insert(rows);
+    const { error: migrationError } = await db.from("cms_migration_manifest").insert(rows);
+    if (migrationError) throw migrationError;
   }
 
   await logActivity({
