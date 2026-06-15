@@ -591,7 +591,7 @@ $$;
           <Wand2 className="w-7 h-7" /> Child setup wizard
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Generates a signed, React-Router + Vite ready bootstrap for a child Lovable project. No npm package required — the bootstrap is fully self-contained. Releases are Ed25519-signed by the parent and verified against the embedded trusted-key set before any migration runs or any code is loaded.
+          Generates a signed, self-contained bootstrap for <strong>{FRAMEWORK_LABELS[framework]}</strong>. Every snippet below ({envFile}, trusted keys, bootstrap, entry-point patch) is tailored to the selected framework. Releases are Ed25519-signed by the parent and verified against the embedded trusted-key set before any migration runs or any code is loaded.
         </p>
       </header>
 
