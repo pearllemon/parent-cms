@@ -10,7 +10,7 @@ import {
 } from "@/lib/releaseSigning";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload, ShieldCheck, ShieldAlert, PenLine } from "lucide-react";
+import { Rocket, RotateCcw, CheckCircle2, AlertTriangle, Plus, Upload, ShieldCheck, ShieldAlert, PenLine, PackageOpen } from "lucide-react";
 import { toast } from "sonner";
 import BuildReleaseDialog from "@/components/admin/BuildReleaseDialog";
 
@@ -21,8 +21,13 @@ export default function AdminReleases() {
 
   const load = async () => {
     setLoading(true);
-    setReleases(await listReleases());
-    setLoading(false);
+    try {
+      setReleases(await listReleases());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not load releases");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { void load(); }, []);
@@ -71,6 +76,11 @@ export default function AdminReleases() {
               {r.sdk_url && (
                 <p className="text-xs text-muted-foreground mt-1 truncate">SDK: <code>{r.sdk_url}</code></p>
               )}
+              {r.package_url && (
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  ZIP: <code>{r.package_sha256?.slice(0, 12)}…</code> · {Math.round((r.package_size || 0) / 1024)} KB
+                </p>
+              )}
               <div className="mt-1">
                 {r.signature
                   ? <Badge variant="outline" className="gap-1"><ShieldCheck className="w-3 h-3" /> signed · {r.signing_key_id}</Badge>
@@ -78,7 +88,14 @@ export default function AdminReleases() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <UploadBundleButton release={r} onDone={load} />
+              {r.package_url && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={r.package_url} target="_blank" rel="noreferrer">
+                    <PackageOpen className="w-3.5 h-3.5 mr-1" /> ZIP
+                  </a>
+                </Button>
+              )}
+              {!r.signature && <UploadBundleButton release={r} onDone={load} />}
               <SignButton release={r} onDone={load} />
               {!r.is_latest && !r.recalled && (
                 <Button size="sm" variant="outline" onClick={async () => { await promoteRelease(r.id); toast.success("Promoted"); void load(); }}>
@@ -101,6 +118,7 @@ export default function AdminReleases() {
 function SignButton({ release, onDone }: { release: Release; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const handle = async () => {
+    if (release.signature) return toast.message("Signed releases are immutable. Build a new version for changes.");
     const signer = loadLocalSigner();
     if (!signer) return toast.error("No local signing key — generate one in Signing Keys.");
     setBusy(true);
@@ -109,6 +127,10 @@ function SignButton({ release, onDone }: { release: Release; onDone: () => void 
       const signed = await signReleasePayload({
         version: release.version,
         sdk_url: release.sdk_url,
+        package_url: release.package_url,
+        package_sha256: release.package_sha256,
+        package_size: release.package_size,
+        package_format: release.package_format,
         min_compatible_child_version: release.min_compatible_child_version,
         manifest: release.manifest || {},
         migrations: migrations.map((m) => ({
@@ -124,7 +146,7 @@ function SignButton({ release, onDone }: { release: Release; onDone: () => void 
   };
   return (
     <Button size="sm" variant={release.signature ? "ghost" : "default"} disabled={busy} onClick={handle}>
-      <PenLine className="w-3.5 h-3.5 mr-1" /> {release.signature ? "Re-sign" : "Sign"}
+      <PenLine className="w-3.5 h-3.5 mr-1" /> {release.signature ? "Signed" : "Sign"}
     </Button>
   );
 }

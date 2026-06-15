@@ -20,7 +20,6 @@ import BlogTaxonomy from "./pages/BlogTaxonomy.tsx";
 import DynamicPage from "./pages/DynamicPage.tsx";
 import AuthorArchive from "./pages/AuthorArchive.tsx";
 import TaxonomyArchive from "./pages/TaxonomyArchive.tsx";
-import NotFound from "./pages/NotFound.tsx";
 import PageTracker from "./components/PageTracker.tsx";
 import PopupManager from "./components/PopupManager.tsx";
 import PageSchemaInjector from "./components/PageSchemaInjector.tsx";
@@ -61,6 +60,7 @@ import AdminComponentCloud from "./pages/admin/AdminComponentCloud.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 import ThemeTokensInjector from "@/components/ThemeTokensInjector";
 import ComponentCloudSync from "@/components/ComponentCloudSync";
+import DynamicRouter from "@/components/site/DynamicRouter";
 
 const queryClient = new QueryClient();
 
@@ -139,8 +139,8 @@ const App = () => (
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            {/* Parent-driven dynamic pages */}
+            <Route path="*" element={<DynamicRouter />} />
           </Routes>
         </SiteProvider>
       </BrowserRouter>

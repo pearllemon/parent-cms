@@ -7,12 +7,15 @@ import {
   loadLocalSigner, signReleasePayload, attachSignatureToRelease,
 } from "@/lib/releaseSigning";
 import { buildManifest, type SnapshotSelection } from "@/lib/manifestBuilder";
+import { buildReleaseZip } from "@/lib/releasePackage";
+import { uploadReleasePackage } from "@/lib/sdkUpload";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = cloud as any;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 export const STUB_SDK_URL = `${SUPABASE_URL}/functions/v1/cms-sdk-stub`;
+export const RELEASE_API_URL = `${SUPABASE_URL}/functions/v1/cms-release`;
 
 /** Resolve the most recently published release's sdk_url, if any. */
 export async function findLatestSdkUrl(): Promise<string | null> {
@@ -41,6 +44,7 @@ export type BuildReleaseInput = {
 export type BuildReleaseResult = {
   release: Release;
   sdkUrl: string | null;
+  packageUrl: string | null;
   signed: boolean;
   signedKeyId: string | null;
   counts: Record<string, number>;
@@ -56,13 +60,29 @@ export async function buildAndCutRelease(input: BuildReleaseInput): Promise<Buil
   else if (input.sdkMode === "stub") sdkUrl = STUB_SDK_URL;
   if (!sdkUrl) sdkUrl = STUB_SDK_URL; // never leave the child without a bundle
 
+  const migrations: never[] = [];
+  const pkg = await buildReleaseZip({
+    version: input.version,
+    releaseEndpoint: RELEASE_API_URL,
+    sdkUrl,
+    manifest: manifest as unknown as Record<string, unknown>,
+    migrations,
+    changelog: input.changelog,
+    minCompatibleChild: input.minCompatibleChild,
+  });
+  const packageUrl = await uploadReleasePackage(input.version, pkg.blob);
+
   const release = await cutRelease({
     version: input.version,
     changelog: input.changelog,
     sdk_url: sdkUrl,
+    package_url: packageUrl,
+    package_sha256: pkg.sha256,
+    package_size: pkg.size,
+    package_format: "zip",
     manifest: manifest as unknown as Record<string, unknown>,
     min_compatible_child_version: input.minCompatibleChild,
-    migrations: [],
+    migrations,
   });
 
   let signed = false;
@@ -74,9 +94,13 @@ export async function buildAndCutRelease(input: BuildReleaseInput): Promise<Buil
         {
           version: release.version,
           sdk_url: release.sdk_url,
+          package_url: release.package_url,
+          package_sha256: release.package_sha256,
+          package_size: release.package_size,
+          package_format: release.package_format,
           min_compatible_child_version: release.min_compatible_child_version,
           manifest: release.manifest || {},
-          migrations: [],
+          migrations,
         },
         signer,
       );
@@ -86,5 +110,5 @@ export async function buildAndCutRelease(input: BuildReleaseInput): Promise<Buil
     }
   }
 
-  return { release, sdkUrl, signed, signedKeyId, counts: manifest._counts };
+  return { release, sdkUrl, packageUrl, signed, signedKeyId, counts: manifest._counts };
 }

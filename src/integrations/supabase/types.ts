@@ -512,6 +512,10 @@ export type Database = {
           is_latest: boolean
           manifest: Json
           min_compatible_child_version: string | null
+          package_format: string
+          package_sha256: string | null
+          package_size: number | null
+          package_url: string | null
           payload_canonical: string | null
           payload_hash: string | null
           published_at: string
@@ -530,6 +534,10 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          package_format?: string
+          package_sha256?: string | null
+          package_size?: number | null
+          package_url?: string | null
           payload_canonical?: string | null
           payload_hash?: string | null
           published_at?: string
@@ -548,6 +556,10 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          package_format?: string
+          package_sha256?: string | null
+          package_size?: number | null
+          package_url?: string | null
           payload_canonical?: string | null
           payload_hash?: string | null
           published_at?: string
@@ -1372,6 +1384,119 @@ export type Database = {
           title?: string | null
           updated_at?: string
           width?: number | null
+        }
+        Relationships: []
+      }
+      orphan_edits: {
+        Row: {
+          created_at: string
+          fp: string
+          id: string
+          patch: Json
+          path: string | null
+          site_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fp: string
+          id?: string
+          patch?: Json
+          path?: string | null
+          site_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fp?: string
+          id?: string
+          patch?: Json
+          path?: string | null
+          site_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      page_block_versions: {
+        Row: {
+          blocks: Json
+          created_at: string
+          id: string
+          outline: Json
+          page_block_id: string | null
+          path: string
+          seo: Json
+          site_id: string | null
+          target: string
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          outline?: Json
+          page_block_id?: string | null
+          path: string
+          seo?: Json
+          site_id?: string | null
+          target?: string
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          outline?: Json
+          page_block_id?: string | null
+          path?: string
+          seo?: Json
+          site_id?: string | null
+          target?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_block_versions_page_block_id_fkey"
+            columns: ["page_block_id"]
+            isOneToOne: false
+            referencedRelation: "page_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      page_blocks: {
+        Row: {
+          blocks: Json
+          created_at: string
+          id: string
+          path: string
+          seo: Json
+          site_id: string | null
+          source: string
+          target: string
+          updated_at: string
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          path: string
+          seo?: Json
+          site_id?: string | null
+          source?: string
+          target?: string
+          updated_at?: string
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          path?: string
+          seo?: Json
+          site_id?: string | null
+          source?: string
+          target?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2347,6 +2472,7 @@ export type Database = {
         Args: { _job_id?: string }
         Returns: number
       }
+      cms_semver_key: { Args: { _version: string }; Returns: number[] }
       exec_cms_migration: {
         Args: {
           _current_version?: string

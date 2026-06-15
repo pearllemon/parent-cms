@@ -9,7 +9,7 @@
 //
 //   {
 //     siteId, version, previousVersion,
-//     payload: { version, sdk_url, min_compatible_child_version, manifest, migrations: [...] },
+//     payload: { version, sdk_url, package_url, package_sha256, package_size, package_format, min_compatible_child_version, manifest, migrations: [...] },
 //     payload_canonical: "<the exact bytes that were signed>",
 //     signature_b64, signing_key_id, signed_at,
 //     // legacy / convenience fields (also present at top level):
@@ -227,6 +227,10 @@ Deno.serve(async (req) => {
             signing_key_id: null,
             signed_at: null,
             sdk_url: null,
+            package_url: null,
+            package_sha256: null,
+            package_size: null,
+            package_format: null,
             changelog: null,
             min_compatible_child_version: null,
             recalled: false,
@@ -254,13 +258,20 @@ Deno.serve(async (req) => {
       }));
 
       // Build the payload object EXACTLY as it was signed.
-      const payloadComputed = {
+      const hasPackage = !!(release.package_url || release.package_sha256 || release.package_size);
+      const payloadComputed: Record<string, unknown> = {
         version: release.version,
         sdk_url: release.sdk_url ?? null,
         min_compatible_child_version: release.min_compatible_child_version ?? null,
         manifest: release.manifest || {},
         migrations,
       };
+      if (hasPackage) {
+        payloadComputed.package_url = release.package_url ?? null;
+        payloadComputed.package_sha256 = release.package_sha256 ?? null;
+        payloadComputed.package_size = release.package_size ?? null;
+        payloadComputed.package_format = release.package_format ?? "zip";
+      }
       // PREFER the stored canonical bytes (frozen at signing time). Fall back
       // to recompute for legacy releases signed before payload_canonical was
       // persisted.
@@ -288,6 +299,10 @@ Deno.serve(async (req) => {
 
           // Top-level convenience / legacy fields.
           sdk_url: release.sdk_url,
+          package_url: release.package_url,
+          package_sha256: release.package_sha256,
+          package_size: release.package_size,
+          package_format: release.package_format || "zip",
           changelog: release.changelog,
           min_compatible_child_version: release.min_compatible_child_version,
           recalled: release.recalled,

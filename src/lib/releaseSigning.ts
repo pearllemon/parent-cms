@@ -39,6 +39,10 @@ async function sha256Hex(s: string): Promise<string> {
 export type SignablePayload = {
   version: string;
   sdk_url: string | null;
+  package_url?: string | null;
+  package_sha256?: string | null;
+  package_size?: number | null;
+  package_format?: string | null;
   min_compatible_child_version: string | null;
   manifest: Record<string, unknown>;
   migrations: Array<{
