@@ -43,7 +43,18 @@ export async function buildReleaseZip(input: ReleasePackageInput): Promise<Relea
   zip.file("manifest.json", stableJson(input.manifest));
   zip.file("migrations.json", stableJson(input.migrations));
   zip.file(".env.example", `VITE_PARENT_API=${input.releaseEndpoint.replace(/\/cms-release\/?$/, "/site-config")}\nVITE_PARENT_RELEASE_API=${input.releaseEndpoint}\nVITE_SITE_ID=your-child-site-id\n`);
-  zip.file("cms-bootstrap.example.ts", `export async function bootParentCms() {\n  const releaseUrl = import.meta.env.VITE_PARENT_RELEASE_API;\n  const siteId = import.meta.env.VITE_SITE_ID;\n  const res = await fetch(`${"${releaseUrl}"}?site_id=${"${encodeURIComponent(siteId)}"}`, { cache: "no-store" });\n  if (!res.ok) throw new Error(`Parent CMS release failed: ${"${res.status}"}`);\n  const release = await res.json();\n  if (release?.sdk_url) await import(/* @vite-ignore */ release.sdk_url);\n  return release;\n}\n`);
+  zip.file("cms-bootstrap.example.ts", [
+    "export async function bootParentCms() {",
+    "  const releaseUrl = import.meta.env.VITE_PARENT_RELEASE_API;",
+    "  const siteId = import.meta.env.VITE_SITE_ID;",
+    "  const res = await fetch(`${releaseUrl}?site_id=${encodeURIComponent(siteId)}`, { cache: \"no-store\" });",
+    "  if (!res.ok) throw new Error(`Parent CMS release failed: ${res.status}`);",
+    "  const release = await res.json();",
+    "  if (release?.sdk_url) await import(/* @vite-ignore */ release.sdk_url);",
+    "  return release;",
+    "}",
+    "",
+  ].join("\n"));
 
   const pkg = zip.folder("parentcms-client")!;
   pkg.file("package.json", stableJson({
@@ -56,7 +67,32 @@ export async function buildReleaseZip(input: ReleasePackageInput): Promise<Relea
     peerDependencies: { "@supabase/supabase-js": "^2.0.0" },
     devDependencies: { typescript: "^5.0.0" },
   }));
-  pkg.file("src/index.ts", `const API = import.meta.env.VITE_PARENT_API as string;\nconst SITE = import.meta.env.VITE_SITE_ID as string;\n\nfunction post(action: string, body: Record<string, unknown>) {\n  return fetch(`${"${API}"}?action=${"${action}"}`, {\n    method: "POST",\n    headers: { "Content-Type": "application/json" },\n    body: JSON.stringify(body),\n  }).then((r) => r.json());\n}\n\nexport const ParentCMS = {\n  library: () => fetch(`${"${API}"}?action=library&site_id=${"${SITE}"}`).then((r) => r.json()),\n  asset: (kind: string, id: string) => fetch(`${"${API}"}?action=asset&kind=${"${kind}"}&id=${"${id}"}`).then((r) => r.json()),\n  preview: (kind: string, id: string) => `${"${API}"}?action=preview&kind=${"${kind}"}&id=${"${id}"}&site_id=${"${SITE}"}`,\n  import: (kind: string, id: string, mode: "link" | "fork" = "link") => post("import_asset", { site_id: SITE, kind, id, mode }),\n  publish: (payload: Record<string, unknown>) => post("publish_asset", { site_id: SITE, ...payload }),\n  dynamicPage: (path: string) => fetch(`${"${API}"}?action=dynamic_page&site_id=${"${SITE}"}&path=${"${encodeURIComponent(path)}"}`).then((r) => r.json()),\n  autoCompose: (payload: Record<string, unknown>) => post("auto_compose", { site_id: SITE, ...payload }),\n  forms: () => fetch(`${"${API}"}?action=forms&site_id=${"${SITE}"}`).then((r) => r.json()),\n  submitForm: (id: string, data: Record<string, unknown>) => post("form_submit", { site_id: SITE, form_id: id, data }),\n  saveOverlay: (fp: string, patch: Record<string, unknown>) => post("overlay_patch", { site_id: SITE, fp, patch }),\n};\n`);
+  pkg.file("src/index.ts", [
+    "const API = import.meta.env.VITE_PARENT_API as string;",
+    "const SITE = import.meta.env.VITE_SITE_ID as string;",
+    "",
+    "function post(action: string, body: Record<string, unknown>) {",
+    "  return fetch(`${API}?action=${action}`, {",
+    "    method: \"POST\",",
+    "    headers: { \"Content-Type\": \"application/json\" },",
+    "    body: JSON.stringify(body),",
+    "  }).then((r) => r.json());",
+    "}",
+    "",
+    "export const ParentCMS = {",
+    "  library: () => fetch(`${API}?action=library&site_id=${SITE}`).then((r) => r.json()),",
+    "  asset: (kind: string, id: string) => fetch(`${API}?action=asset&kind=${kind}&id=${id}`).then((r) => r.json()),",
+    "  preview: (kind: string, id: string) => `${API}?action=preview&kind=${kind}&id=${id}&site_id=${SITE}`,",
+    "  import: (kind: string, id: string, mode: \"link\" | \"fork\" = \"link\") => post(\"import_asset\", { site_id: SITE, kind, id, mode }),",
+    "  publish: (payload: Record<string, unknown>) => post(\"publish_asset\", { site_id: SITE, ...payload }),",
+    "  dynamicPage: (path: string) => fetch(`${API}?action=dynamic_page&site_id=${SITE}&path=${encodeURIComponent(path)}`).then((r) => r.json()),",
+    "  autoCompose: (payload: Record<string, unknown>) => post(\"auto_compose\", { site_id: SITE, ...payload }),",
+    "  forms: () => fetch(`${API}?action=forms&site_id=${SITE}`).then((r) => r.json()),",
+    "  submitForm: (id: string, data: Record<string, unknown>) => post(\"form_submit\", { site_id: SITE, form_id: id, data }),",
+    "  saveOverlay: (fp: string, patch: Record<string, unknown>) => post(\"overlay_patch\", { site_id: SITE, fp, patch }),",
+    "};",
+    "",
+  ].join("\n"));
 
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
   return { blob, sha256: await sha256Hex(blob), size: blob.size };
