@@ -1,18 +1,8 @@
-// Child setup wizard — generates a self-contained, React-Router + Vite ready
-// bootstrap for child sites.
-//
-//   - No npm dependency on @our-org/cms-core. The child gets a single
-//     self-contained `src/cms-bootstrap.ts` that does fetch + Ed25519 verify
-//     + dynamic engine import + heartbeat using only the platform Web Crypto
-//     API and `@/integrations/supabase/client` (already present in every
-//     Lovable project).
-//   - Bootstrap is imported from `src/main.tsx` (React Router + Vite), not
-//     from a TanStack Start root route.
-//   - The full SQL for the `exec_cms_migration` RPC is bundled into the
-//     wizard so child admins can paste it as a migration into their own DB.
-//   - The wizard embeds the parent's currently-active trusted public keys
-//     directly into the snippet so verification works fully offline on first
-//     boot.
+// Child setup wizard — generates a self-contained bootstrap for a child site
+// in the framework the user selects (Vite, Next.js App/Pages, TanStack Start,
+// Remix, or React Router). Every snippet — env file, trusted keys, bootstrap,
+// and entry-point patch — is rendered for the selected framework so the docs
+// and the code always match.
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
