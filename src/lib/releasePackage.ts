@@ -147,9 +147,23 @@ function targetFor(rel) {
   return join("src/cms/_root", rel);
 }
 
+// Rewrite "@/..." aliases so they resolve under src/cms/ in the child repo.
+// Only applied to files we relocate into src/cms (TS/TSX). Edge functions and
+// migrations are kept verbatim.
+const ALIAS_RE = /(["'\`])@\\/(?!cms\\/)/g;
+function rewriteAliases(rel, content) {
+  if (!/\\.tsx?$/.test(rel)) return content;
+  if (!rel.startsWith("src/") || rel.startsWith("src/integrations/supabase/")) {
+    // Supabase client is moved but its only "@/..." import is its own types,
+    // which also move under src/cms — rewrite anyway.
+  }
+  return content.replace(ALIAS_RE, "$1@/cms/");
+}
+
 let wrote = 0, skipped = 0, conflicts = 0;
-for (const [rel, content] of Object.entries(snap.files)) {
+for (const [rel, raw] of Object.entries(snap.files)) {
   const dest = join(TARGET, targetFor(rel));
+  const content = rel.startsWith("src/") ? rewriteAliases(rel, raw) : raw;
   if (!DRY) mkdirSync(dirname(dest), { recursive: true });
   if (existsSync(dest)) {
     const existing = readFileSync(dest, "utf8");
