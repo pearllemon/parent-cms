@@ -112,19 +112,22 @@ export async function verifyManifestSignature(
   } else if (manifest.payload) {
     canonical = canonicalize(manifest.payload);
   } else {
-    canonical = canonicalize({
+    const legacyPayload: Record<string, unknown> = {
       version: manifest.version,
       sdk_url: manifest.sdk_url,
-      package_url: manifest.package_url ?? null,
-      package_sha256: manifest.package_sha256 ?? null,
-      package_size: manifest.package_size ?? null,
-      package_format: manifest.package_format ?? "zip",
       min_compatible_child_version: manifest.min_compatible_child_version,
       manifest: manifest.manifest,
       migrations: manifest.migrations.map((m) => ({
         order_index: m.order_index, kind: m.kind, payload: m.payload, reversible: m.reversible,
       })),
-    });
+    };
+    if (manifest.package_url || manifest.package_sha256 || manifest.package_size) {
+      legacyPayload.package_url = manifest.package_url ?? null;
+      legacyPayload.package_sha256 = manifest.package_sha256 ?? null;
+      legacyPayload.package_size = manifest.package_size ?? null;
+      legacyPayload.package_format = manifest.package_format ?? "zip";
+    }
+    canonical = canonicalize(legacyPayload);
   }
 
   const expectedHash = await sha256Hex(canonical);
