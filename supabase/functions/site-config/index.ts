@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const action = url.searchParams.get("action") || "config";
+  const pathName = url.pathname;
   const sb = admin();
 
   try {
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    if (req.method === "GET" && action === "overlay_js") {
+    if (req.method === "GET" && (action === "overlay_js" || pathName.endsWith("/overlay.js"))) {
       const js = `(() => { if (!new URL(location.href).searchParams.has('pl_edit')) return; const bar=document.createElement('div'); bar.style.cssText='position:fixed;z-index:2147483647;top:12px;left:50%;transform:translateX(-50%);background:#0f172a;color:white;padding:8px 12px;border-radius:8px;font:13px system-ui;box-shadow:0 8px 28px #0004'; bar.textContent='Parent CMS overlay active'; document.body.appendChild(bar); document.querySelectorAll('[data-pl-fp]').forEach((el)=>{ el.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); el.style.outline='2px solid #2563eb'; }, true); }); })();`;
       return new Response(js, { headers: { ...corsHeaders, "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "public, max-age=60" } });
     }
