@@ -148,9 +148,19 @@ function SectionsTab() {
                   <div className="text-[10px] text-muted-foreground">
                     v{s.version} · {(s.variants || []).length} variant{(s.variants || []).length === 1 ? "" : "s"}
                   </div>
-                  <div className="flex gap-2 mt-auto pt-2">
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditing(s)}>
+                  <div className="flex gap-1 mt-auto pt-2 flex-wrap">
+                    <Button size="sm" variant="outline" className="flex-1 min-w-[80px]" onClick={() => setEditing(s)}>
                       <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={publishing === s.id}
+                      onClick={() => publishToCloud(s)}
+                      title="Submit to Component Cloud"
+                    >
+                      <CloudUpload className="w-3.5 h-3.5 mr-1" />
+                      {publishing === s.id ? "…" : "Publish"}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={async () => {
                       if (!confirm(`Delete "${s.name}"?`)) return;
