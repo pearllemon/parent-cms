@@ -436,9 +436,13 @@ export type SiteOverride = {
 // the endpoint (avoids spamming the runtime-error overlay).
 const OVERRIDES_DISABLED_KEY = "pl_overrides_disabled";
 const isOverridesDisabled = () => {
-  try { return sessionStorage.getItem(OVERRIDES_DISABLED_KEY) === "1"; } catch { return false; }
+  try {
+    return localStorage.getItem(OVERRIDES_DISABLED_KEY) === "1"
+        || sessionStorage.getItem(OVERRIDES_DISABLED_KEY) === "1";
+  } catch { return false; }
 };
 const disableOverrides = () => {
+  try { localStorage.setItem(OVERRIDES_DISABLED_KEY, "1"); } catch { /* ignore */ }
   try { sessionStorage.setItem(OVERRIDES_DISABLED_KEY, "1"); } catch { /* ignore */ }
 };
 
