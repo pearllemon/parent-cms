@@ -24,9 +24,10 @@ import {
 import { applyManifest } from "./applyManifest";
 
 
-const SHIM_VERSION = "1.1.0";
+const SHIM_VERSION = "1.2.0";
 const MANIFEST_CACHE_KEY = "cms-core-manifest-v1";
 const SITE_ID_KEY = "cms-core-site-id";
+const REG_TOKEN_KEY = "cms-core-registration-token";
 const INSTALLED_VERSION_KEY = "cms-core-installed-version";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
