@@ -10,7 +10,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2 } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2, CloudUpload } from "lucide-react";
+import { publishComponent } from "@/lib/componentCloud";
+import { useSiteConfig } from "@/providers/SiteProvider";
 import VisualCanvas, { type Block as VCBlock } from "@/components/admin/VisualCanvas";
 import {
   listSections, listTemplates, saveSection, saveTemplate, deleteSection, deleteTemplate,
