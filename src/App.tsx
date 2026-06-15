@@ -55,6 +55,7 @@ import AdminUpgradeLog from "./pages/admin/AdminUpgradeLog.tsx";
 import AdminSetupWizard from "./pages/admin/AdminSetupWizard.tsx";
 import AdminApiRegistry from "./pages/admin/AdminApiRegistry.tsx";
 import AdminSigningKeys from "./pages/admin/AdminSigningKeys.tsx";
+import AdminForms from "./pages/admin/AdminForms.tsx";
 import AdminLeads from "./pages/admin/AdminLeads.tsx";
 import AdminComponentCloud from "./pages/admin/AdminComponentCloud.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
@@ -134,6 +135,7 @@ const App = () => (
               <Route path="setup-wizard" element={<AdminSetupWizard />} />
               <Route path="apis" element={<AdminApiRegistry />} />
               <Route path="signing-keys" element={<AdminSigningKeys />} />
+              <Route path="forms" element={<AdminForms />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 

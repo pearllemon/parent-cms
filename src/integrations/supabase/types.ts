@@ -873,6 +873,51 @@ export type Database = {
           },
         ]
       }
+      form_definitions: {
+        Row: {
+          created_at: string
+          email_to: string | null
+          fields: Json
+          id: string
+          name: string
+          redirect_url: string | null
+          settings: Json
+          site_id: string | null
+          slug: string
+          submit_action: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          email_to?: string | null
+          fields?: Json
+          id?: string
+          name: string
+          redirect_url?: string | null
+          settings?: Json
+          site_id?: string | null
+          slug: string
+          submit_action?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          email_to?: string | null
+          fields?: Json
+          id?: string
+          name?: string
+          redirect_url?: string | null
+          settings?: Json
+          site_id?: string | null
+          slug?: string
+          submit_action?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       image_assets: {
         Row: {
           alt_text: string | null
