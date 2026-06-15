@@ -139,12 +139,16 @@ export async function revokePublicKey(id: string) {
 
 export async function attachSignatureToRelease(
   releaseId: string,
-  signed: { signature: string; signing_key_id: string; payload_hash: string },
+  signed: { signature: string; signing_key_id: string; payload_hash: string; canonical?: string },
 ) {
+  // payload_canonical is persisted alongside the signature so the edge
+  // function serves the *exact* bytes that were signed — never recomputed.
+  // After this update the row is immutable (DB trigger enforces it).
   await db.from("cms_releases").update({
     signature: signed.signature,
     signing_key_id: signed.signing_key_id,
     payload_hash: signed.payload_hash,
+    payload_canonical: signed.canonical ?? null,
     signed_at: new Date().toISOString(),
   }).eq("id", releaseId);
 }
