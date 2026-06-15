@@ -126,6 +126,10 @@ function SignButton({ release, onDone }: { release: Release; onDone: () => void 
       const signed = await signReleasePayload({
         version: release.version,
         sdk_url: release.sdk_url,
+        package_url: release.package_url,
+        package_sha256: release.package_sha256,
+        package_size: release.package_size,
+        package_format: release.package_format,
         min_compatible_child_version: release.min_compatible_child_version,
         manifest: release.manifest || {},
         migrations: migrations.map((m) => ({
