@@ -34,6 +34,10 @@ export type TrustedKey = { key_id: string; public_key_b64: string };
 export type SignablePayload = {
   version: string;
   sdk_url: string | null;
+  package_url?: string | null;
+  package_sha256?: string | null;
+  package_size?: number | null;
+  package_format?: string | null;
   min_compatible_child_version: string | null;
   manifest: Record<string, unknown>;
   migrations: Array<{
@@ -62,6 +66,10 @@ export type VerifiableManifest = {
 
   // Legacy / convenience
   sdk_url: string | null;
+  package_url?: string | null;
+  package_sha256?: string | null;
+  package_size?: number | null;
+  package_format?: string | null;
   min_compatible_child_version: string | null;
   manifest: Record<string, unknown>;
   migrations: Array<{
@@ -107,6 +115,10 @@ export async function verifyManifestSignature(
     canonical = canonicalize({
       version: manifest.version,
       sdk_url: manifest.sdk_url,
+      package_url: manifest.package_url ?? null,
+      package_sha256: manifest.package_sha256 ?? null,
+      package_size: manifest.package_size ?? null,
+      package_format: manifest.package_format ?? "zip",
       min_compatible_child_version: manifest.min_compatible_child_version,
       manifest: manifest.manifest,
       migrations: manifest.migrations.map((m) => ({
