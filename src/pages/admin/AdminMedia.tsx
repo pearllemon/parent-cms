@@ -69,6 +69,7 @@ const AdminMedia = () => {
   const { config } = useSiteConfig();
   const siteId = config?.site?.id;
 
+  const PAGE_SIZE = 500;
   const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video" | "audio" | "document" | "other">("all");
@@ -76,6 +77,7 @@ const AdminMedia = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<MediaRow | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Cached query — shows the library instantly from cache, refreshes in
