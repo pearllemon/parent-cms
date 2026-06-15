@@ -119,8 +119,9 @@ Deno.serve(async (req) => {
       const result = composeLocal(content, String(body.format || "markdown"));
       const slug = String(result.seo.title || "untitled").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `page-${Date.now()}`;
       const path = target === "post" ? `/blog/${slug}` : target === "service" ? `/services/${slug}` : `/${slug}`;
-      const up = await sb.from("page_blocks").upsert({ path, target, blocks: result.blocks, seo: result.seo, source: "auto_compose" }, { onConflict: "site_id,path" }).select("id").maybeSingle();
-      if (up.data?.id) await sb.from("page_block_versions").insert({ page_block_id: up.data.id, path, target, blocks: result.blocks, seo: result.seo, outline: result.outline });
+      const site_id = body.site_id || null;
+      const up = await sb.from("page_blocks").upsert({ site_id, path, target, blocks: result.blocks, seo: result.seo, source: "auto_compose" }, { onConflict: "site_id,path" }).select("id").maybeSingle();
+      if (up.data?.id) await sb.from("page_block_versions").insert({ page_block_id: up.data.id, site_id, path, target, blocks: result.blocks, seo: result.seo, outline: result.outline });
       return json({ post_id: up.data?.id || null, ...result });
     }
 
