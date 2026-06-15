@@ -88,14 +88,37 @@ export async function getRelease(version: string): Promise<Release | null> {
   return (data || null) as Release | null;
 }
 
+function semverCmp(a: string, b: string): number {
+  const pa = a.replace(/[-.].*$/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.replace(/[-.].*$/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 export async function cutRelease(input: {
   version: string;
   changelog?: string;
   sdk_url?: string;
   manifest?: Record<string, unknown>;
   min_compatible_child_version?: string;
-  migrations?: Array<Omit<MigrationStep, "id" | "version" | "created_at">>;
+  migrations?: Array<Omit<MigrationStep, "id" | "version" | "created_at"> & { migration_id?: string }>;
 }): Promise<Release> {
+  if (!/^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$/.test(input.version)) {
+    throw new Error(`Version "${input.version}" is not semver (X.Y.Z).`);
+  }
+  // Client-side forward-only check (DB also enforces, but fail fast for UX).
+  const { data: top } = await db
+    .from("cms_releases").select("version")
+    .order("published_at", { ascending: false }).limit(50);
+  for (const r of (top || []) as Array<{ version: string }>) {
+    if (semverCmp(input.version, r.version) <= 0) {
+      throw new Error(`Forward-only: ${input.version} must be strictly greater than ${r.version}.`);
+    }
+  }
+
   // Demote any previous latest
   await db.from("cms_releases").update({ is_latest: false }).eq("is_latest", true);
 
@@ -117,6 +140,7 @@ export async function cutRelease(input: {
   if (input.migrations?.length) {
     const rows = input.migrations.map((m, i) => ({
       version: input.version,
+      migration_id: m.migration_id || `${input.version}:${m.order_index ?? i}`,
       order_index: m.order_index ?? i,
       kind: m.kind,
       description: m.description ?? null,
