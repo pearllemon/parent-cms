@@ -55,11 +55,33 @@ export default function AdminThemeDesigner() {
 
 // ---------------- Sections ----------------
 function SectionsTab() {
+  const { config } = useSiteConfig();
+  const siteId = config?.site?.id;
   const [items, setItems] = useState<ThemeSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [editing, setEditing] = useState<Partial<ThemeSection> | null>(null);
+  const [publishing, setPublishing] = useState<string | null>(null);
+
+  const publishToCloud = async (s: ThemeSection) => {
+    setPublishing(s.id);
+    try {
+      const { status, asset } = await publishComponent({
+        kind: "section",
+        slug: s.slug,
+        name: s.name,
+        description: s.description || null,
+        category: s.category || null,
+        payload: { blocks: s.blocks, category: s.category, design_tokens: s.design_tokens, variants: s.variants },
+        publisher_site_id: siteId || null,
+      });
+      toast.success(status === "pending_review" ? `Submitted "${asset.name}" for review` : `Published "${asset.name}" v${asset.version}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Publish failed");
+    }
+    setPublishing(null);
+  };
 
   const reload = async () => {
     setLoading(true);
