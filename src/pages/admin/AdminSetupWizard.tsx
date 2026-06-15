@@ -348,7 +348,7 @@ export const cmsCorePromise = bootstrapCmsCore().then((r) => {
   console.warn("[cms-core] bootstrap soft-failed:", e);
   return null;
 });
-`, [siteName, siteUrl]);
+`, [siteName, siteUrl, framework, envAccess, envPrefix]);
 
   const entryPoint = useMemo<{ file: string; code: string }>(() => {
     const importLine = `import "@/cms-bootstrap"; // NEW — register → verify → migrate → load SDK`;
