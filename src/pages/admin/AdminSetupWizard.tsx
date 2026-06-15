@@ -52,12 +52,20 @@ export default function AdminSetupWizard() {
     [trusted],
   );
 
-  const envSnippet = useMemo(() => `# .env — mark this Lovable project as a child of the parent CMS.
-# These are read at build time by Vite (must be prefixed VITE_).
-VITE_CMS_MODE=child
-VITE_PARENT_RELEASE_URL=${PARENT_RELEASE_URL}
-VITE_PARENT_SDK_ORIGIN=${PARENT_SDK_ORIGIN}
-`, []);
+  // Frameworks split into two env conventions:
+  //   - Vite / TanStack Start / Remix (Vite) / React-Router (Vite): VITE_* + import.meta.env
+  //   - Next.js (App & Pages router): NEXT_PUBLIC_* + process.env
+  const envStyle: "vite" | "next" = framework.startsWith("next") ? "next" : "vite";
+  const envPrefix = envStyle === "next" ? "NEXT_PUBLIC_" : "VITE_";
+  const envAccess = envStyle === "next" ? "process.env" : "import.meta.env";
+  const envFile   = envStyle === "next" ? ".env.local" : ".env";
+
+  const envSnippet = useMemo(() => `# ${envFile} — mark this project as a child of the parent CMS.
+# These are read at build time (must be prefixed ${envPrefix}).
+${envPrefix}CMS_MODE=child
+${envPrefix}PARENT_RELEASE_URL=${PARENT_RELEASE_URL}
+${envPrefix}PARENT_SDK_ORIGIN=${PARENT_SDK_ORIGIN}
+`, [envFile, envPrefix]);
 
   const trustedKeysFile = `// src/cms/trusted-keys.ts — embedded Ed25519 public keys.
 // Bake-in trust. The child verifies every release against this set BEFORE
@@ -66,7 +74,7 @@ export const TRUSTED_KEYS = ${trustedLiteral} as const;
 `;
 
   // Self-contained bootstrap. No external npm package required.
-  const bootstrap = useMemo(() => `// src/cms-bootstrap.ts — self-contained child bootstrap.
+  const bootstrap = useMemo(() => `// src/cms-bootstrap.ts — self-contained child bootstrap (${FRAMEWORK_LABELS[framework]}).
 // No npm dependency on the parent CMS package. Uses only Web Crypto +
 // @/integrations/supabase/client (already present in every Lovable project).
 //
@@ -86,8 +94,8 @@ const SITE_ID_KEY = "cms-core-site-id";
 const INSTALLED_VERSION_KEY = "cms-core-installed-version";
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
-const PARENT_RELEASE_URL = import.meta.env.VITE_PARENT_RELEASE_URL as string;
-const ALLOWED_SDK_ORIGINS = [import.meta.env.VITE_PARENT_SDK_ORIGIN as string];
+const PARENT_RELEASE_URL = ${envAccess}.${envPrefix}PARENT_RELEASE_URL as string;
+const ALLOWED_SDK_ORIGINS = [${envAccess}.${envPrefix}PARENT_SDK_ORIGIN as string];
 
 const SITE_NAME = ${JSON.stringify(siteName || null)};
 const SITE_URL  = ${JSON.stringify(siteUrl || null)};
