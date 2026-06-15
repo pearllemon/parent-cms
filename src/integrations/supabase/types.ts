@@ -512,6 +512,10 @@ export type Database = {
           is_latest: boolean
           manifest: Json
           min_compatible_child_version: string | null
+          package_format: string
+          package_sha256: string | null
+          package_size: number | null
+          package_url: string | null
           payload_canonical: string | null
           payload_hash: string | null
           published_at: string
@@ -530,6 +534,10 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          package_format?: string
+          package_sha256?: string | null
+          package_size?: number | null
+          package_url?: string | null
           payload_canonical?: string | null
           payload_hash?: string | null
           published_at?: string
@@ -548,6 +556,10 @@ export type Database = {
           is_latest?: boolean
           manifest?: Json
           min_compatible_child_version?: string | null
+          package_format?: string
+          package_sha256?: string | null
+          package_size?: number | null
+          package_url?: string | null
           payload_canonical?: string | null
           payload_hash?: string | null
           published_at?: string
@@ -2347,6 +2359,7 @@ export type Database = {
         Args: { _job_id?: string }
         Returns: number
       }
+      cms_semver_key: { Args: { _version: string }; Returns: number[] }
       exec_cms_migration: {
         Args: {
           _current_version?: string
