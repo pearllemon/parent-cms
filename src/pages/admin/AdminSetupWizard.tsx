@@ -637,7 +637,7 @@ $$;
 
 
       <Snippet label="1. No install needed (self-contained bootstrap)" code={installSnippet} copied={copied === "i"} onCopy={() => copy(installSnippet, "i")} />
-      <Snippet label="2. .env (child project)" code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
+      <Snippet label={`2. ${envFile} (child project)`} code={envSnippet} copied={copied === "env"} onCopy={() => copy(envSnippet, "env")} />
       <Snippet label="3. src/cms/trusted-keys.ts (embedded public keys)" code={trustedKeysFile} copied={copied === "tk"} onCopy={() => copy(trustedKeysFile, "tk")} />
       <Snippet label="4. src/cms-bootstrap.ts (self-contained, no npm dep)" code={bootstrap} copied={copied === "boot"} onCopy={() => copy(bootstrap, "boot")} />
       <Snippet label={mainTsxLabel} code={mainTsxPatch} copied={copied === "main"} onCopy={() => copy(mainTsxPatch, "main")} />
