@@ -179,7 +179,14 @@ export type Database = {
           child_shim_version: string | null
           created_at: string
           current_version: string | null
+          github_default_branch: string
+          github_repo: string | null
           id: string
+          install_kind: string
+          install_pr_number: number | null
+          install_pr_state: string | null
+          install_pr_url: string | null
+          install_release_tag: string | null
           last_error: string | null
           last_seen_at: string | null
           mode: string
@@ -187,6 +194,10 @@ export type Database = {
           site_id: string
           site_name: string | null
           site_url: string | null
+          target_version: string | null
+          update_pr_number: number | null
+          update_pr_state: string | null
+          update_pr_url: string | null
           updated_at: string
           upgrade_state: string
         }
@@ -195,7 +206,14 @@ export type Database = {
           child_shim_version?: string | null
           created_at?: string
           current_version?: string | null
+          github_default_branch?: string
+          github_repo?: string | null
           id?: string
+          install_kind?: string
+          install_pr_number?: number | null
+          install_pr_state?: string | null
+          install_pr_url?: string | null
+          install_release_tag?: string | null
           last_error?: string | null
           last_seen_at?: string | null
           mode?: string
@@ -203,6 +221,10 @@ export type Database = {
           site_id: string
           site_name?: string | null
           site_url?: string | null
+          target_version?: string | null
+          update_pr_number?: number | null
+          update_pr_state?: string | null
+          update_pr_url?: string | null
           updated_at?: string
           upgrade_state?: string
         }
@@ -211,7 +233,14 @@ export type Database = {
           child_shim_version?: string | null
           created_at?: string
           current_version?: string | null
+          github_default_branch?: string
+          github_repo?: string | null
           id?: string
+          install_kind?: string
+          install_pr_number?: number | null
+          install_pr_state?: string | null
+          install_pr_url?: string | null
+          install_release_tag?: string | null
           last_error?: string | null
           last_seen_at?: string | null
           mode?: string
@@ -219,6 +248,10 @@ export type Database = {
           site_id?: string
           site_name?: string | null
           site_url?: string | null
+          target_version?: string | null
+          update_pr_number?: number | null
+          update_pr_state?: string | null
+          update_pr_url?: string | null
           updated_at?: string
           upgrade_state?: string
         }
@@ -457,6 +490,60 @@ export type Database = {
         }
         Relationships: []
       }
+      cms_install_prs: {
+        Row: {
+          branch_name: string
+          created_at: string
+          error: string | null
+          from_version: string | null
+          github_repo: string
+          id: string
+          manifest_sha: string | null
+          pr_kind: string
+          pr_number: number | null
+          pr_url: string | null
+          release_tag: string
+          site_id: string
+          state: string
+          target_version: string
+          updated_at: string
+        }
+        Insert: {
+          branch_name: string
+          created_at?: string
+          error?: string | null
+          from_version?: string | null
+          github_repo: string
+          id?: string
+          manifest_sha?: string | null
+          pr_kind: string
+          pr_number?: number | null
+          pr_url?: string | null
+          release_tag: string
+          site_id: string
+          state?: string
+          target_version: string
+          updated_at?: string
+        }
+        Update: {
+          branch_name?: string
+          created_at?: string
+          error?: string | null
+          from_version?: string | null
+          github_repo?: string
+          id?: string
+          manifest_sha?: string | null
+          pr_kind?: string
+          pr_number?: number | null
+          pr_url?: string | null
+          release_tag?: string
+          site_id?: string
+          state?: string
+          target_version?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cms_migration_manifest: {
         Row: {
           created_at: string
@@ -524,6 +611,7 @@ export type Database = {
           payload_hash: string | null
           published_at: string
           recalled: boolean
+          release_tag: string | null
           sdk_url: string | null
           signature: string | null
           signed_at: string | null
@@ -550,6 +638,7 @@ export type Database = {
           payload_hash?: string | null
           published_at?: string
           recalled?: boolean
+          release_tag?: string | null
           sdk_url?: string | null
           signature?: string | null
           signed_at?: string | null
@@ -576,6 +665,7 @@ export type Database = {
           payload_hash?: string | null
           published_at?: string
           recalled?: boolean
+          release_tag?: string | null
           sdk_url?: string | null
           signature?: string | null
           signed_at?: string | null
