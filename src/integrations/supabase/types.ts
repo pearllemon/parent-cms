@@ -1387,6 +1387,119 @@ export type Database = {
         }
         Relationships: []
       }
+      orphan_edits: {
+        Row: {
+          created_at: string
+          fp: string
+          id: string
+          patch: Json
+          path: string | null
+          site_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fp: string
+          id?: string
+          patch?: Json
+          path?: string | null
+          site_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fp?: string
+          id?: string
+          patch?: Json
+          path?: string | null
+          site_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      page_block_versions: {
+        Row: {
+          blocks: Json
+          created_at: string
+          id: string
+          outline: Json
+          page_block_id: string | null
+          path: string
+          seo: Json
+          site_id: string | null
+          target: string
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          outline?: Json
+          page_block_id?: string | null
+          path: string
+          seo?: Json
+          site_id?: string | null
+          target?: string
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          outline?: Json
+          page_block_id?: string | null
+          path?: string
+          seo?: Json
+          site_id?: string | null
+          target?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_block_versions_page_block_id_fkey"
+            columns: ["page_block_id"]
+            isOneToOne: false
+            referencedRelation: "page_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      page_blocks: {
+        Row: {
+          blocks: Json
+          created_at: string
+          id: string
+          path: string
+          seo: Json
+          site_id: string | null
+          source: string
+          target: string
+          updated_at: string
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          path: string
+          seo?: Json
+          site_id?: string | null
+          source?: string
+          target?: string
+          updated_at?: string
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          id?: string
+          path?: string
+          seo?: Json
+          site_id?: string | null
+          source?: string
+          target?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       page_schemas: {
         Row: {
           created_at: string
