@@ -13,6 +13,18 @@ function admin() {
   return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 }
 
+async function authUid(req: Request): Promise<string | null> {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return null;
+  const token = auth.slice(7);
+  const sb = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false },
+  });
+  const { data } = await sb.auth.getClaims(token);
+  return (data?.claims?.sub as string | undefined) || null;
+}
+
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -113,6 +125,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === "POST" && action === "overlay_patch") {
+      const uid = await authUid(req);
+      if (!uid) return json({ error: "Unauthorized" }, 401);
       const body = await req.json().catch(() => ({}));
       if (!body.fp || !body.patch) return json({ error: "fp and patch required" }, 400);
       await sb.from("orphan_edits").insert({ site_id: body.site_id || null, fp: String(body.fp), path: body.path || null, patch: body.patch, status: "pending" });
@@ -129,12 +143,82 @@ Deno.serve(async (req) => {
       return json({ forms: data || [] });
     }
 
+    if (req.method === "POST" && action === "form_submit") {
+      const body = await req.json().catch(() => ({}));
+      const formId = body.form_id || body.form_slug;
+      const data = body.data || body.values || {};
+      if (!formId || typeof data !== "object") return json({ error: "form_id and data required" }, 400);
+      await sb.from("leads").insert({
+        name: String(data.name || data.full_name || "Website lead").slice(0, 200),
+        email: String(data.email || "lead@example.com").slice(0, 320),
+        phone: data.phone ? String(data.phone).slice(0, 80) : null,
+        message: data.message ? String(data.message).slice(0, 5000) : null,
+        source: "parentcms-form",
+        source_url: body.source_url || null,
+        metadata: { form_id: formId, values: data, site_id: body.site_id || null },
+      });
+      return json({ ok: true });
+    }
+
     if (req.method === "GET" && action === "library") {
       const kind = url.searchParams.get("kind");
       let q = sb.from("cloud_components").select("*").eq("is_published", true).eq("recalled", false).eq("status", "approved").order("updated_at", { ascending: false });
       if (kind) q = q.eq("kind", kind);
       const { data } = await q;
       return json({ items: data || [] });
+    }
+
+    if (req.method === "GET" && action === "asset") {
+      const id = url.searchParams.get("id");
+      const kind = url.searchParams.get("kind");
+      if (!id || !kind) return json({ error: "kind and id required" }, 400);
+      const { data } = await sb.from("cloud_components").select("*").eq("id", id).eq("kind", kind).maybeSingle();
+      return data ? json(data) : json({ error: "not found" }, 404);
+    }
+
+    if (req.method === "GET" && action === "preview") {
+      const id = url.searchParams.get("id");
+      const kind = url.searchParams.get("kind");
+      if (!id || !kind) return json({ error: "kind and id required" }, 400);
+      const { data } = await sb.from("cloud_components").select("name,version,kind,payload").eq("id", id).eq("kind", kind).maybeSingle();
+      const html = `<!doctype html><meta charset="utf-8"><title>${data?.name || "Preview"}</title><body style="font-family:system-ui;padding:24px"><h1>${data?.name || "Preview"}</h1><pre>${JSON.stringify(data?.payload || {}, null, 2).replace(/</g, "&lt;")}</pre></body>`;
+      return new Response(html, { headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" } });
+    }
+
+    if (req.method === "POST" && action === "publish_asset") {
+      const uid = await authUid(req);
+      if (!uid) return json({ error: "Unauthorized" }, 401);
+      const body = await req.json().catch(() => ({}));
+      const { site_id, kind, slug, name, description, category, payload, preview_url, thumbnail_url, visibility, scope } = body;
+      if (!kind || !slug || !name) return json({ error: "kind, slug, name required" }, 400);
+      const { data: latest } = await sb.from("cloud_components").select("version").eq("kind", kind).eq("slug", slug).order("version", { ascending: false }).limit(1).maybeSingle();
+      const isChildSubmission = !!site_id;
+      const status = isChildSubmission ? "pending_review" : "approved";
+      const { data, error } = await sb.from("cloud_components").insert({
+        kind, slug, name, description: description || null, category: category || null,
+        payload: payload || {}, preview_url: preview_url || null, thumbnail_url: thumbnail_url || null,
+        visibility: (scope === "private" ? "private" : visibility) || "public",
+        publisher_id: uid, publisher_site_id: site_id || null,
+        version: ((latest?.version as number) || 0) + 1,
+        status, submitted_at: new Date().toISOString(),
+        reviewed_at: isChildSubmission ? null : new Date().toISOString(),
+        reviewed_by: isChildSubmission ? null : uid,
+      }).select().single();
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, asset: data, status });
+    }
+
+    if (req.method === "POST" && action === "import_asset") {
+      const uid = await authUid(req);
+      if (!uid) return json({ error: "Unauthorized" }, 401);
+      const body = await req.json().catch(() => ({}));
+      const { site_id, kind, id, mode } = body;
+      if (!site_id || !kind || !id) return json({ error: "site_id, kind, id required" }, 400);
+      const { data: comp } = await sb.from("cloud_components").select("*").eq("id", id).eq("kind", kind).eq("status", "approved").maybeSingle();
+      if (!comp) return json({ error: "asset not approved or not found" }, 404);
+      const linked = mode !== "fork";
+      if (linked) await sb.from("cloud_component_installs").upsert({ site_id, kind, slug: comp.slug, installed_version: comp.version, local_id: null, auto_sync: true, last_synced_at: new Date().toISOString() }, { onConflict: "site_id,kind,slug" });
+      return json({ ok: true, mode: linked ? "link" : "fork", asset: comp });
     }
 
     return json({ ok: true, schema: "site-config", actions: ["dynamic_page", "auto_compose", "overlay_patch", "overlay_js", "forms", "library"] });
