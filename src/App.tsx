@@ -134,6 +134,7 @@ const App = () => (
               <Route path="setup-wizard" element={<AdminSetupWizard />} />
               <Route path="apis" element={<AdminApiRegistry />} />
               <Route path="signing-keys" element={<AdminSigningKeys />} />
+              <Route path="forms" element={<AdminForms />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
