@@ -1,0 +1,9 @@
+{
+  "version": "0.0.0",
+  "gitTag": null,
+  "sourceCommit": null,
+  "createdAt": null,
+  "minimumChildInstallerVersion": "1.0.0",
+  "releaseNotes": "Initial scaffold. Populate via cms-distribution/scripts/build-manifest.mjs.",
+  "files": {}
+}
