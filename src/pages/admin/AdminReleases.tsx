@@ -95,7 +95,7 @@ export default function AdminReleases() {
                   </a>
                 </Button>
               )}
-              <UploadBundleButton release={r} onDone={load} />
+              {!r.signature && <UploadBundleButton release={r} onDone={load} />}
               <SignButton release={r} onDone={load} />
               {!r.is_latest && !r.recalled && (
                 <Button size="sm" variant="outline" onClick={async () => { await promoteRelease(r.id); toast.success("Promoted"); void load(); }}>
@@ -118,6 +118,7 @@ export default function AdminReleases() {
 function SignButton({ release, onDone }: { release: Release; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const handle = async () => {
+    if (release.signature) return toast.message("Signed releases are immutable. Build a new version for changes.");
     const signer = loadLocalSigner();
     if (!signer) return toast.error("No local signing key — generate one in Signing Keys.");
     setBusy(true);
@@ -145,7 +146,7 @@ function SignButton({ release, onDone }: { release: Release; onDone: () => void 
   };
   return (
     <Button size="sm" variant={release.signature ? "ghost" : "default"} disabled={busy} onClick={handle}>
-      <PenLine className="w-3.5 h-3.5 mr-1" /> {release.signature ? "Re-sign" : "Sign"}
+      <PenLine className="w-3.5 h-3.5 mr-1" /> {release.signature ? "Signed" : "Sign"}
     </Button>
   );
 }
