@@ -74,8 +74,17 @@ const AdminShell = () => {
     (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "custom_post_types" }, loadCpts);
     (ch as any).on("postgres_changes", { event: "*", schema: "public", table: "taxonomies" }, loadTax);
     ch.subscribe();
-    return () => { cancelled = true; cloud.removeChannel(ch); };
-  }, []);
+    // Safety net: realtime publication may not be enabled, so also refresh
+    // on window focus and route change so newly created CPTs/taxonomies
+    // reliably appear in the sidebar without a full page reload.
+    const onFocus = () => { void loadCpts(); void loadTax(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      cloud.removeChannel(ch);
+    };
+  }, [location.pathname]);
 
   // Discover post types from BOTH cloud (imported_posts) and parent (posts).
   // Parent may not have a posts table for this project; cloud is authoritative.
