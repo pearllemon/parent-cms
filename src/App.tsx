@@ -61,6 +61,7 @@ import AdminComponentCloud from "./pages/admin/AdminComponentCloud.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 import ThemeTokensInjector from "@/components/ThemeTokensInjector";
 import ComponentCloudSync from "@/components/ComponentCloudSync";
+import DynamicRouter from "@/components/site/DynamicRouter";
 
 const queryClient = new QueryClient();
 
@@ -139,8 +140,8 @@ const App = () => (
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            {/* Parent-driven dynamic pages */}
+            <Route path="*" element={<DynamicRouter />} />
           </Routes>
         </SiteProvider>
       </BrowserRouter>
