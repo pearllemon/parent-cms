@@ -5,25 +5,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteProvider } from "@/providers/SiteProvider";
 import SiteHeadInjection from "@/components/SiteHeadInjection";
-import Index from "./pages/Index.tsx";
-import About from "./pages/About.tsx";
-import Blog from "./pages/Blog.tsx";
-import Contact from "./pages/Contact.tsx";
-import BookACall from "./pages/BookACall.tsx";
-import Privacy from "./pages/Privacy.tsx";
-import Terms from "./pages/Terms.tsx";
-import Press from "./pages/Press.tsx";
-import Books from "./pages/Books.tsx";
-import Service from "./pages/Service.tsx";
-import BlogPost from "./pages/BlogPost.tsx";
-import BlogTaxonomy from "./pages/BlogTaxonomy.tsx";
-import DynamicPage from "./pages/DynamicPage.tsx";
-import AuthorArchive from "./pages/AuthorArchive.tsx";
-import TaxonomyArchive from "./pages/TaxonomyArchive.tsx";
 import PageTracker from "./components/PageTracker.tsx";
-import PopupManager from "./components/PopupManager.tsx";
-import PageSchemaInjector from "./components/PageSchemaInjector.tsx";
 import RedirectsGate from "./components/RedirectsGate.tsx";
+
+import Landing from "./pages/Landing.tsx";
+import NotFound from "./pages/NotFound.tsx";
 
 import AdminShell from "./pages/admin/AdminShell.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
@@ -60,7 +46,6 @@ import AdminComponentCloud from "./pages/admin/AdminComponentCloud.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 import ThemeTokensInjector from "@/components/ThemeTokensInjector";
 import ComponentCloudSync from "@/components/ComponentCloudSync";
-import DynamicRouter from "@/components/site/DynamicRouter";
 
 const queryClient = new QueryClient();
 
@@ -73,30 +58,11 @@ const App = () => (
         <SiteProvider>
           <PageTracker />
           <RedirectsGate />
-          <PopupManager />
-          <PageSchemaInjector />
           <SiteHeadInjection />
           <ThemeTokensInjector />
           <ComponentCloudSync />
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/blog" element={<Blog />} />
-            <Route path="/blog/category/:slug" element={<BlogTaxonomy mode="category" />} />
-            <Route path="/blog/tag/:slug" element={<BlogTaxonomy mode="tag" />} />
-            <Route path="/blog/:slug" element={<BlogPost />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/book-a-call" element={<BookACall />} />
-            <Route path="/press" element={<Press />} />
-            <Route path="/books" element={<Books />} />
-            <Route path="/services/:slug" element={<Service />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            {/* Imported WordPress pages — keep last before admin/catch-all */}
-            <Route path="/p/:slug" element={<DynamicPage />} />
-            <Route path="/author/:slug" element={<AuthorArchive />} />
-            {/* Public taxonomy archives: /category/:slug, /tag/:slug, /:taxonomy/:slug */}
-            <Route path="/:taxonomy/:slug" element={<TaxonomyArchive />} />
+            <Route path="/" element={<Landing />} />
 
             {/* Admin CMS */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -139,8 +105,7 @@ const App = () => (
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>
 
-            {/* Parent-driven dynamic pages */}
-            <Route path="*" element={<DynamicRouter />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </SiteProvider>
       </BrowserRouter>
