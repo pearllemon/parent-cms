@@ -490,6 +490,57 @@ export type Database = {
         }
         Relationships: []
       }
+      cms_github_connections: {
+        Row: {
+          branch: string
+          created_at: string
+          enabled: boolean
+          id: string
+          last_checked_at: string | null
+          last_release_sha: string | null
+          last_release_tag: string | null
+          notes: string | null
+          pat: string | null
+          repo: string
+          site_id: string | null
+          updated_at: string
+          visibility: string
+          workflow_filename: string | null
+        }
+        Insert: {
+          branch?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_checked_at?: string | null
+          last_release_sha?: string | null
+          last_release_tag?: string | null
+          notes?: string | null
+          pat?: string | null
+          repo: string
+          site_id?: string | null
+          updated_at?: string
+          visibility?: string
+          workflow_filename?: string | null
+        }
+        Update: {
+          branch?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_checked_at?: string | null
+          last_release_sha?: string | null
+          last_release_tag?: string | null
+          notes?: string | null
+          pat?: string | null
+          repo?: string
+          site_id?: string | null
+          updated_at?: string
+          visibility?: string
+          workflow_filename?: string | null
+        }
+        Relationships: []
+      }
       cms_install_prs: {
         Row: {
           branch_name: string
@@ -1659,6 +1710,39 @@ export type Database = {
           referrer?: string | null
           session_id?: string | null
           user_agent?: string | null
+        }
+        Relationships: []
+      }
+      parent_site_mirror: {
+        Row: {
+          created_at: string
+          fetched_at: string
+          id: string
+          kind: string
+          payload: Json
+          site_id: string
+          source_etag: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          kind: string
+          payload?: Json
+          site_id: string
+          source_etag?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          site_id?: string
+          source_etag?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

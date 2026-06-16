@@ -4,14 +4,24 @@
 import { createClient } from "@supabase/supabase-js";
 import { cachedFetch } from "./cache";
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string;
+// The "parent" supabase client points at the Parent Management project, NOT
+// this site's own Lovable Cloud. The defaults below match cms.config.json
+// (the public anon key for the management project). Per-deployment overrides
+// can be set via VITE_PARENT_SUPABASE_URL / VITE_PARENT_SUPABASE_ANON_KEY.
+const DEFAULT_PARENT_URL = "https://zvaiqrewtqvsokzbxnxt.supabase.co";
+const DEFAULT_PARENT_ANON =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2YWlxcmV3dHF2c29remJ4bnh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDcwNDQsImV4cCI6MjA5MTEyMzA0NH0.1EJJiOnH51FzKuAtU8QTpmu2GgZCgX1FjaLpHTtdl-k";
+
+export const SUPABASE_URL =
+  (import.meta.env.VITE_PARENT_SUPABASE_URL as string) || DEFAULT_PARENT_URL;
+export const SUPABASE_ANON_KEY =
+  (import.meta.env.VITE_PARENT_SUPABASE_ANON_KEY as string) || DEFAULT_PARENT_ANON;
 
 export const API = `${SUPABASE_URL}/functions/v1/site-config`;
 const HEADERS = { apikey: SUPABASE_ANON_KEY } as const;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, storageKey: "pl-child-auth" },
+  auth: { persistSession: true, storageKey: "pl-parent-auth" },
 });
 
 // ----- Types (loose — parent evolves) ---------------------------------------
