@@ -1,0 +1,12 @@
+{
+  "$schema": "https://cms-core.example/schemas/cms.lock.schema.json",
+  "version": null,
+  "tag": null,
+  "release_id": null,
+  "manifest_sha256": null,
+  "signing_key_id": null,
+  "signature": null,
+  "installed_at": null,
+  "files": {},
+  "notes": "Populated by the install PR and rewritten by every update PR. Never edit by hand."
+}
