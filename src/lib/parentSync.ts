@@ -53,14 +53,14 @@ export async function syncParentConfig(): Promise<{
     })),
   ];
 
-  const { error } = await (cloud.from("parent_site_mirror" as never) as never)
-    .upsert(rows as never, { onConflict: "site_id,kind" } as never);
+  const { error } = await (cloud.from as any)("parent_site_mirror")
+    .upsert(rows, { onConflict: "site_id,kind" });
   if (error) return { ok: false, synced: 0, site_id: siteId, error: error.message };
   return { ok: true, synced: rows.length, site_id: siteId };
 }
 
 export async function listLocalMirror(siteId: string): Promise<ParentMirrorRow[]> {
-  const { data, error } = await (cloud.from("parent_site_mirror" as never) as never)
+  const { data, error } = await (cloud.from as any)("parent_site_mirror")
     .select("*")
     .eq("site_id", siteId)
     .order("kind");
