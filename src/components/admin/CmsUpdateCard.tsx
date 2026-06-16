@@ -1,46 +1,27 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCcw, GitBranch, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import {
+  checkUpdate as mgmtCheck,
+  applyUpdate as mgmtApply,
+  pullConfig as mgmtPullConfig,
+  type UpdateCheck,
+  type RemoteSiteConfig,
+} from "@/cms-managed/lib/managementClient";
 
-type CheckResult = {
-  ok: boolean;
-  currentVersion: string | null;
-  currentSha: string | null;
-  latestVersion: string | null;
-  latestSha: string | null;
-  publishedAt: string | null;
-  changelogUrl: string | null;
-  updateAvailable: boolean;
-  parentRepo: string;
-};
-
-async function readLockFile(): Promise<{ version: string | null; sha: string | null }> {
-  try {
-    const res = await fetch("/cms.lock.json", { cache: "no-store" });
-    if (!res.ok) return { version: null, sha: null };
-    const j = await res.json();
-    return { version: j.version ?? j.tag ?? null, sha: j.sha ?? null };
-  } catch {
-    return { version: null, sha: null };
-  }
-}
-
-export default function CmsUpdateCard({ childRepo }: { childRepo?: string }) {
+export default function CmsUpdateCard() {
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [result, setResult] = useState<CheckResult | null>(null);
+  const [result, setResult] = useState<UpdateCheck | null>(null);
+  const [cfg, setCfg] = useState<RemoteSiteConfig | null>(null);
 
   const check = async () => {
     setChecking(true);
     try {
-      const local = await readLockFile();
-      const { data, error } = await supabase.functions.invoke("cms-self-update-check", {
-        body: { currentVersion: local.version, currentSha: local.sha },
-      });
-      if (error) throw error;
-      setResult(data as CheckResult);
+      const [c, r] = await Promise.all([mgmtPullConfig(), mgmtCheck()]);
+      setCfg(c);
+      setResult(r);
     } catch (e: any) {
       toast.error(`Update check failed: ${e?.message || e}`);
     } finally {
@@ -49,19 +30,13 @@ export default function CmsUpdateCard({ childRepo }: { childRepo?: string }) {
   };
 
   const apply = async () => {
-    if (!childRepo) {
-      toast.error('No child repo configured. Set "childRepo" prop or cms.config.json.');
-      return;
-    }
     setApplying(true);
     try {
-      const { data, error } = await supabase.functions.invoke("cms-self-update-apply", {
-        body: { childRepo, targetRef: result?.latestSha || result?.latestVersion || undefined },
+      const data = await mgmtApply({
+        ref: result?.latestSha || result?.latestVersion || undefined,
       });
-      if (error) throw error;
-      const url = (data as any)?.actionsUrl;
       toast.success("Update dispatched. The PR will appear in your repo shortly.");
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      if (data?.actionsUrl) window.open(data.actionsUrl, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       toast.error(`Apply failed: ${e?.message || e}`);
     } finally {
@@ -69,7 +44,9 @@ export default function CmsUpdateCard({ childRepo }: { childRepo?: string }) {
     }
   };
 
-  useEffect(() => { void check(); }, []);
+  useEffect(() => {
+    void check();
+  }, []);
 
   return (
     <div className="rounded-lg border bg-card p-5 space-y-3">
@@ -88,21 +65,34 @@ export default function CmsUpdateCard({ childRepo }: { childRepo?: string }) {
         <div className="text-sm space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="text-xs text-muted-foreground">Installed</div>
-              <div className="font-mono">{result.currentVersion || result.currentSha?.slice(0, 7) || "—"}</div>
+              <div className="text-xs text-muted-foreground">Latest</div>
+              <div className="font-mono">
+                {result.latestVersion || result.latestSha?.slice(0, 7) || "—"}
+              </div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Latest</div>
-              <div className="font-mono">{result.latestVersion || result.latestSha?.slice(0, 7) || "—"}</div>
+              <div className="text-xs text-muted-foreground">Channel</div>
+              <div className="font-mono">{cfg?.channel || "—"}</div>
             </div>
           </div>
           <div className="flex items-center justify-between pt-2">
-            <span className={`text-xs px-2 py-1 rounded ${result.updateAvailable ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+            <span
+              className={`text-xs px-2 py-1 rounded ${
+                result.updateAvailable
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
               {result.updateAvailable ? "Update available" : "Up to date"}
             </span>
             <div className="flex gap-2">
               {result.changelogUrl && (
-                <a href={result.changelogUrl} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground">
+                <a
+                  href={result.changelogUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground"
+                >
                   Changelog <ExternalLink className="h-3 w-3 ml-1" />
                 </a>
               )}
@@ -113,11 +103,16 @@ export default function CmsUpdateCard({ childRepo }: { childRepo?: string }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground pt-1">
-            Source: <span className="font-mono">{result.parentRepo}</span>
+            Source:{" "}
+            <span className="font-mono">
+              {cfg?.parent_repo || "(pulling from Parent Management)"}
+            </span>
           </p>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Checking GitHub for the latest CMS release…</p>
+        <p className="text-sm text-muted-foreground">
+          Checking Parent Management for the latest CMS release…
+        </p>
       )}
     </div>
   );

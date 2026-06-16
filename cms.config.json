@@ -1,11 +1,10 @@
 {
   "$schema": "https://cms-core.example/schemas/cms.config.schema.json",
+  "management_url": "https://zvaiqrewtqvsokzbxnxt.supabase.co",
+  "management_anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2YWlxcmV3dHF2c29remJ4bnh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDcwNDQsImV4cCI6MjA5MTEyMzA0NH0.1EJJiOnH51FzKuAtU8QTpmu2GgZCgX1FjaLpHTtdl-k",
   "site_id": "",
-  "parent_url": "",
-  "parent_repo": "",
+  "install_token": "",
   "managed_path": "src/cms-managed",
   "custom_path": "src/cms-custom",
-  "channel": "stable",
-  "auto_update": false,
-  "notes": "site_id is assigned by the Parent setup wizard on first install PR. Do not edit by hand."
+  "notes": "site_id + install_token are populated automatically on first boot by parent-register-site. GitHub repo, channel, and update policy are managed centrally on the Parent Management Site — do not store them here."
 }
