@@ -1,0 +1,130 @@
+name: CMS Update
+
+# Triggered by the Parent CMS via workflow_dispatch (cms-github-installer edge function).
+# Fetches a signed CMS release from the Parent, verifies the manifest signature,
+# replaces src/cms-managed/ with the release contents, updates cms.lock.json,
+# and opens a pull request for review.
+#
+# Never edit src/cms-managed/ by hand — all customisation goes in src/cms-custom/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "CMS release tag, e.g. cms-v1.5.0"
+        required: true
+        type: string
+      release_url:
+        description: "Signed manifest URL from the Parent"
+        required: true
+        type: string
+      parent_pubkey_url:
+        description: "URL to the Parent signing key (public material)"
+        required: true
+        type: string
+      requested_by:
+        description: "Parent admin who requested the update"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: cms-update
+  cancel-in-progress: false
+
+jobs:
+  apply-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout child repo
+        uses: actions/checkout@v4
+
+      - name: Read current cms.config.json
+        id: cfg
+        run: |
+          if [ ! -f cms.config.json ]; then
+            echo "::error::cms.config.json missing — run the Parent setup wizard first."
+            exit 1
+          fi
+          echo "site_id=$(jq -r '.site_id // empty' cms.config.json)" >> "$GITHUB_OUTPUT"
+          echo "channel=$(jq -r '.channel // "stable"' cms.config.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Download release manifest
+        run: |
+          curl -fsSL "${{ inputs.release_url }}" -o release.manifest.json
+          jq -e '.version and .files and .signature and .signing_key_id' release.manifest.json >/dev/null
+
+      - name: Download Parent public signing key
+        run: curl -fsSL "${{ inputs.parent_pubkey_url }}" -o parent.pub.pem
+
+      - name: Verify manifest signature
+        run: |
+          # Reject unsigned or tampered manifests before touching the working tree.
+          node -e "
+            const fs=require('fs'),crypto=require('crypto');
+            const m=JSON.parse(fs.readFileSync('release.manifest.json','utf8'));
+            const {signature, ...payload}=m;
+            const canonical=JSON.stringify(payload, Object.keys(payload).sort());
+            const ok=crypto.verify('sha256', Buffer.from(canonical),
+              fs.readFileSync('parent.pub.pem'), Buffer.from(signature,'base64'));
+            if(!ok){console.error('manifest signature invalid');process.exit(1)}
+          "
+
+      - name: Refuse downgrade
+        run: |
+          current=$(jq -r '.version // empty' cms.lock.json)
+          target=$(jq -r '.version' release.manifest.json)
+          if [ -n "$current" ]; then
+            node -e "
+              const a='$current'.split('.').map(Number), b='$target'.split('.').map(Number);
+              for(let i=0;i<3;i++){if((b[i]||0)>(a[i]||0))process.exit(0);if((b[i]||0)<(a[i]||0)){console.error('downgrade refused');process.exit(1)}}
+              console.error('already on '+a.join('.'));process.exit(1)
+            "
+          fi
+
+      - name: Fetch and apply managed sources
+        run: |
+          rm -rf src/cms-managed
+          mkdir -p src/cms-managed
+          tarball=$(jq -r '.tarball_url' release.manifest.json)
+          curl -fsSL "$tarball" -o /tmp/cms-managed.tar.gz
+          # Verify tarball checksum from manifest before extracting.
+          want=$(jq -r '.tarball_sha256' release.manifest.json)
+          got=$(sha256sum /tmp/cms-managed.tar.gz | awk '{print $1}')
+          if [ "$want" != "$got" ]; then echo "::error::tarball checksum mismatch"; exit 1; fi
+          tar -xzf /tmp/cms-managed.tar.gz -C src/cms-managed --strip-components=1
+
+      - name: Update cms.lock.json
+        run: |
+          jq --slurpfile m release.manifest.json '
+            .version=$m[0].version
+            | .tag="${{ inputs.release_tag }}"
+            | .release_id=$m[0].release_id
+            | .manifest_sha256=$m[0].manifest_sha256
+            | .signing_key_id=$m[0].signing_key_id
+            | .signature=$m[0].signature
+            | .installed_at=now|todate
+            | .files=$m[0].files
+          ' cms.lock.json > cms.lock.json.tmp && mv cms.lock.json.tmp cms.lock.json
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: cms/update-${{ inputs.release_tag }}
+          commit-message: "chore(cms): update to ${{ inputs.release_tag }}"
+          title: "CMS update → ${{ inputs.release_tag }}"
+          body: |
+            Automated update from Parent CMS.
+
+            - Release: `${{ inputs.release_tag }}`
+            - Requested by: ${{ inputs.requested_by || 'parent' }}
+            - Site: `${{ steps.cfg.outputs.site_id }}`
+            - Channel: `${{ steps.cfg.outputs.channel }}`
+
+            Signature verified against Parent public key. `src/cms-managed/`
+            replaced; `src/cms-custom/` untouched.
+          labels: cms-update,automated
+          delete-branch: true
