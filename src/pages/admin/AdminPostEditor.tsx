@@ -212,18 +212,31 @@ const AdminPostEditorWP = () => {
           featured_image_url: form.featured_image_url || null,
           site_id: config!.site!.id,
         };
-        // Optional columns; ignore failures
-        try {
-          payload.template = form.template;
-          payload.parent_id = form.parent_id || null;
-        } catch {}
+        // Optional columns: only attach when set; retry-strip on schema-cache miss
+        if (form.template) payload.template = form.template;
+        if (form.parent_id) payload.parent_id = form.parent_id;
+        const stripUnknownAndRetry = async (op: "insert" | "update", err: any) => {
+          const msg = String(err?.message || "");
+          const m = msg.match(/Could not find the '([^']+)' column/);
+          if (!m) throw err;
+          delete payload[m[1]];
+          if (op === "insert") {
+            const r = await parent.from("posts").insert(payload).select("id").single();
+            if (r.error) return stripUnknownAndRetry("insert", r.error);
+            return r.data.id as string;
+          } else {
+            const r = await parent.from("posts").update(payload).eq("id", id!);
+            if (r.error) return stripUnknownAndRetry("update", r.error);
+            return id!;
+          }
+        };
         if (isNew) {
           const { data, error } = await parent.from("posts").insert(payload).select("id").single();
-          if (error) throw error;
-          savedId = data.id;
+          if (error) savedId = await stripUnknownAndRetry("insert", error);
+          else savedId = data.id;
         } else {
           const { error } = await parent.from("posts").update(payload).eq("id", id!);
-          if (error) throw error;
+          if (error) await stripUnknownAndRetry("update", error);
         }
       } else {
         const payload: any = {
