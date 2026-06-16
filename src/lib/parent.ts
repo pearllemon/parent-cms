@@ -63,6 +63,49 @@ async function fetchConfigByDomain(): Promise<SiteConfig | null> {
   }
 }
 
+/**
+ * Build a minimal local SiteConfig so admin editors (posts, pages, media…)
+ * stay usable even when the Parent Management Site doesn't know this domain
+ * yet (e.g. fresh preview, standalone Parent CMS, child not yet registered).
+ *
+ * The site id is stable per browser via localStorage so saved rows keep the
+ * same owner across reloads.
+ */
+function buildLocalFallbackConfig(): SiteConfig {
+  let localId = "";
+  try {
+    localId = localStorage.getItem("cms-core-site-id") || "";
+    if (!localId) {
+      localId = (crypto.randomUUID?.() as string) ||
+        `local-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+      localStorage.setItem("cms-core-site-id", localId);
+    }
+  } catch {
+    localId = `local-${Date.now()}`;
+  }
+  try {
+    (window as unknown as { __PL_SITE_ID?: string }).__PL_SITE_ID = localId;
+  } catch { /* ignore */ }
+  return {
+    site: { id: localId, name: "Local site", domain: getDomain(), status: "local" },
+    headerConfig: null,
+    footerConfig: null,
+    theme: null,
+    errorPageConfig: null,
+    popupConfig: null,
+    services: [],
+    caseStudies: [],
+    teamMembers: [],
+    bookingPage: null,
+    blogTemplate: null,
+    seoConfig: null,
+    customCode: { head: [], body: [], footer: [] },
+    dynamicSections: {},
+    widgets: {},
+    __local: true,
+  } as SiteConfig;
+}
+
 export function getSiteConfig(force = false): Promise<SiteConfig | null> {
   if (force) configPromise = null;
   if (configPromise) return configPromise;
@@ -89,6 +132,7 @@ export function getSiteConfig(force = false): Promise<SiteConfig | null> {
   }
 
   configPromise = fetchConfigByDomain().then((cfg) => {
+    const final = cfg || buildLocalFallbackConfig();
     if (cfg) {
       try {
         sessionStorage.setItem("pl_config", JSON.stringify(cfg));
@@ -97,7 +141,7 @@ export function getSiteConfig(force = false): Promise<SiteConfig | null> {
         /* quota */
       }
     }
-    return cfg;
+    return final;
   });
   return configPromise;
 }
