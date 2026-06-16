@@ -3,15 +3,27 @@
 // caches the full config, and exposes lead/page-view helpers.
 import { createClient } from "@supabase/supabase-js";
 import { cachedFetch } from "./cache";
+import cmsConfig from "../../cms.config.json";
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string;
+// The "parent" supabase client points at the Parent Management project, NOT
+// this site's own Lovable Cloud. cms.config.json is the single source of truth
+// (also writable at runtime from /admin/management-link). Fall back to env vars
+// only if cms.config.json is somehow empty.
+export const SUPABASE_URL =
+  (cmsConfig as { management_url?: string }).management_url ||
+  (import.meta.env.VITE_PARENT_SUPABASE_URL as string) ||
+  (import.meta.env.VITE_SUPABASE_URL as string);
+export const SUPABASE_ANON_KEY =
+  (cmsConfig as { management_anon_key?: string }).management_anon_key ||
+  (import.meta.env.VITE_PARENT_SUPABASE_ANON_KEY as string) ||
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string) ||
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string);
 
 export const API = `${SUPABASE_URL}/functions/v1/site-config`;
 const HEADERS = { apikey: SUPABASE_ANON_KEY } as const;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, storageKey: "pl-child-auth" },
+  auth: { persistSession: true, storageKey: "pl-parent-auth" },
 });
 
 // ----- Types (loose — parent evolves) ---------------------------------------
