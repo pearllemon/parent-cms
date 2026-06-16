@@ -1,134 +1,69 @@
-# Architecture: Parent CMS + Child Sites
+This is a large, destructive cleanup. Before I start deleting files and data, here's exactly what I'll do — please confirm.
 
-## End state
+## 1. Promote the shipped CMS artifact
 
-```text
-cms-core (new Lovable project + GitHub repo)        ← Parent CMS
-  ├─ src/cms-managed/        the shipped CMS code
-  ├─ admin control plane:    Releases, Installations, Setup Wizard,
-  │                          Signing Keys, Upgrade Log, API Registry
-  ├─ Supabase project:       release registry + installation tracking only
-  └─ .github/workflows/      build-cms-release.yml (tag → manifest → release)
+- Move `cms-distribution/managed/src/cms-managed/` → `src/cms-managed/` (becomes the canonical source of truth)
+- Keep `cms-distribution/scripts/` (build-manifest, sync-managed) and `cms-distribution/manifest.json`
+- Keep `.github/workflows/build-cms-release.yml` and `.github/workflows/cms-update.yml`
+- Update `cms-distribution/scripts/sync-managed.mjs` so it reads from `src/cms-managed/` going forward
 
-this project (becomes Child #1: your personal site)
-  ├─ src/cms-managed/        synced from Parent, never hand-edited
-  ├─ src/cms-custom/         your overrides + site-specific code
-  ├─ src/pages/, content     your website
-  ├─ own Supabase project    your content DB
-  └─ .github/workflows/cms-update.yml   receives update PRs
+## 2. Delete website-only code
 
-child 2, 3, ... 80 — same shape as Child #1, own repo, own DB
-```
+Pages (`src/pages/`):
+Index, About, Blog, BlogPost, BlogTaxonomy, Books, BookACall, Contact, Press, Privacy, Terms, Service, AuthorArchive, TaxonomyArchive, DynamicPage
 
-Parent ships code. Each child owns its own content database. Updates flow as GitHub PRs opened by the Parent's edge function — no manual Lovable prompting per child.
+Components (`src/components/site/`):
+Hero, Header, Footer, Testimonials, YouTubeSection, LatestBlogs, SplitMediaCTA, Adventure, ContactBlock, EntrepreneurshipWealth, LearnMoreCTA, ProServices, StoriesOfMyLife, TeamAndPress, TedxBento, ThemeBlocksRenderer, Layout, FormRenderer
+(Keep `DynamicRouter` — admin/landing still needs it? Actually no, will drop it too since no public site pages remain.)
 
----
+Data: `src/data/services.ts`
 
-## Phase 1 — Stand up the Parent (in a new project)
+## 3. Rewrite `src/App.tsx`
 
-You'll do this part in Lovable's UI, not in this chat:
+- Remove all public-site imports/routes
+- Keep all `/admin/*` routes exactly as they are
+- Add a minimal landing page at `/` that shows "Parent CMS" + button linking to `/admin`
+- Remove `<DynamicRouter>` catch-all; replace with simple "Not found → /admin" redirect
 
-1. From this project's three-dot menu → **Remix** → name it `cms-core`.
-2. Open the remix → connect it to a new GitHub repo (`cms-core`) via Plus (+) → GitHub.
-3. In the remix, ask Lovable to run the **"Parent cleanup"** task (next section).
+## 4. Wipe database content (schema stays)
 
-The remix carries over the Supabase schema you already built (releases, child_installations, cms_install_prs, signing_keys, upgrade_log, api_registry) — that's exactly what the Parent needs.
+Truncate (data only, no schema changes):
+`cpt_entries`, `entry_field_values`, `entry_terms`, `imported_posts`, `media_meta`, `media_folders`, `image_assets`, `image_import_jobs`, `authors`, `theme_sections`, `theme_templates`, `theme_tokens`, `elementor_templates`, `elementor_site_settings`, `page_blocks`, `page_block_versions`, `page_schemas`, `post_seo`, `seo_scores`, `revisions`, `leads`, `redirects`, `internal_links`, `link_suggestions`, `taxonomies`, `taxonomy_terms`, `template_assignments`, `custom_post_types`, `custom_fields`, `form_definitions`, `import_history`, `orphan_edits`
 
-### Parent cleanup task (run inside the `cms-core` remix)
+Keeping data in: `admin_users`, `site_settings`, `cms_releases`, `cms_signing_keys`, `cms_api_registry`, `applied_cms_migrations`, `cms_migration_manifest`, `child_installations`, `child_upgrade_log`, `cms_install_prs`, sync_* tables, cloud_component_* tables, `user_table_prefs`, `activity_log`.
 
-Delete from the remix:
-- `src/pages/` website pages: `Index, About, Blog, BlogPost, BlogTaxonomy, Books, BookACall, Contact, Press, Privacy, Terms, Service, AuthorArchive, TaxonomyArchive, DynamicPage`
-- `src/components/site/*` (Hero, Footer, Header, Testimonials, etc. — site-specific)
-- `src/data/services.ts` and any other personal-website content
-- Website routes from `src/App.tsx`; keep only `/admin/*` routes and a minimal landing page that links to `/admin`
-- Database content rows for cpt_entries, posts, media, authors, theme_* (keep schema, drop data)
+## 5. Add the "Check for CMS updates" self-update system
 
-Keep:
-- Everything under `cms-distribution/managed/` → promote to `src/cms-managed/` at the repo root (this becomes the shipped artifact)
-- All `/admin/*` pages
-- `supabase/functions/cms-github-installer`, `cms-release`, `cms-marketplace`, `seo-*`, `redirect-resolver`, `site-config`, `image-import-worker`
-- `.github/workflows/build-cms-release.yml`
-- `cms-distribution/scripts/` (build-manifest, sync-managed)
+The parent repo lives at `github.com/pearllemon/parent-cms`. I'll add:
 
----
+- **Edge function `cms-self-update`** that:
+  1. Calls GitHub API `/repos/pearllemon/parent-cms/releases/latest` (and `/commits/main` as fallback) using `GITHUB_INSTALLER_TOKEN`
+  2. Compares latest tag/sha against `cms.lock.json` in the running install
+  3. Returns `{ currentVersion, latestVersion, updateAvailable, changelogUrl }`
 
-## Phase 2 — Convert this project into Child #1
+- **Edge function `cms-self-update-apply`** that:
+  1. Opens a PR (or pushes a branch) in the *child* repo using the GitHub App / installer token, bumping `cms.lock.json` and copying new `src/cms-managed/` files from the parent repo's release tarball
+  2. Records the upgrade in `child_upgrade_log`
+  3. Returns PR URL so the user can merge with one click
 
-After the Parent is live with its own repo:
+- **UI**: add an "Updates" card on `AdminDashboard` (and a dedicated `/admin/upgrade-log` enhancement) with:
+  - "Check for updates" button → calls `cms-self-update`
+  - "Install update" button → calls `cms-self-update-apply`
+  - Shows current vs latest version + changelog link
+  - No Lovable AI credits used — pure GitHub REST calls
 
-1. In this project, delete the Parent-only admin pages:
-   `AdminReleases, AdminInstallations, AdminSetupWizard, AdminSigningKeys, AdminUpgradeLog, AdminApiRegistry, AdminSyncHub, AdminSyncControl, AdminSync, AdminComponentCloud`
-2. Delete `cms-distribution/` (lives in Parent now).
-3. Keep `src/cms-managed/` (synced copy) + `src/cms-custom/` (your overrides) + your website pages and content.
-4. Add `cms.config.json` (site_id, parent_url, current cms version) and `cms.lock.json` (pinned release tag + checksums) at repo root.
-5. Add `.github/workflows/cms-update.yml` that accepts `workflow_dispatch` from Parent and opens a PR replacing `src/cms-managed/` with the new release tarball.
-6. From Parent's `/admin/setup-wizard`, register this child (its GitHub repo + permanent site_id) and trigger the first **install PR** to validate the loop end-to-end.
+## 6. Functions I will NOT touch (keep as-is)
+
+`cms-release`, `cms-marketplace`, `seo-file`, `seo-regenerate`, `redirect-resolver`, `site-config`, `image-import-worker`, `cms-forms`, `cms-sdk-stub`
+
+Note: there is no `cms-github-installer` function in the project today — the self-update functions above will cover that role.
 
 ---
 
-## Phase 3 — Update flow (the payoff)
+### ⚠️ Things I want you to confirm before I run this
 
-```text
-You edit CMS in `cms-core` Lovable project
-       ↓ (auto-push to GitHub)
-You bump version in Parent's /admin/releases  → "Build Release"
-       ↓
-GitHub Action tags `cms-v1.5.0`, builds manifest, creates GH Release
-       ↓
-Parent's /admin/installations shows "1.5.0 available" for every child
-       ↓
-You click "Request Update" on a child row
-       ↓
-cms-github-installer edge function → workflow_dispatch on child repo
-       ↓
-Child's cms-update.yml opens a PR replacing src/cms-managed/
-       ↓
-You review + merge → Lovable auto-syncs → child is on 1.5.0
-```
+1. **Database wipe is irreversible.** Confirm you want me to truncate all the content tables listed in section 4.
+2. **GitHub repo `pearllemon/parent-cms`** — is this remix project already connected to that repo via Lovable's GitHub integration? The self-update edge functions need the `GITHUB_INSTALLER_TOKEN` to have `contents:write` + `pull_requests:write` scope on both the parent repo and any child repos.
+3. **Landing page at `/`** — just a plain "Parent CMS / Go to Admin" page, or do you want a slightly nicer marketing-style splash?
 
-No per-child Lovable prompting. The PR is the update.
-
----
-
-## Per-child databases
-
-Each child = its own Lovable Cloud (Supabase) project. The Parent's Supabase only stores:
-- `releases` (version, tag, manifest, signature)
-- `child_installations` (site_id, github_repo, current_version, status)
-- `cms_install_prs` (PR url, state, target version)
-- `signing_keys`, `upgrade_log`, `api_registry`
-
-The child's Supabase stores its own posts, pages, media, users, theme, forms, leads — all the content tables. The shipped `src/cms-managed/` code reads from whichever Supabase the child is configured against (already how it works today via `src/integrations/supabase/client.ts`).
-
----
-
-## Technical notes
-
-- **Signing**: Parent signs each release manifest with a private key from `signing_keys`. The child's `cms-update.yml` verifies the signature before opening the PR — prevents tampered updates. Public keys are already SELECT-able to anon (existing schema).
-- **`src/cms-managed/` is immutable in children**: a CODEOWNERS rule + a pre-commit hook (added by the install PR) blocks hand-edits. All customization goes in `src/cms-custom/` via the extension points already defined in `cms-distribution/child-template/src/cms-custom/index.ts`.
-- **Version pinning**: `cms.lock.json` records the exact release tag + file checksums. The child workflow refuses to apply an update if checksums don't match the manifest.
-- **Rollback**: each update PR is a normal Git commit. Revert the merge → child drops back to the previous version automatically on next Lovable sync.
-- **Schema migrations**: ship SQL migration files inside the release manifest. The child workflow runs them against the child's own Supabase using a server-side action (never browser-triggered) — already part of the constraint set you locked in earlier.
-- **No GitHub creds in frontend**: `GITHUB_INSTALLER_TOKEN` lives only as a Parent Supabase secret, used exclusively by `cms-github-installer` edge function.
-- **Legacy installations**: the existing flag on `child_installations` keeps any pre-PR-flow children visible but marked legacy in `/admin/installations`.
-
----
-
-## What I'll actually do when you switch to build mode
-
-Because the Parent must live in a *different* Lovable project, this chat can only do half the work. The split:
-
-**In this chat (Child #1 prep), I will:**
-1. Add `cms.config.json` + `cms.lock.json` scaffolds at repo root.
-2. Add `.github/workflows/cms-update.yml`.
-3. Remove the Parent-only admin pages listed in Phase 2 and their routes.
-4. Remove `cms-distribution/` (it now lives in the Parent remix).
-5. Keep `src/cms-managed/` + `src/cms-custom/` intact.
-6. Verify the site still builds and your website pages still render.
-
-**You will (in Lovable UI, outside this chat):**
-1. Remix this project → name it `cms-core` → connect new GitHub repo.
-2. Open the remix and tell Lovable: *"Run the Parent cleanup from the plan"* — it has the same context and will execute Phase 1.
-3. Come back here and tell me the Parent is live so I can run the install-PR test end-to-end against this child.
-
-Confirm and I'll execute the Child #1 prep.
+Reply "go" (or with answers/changes) and I'll execute the whole thing in one pass.
