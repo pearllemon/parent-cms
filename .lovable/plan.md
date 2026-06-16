@@ -1,69 +1,73 @@
-This is a large, destructive cleanup. Before I start deleting files and data, here's exactly what I'll do — please confirm.
+## Three-tier model (now grounded in your real Tier 1)
 
-## 1. Promote the shipped CMS artifact
+```text
+TIER 1 — Parent Management Site (zvaiqrewtqvsokzbxnxt.supabase.co)
+  Already has: sites table, site-config edge fn, heartbeat auto-register,
+  per-site overrides, config versioning.
+  Missing for this feature: GitHub repo info, update channels, update-check
+  + update-apply endpoints, GITHUB_INSTALLER_TOKEN secret.
 
-- Move `cms-distribution/managed/src/cms-managed/` → `src/cms-managed/` (becomes the canonical source of truth)
-- Keep `cms-distribution/scripts/` (build-manifest, sync-managed) and `cms-distribution/manifest.json`
-- Keep `.github/workflows/build-cms-release.yml` and `.github/workflows/cms-update.yml`
-- Update `cms-distribution/scripts/sync-managed.mjs` so it reads from `src/cms-managed/` going forward
+TIER 2 — Parent CMS (this Lovable repo, pearllemon/parent-cms)
+  The "golden master" codebase that ships to children via GitHub.
+  At runtime: client of Tier 1. Distribution UI VISIBLE.
 
-## 2. Delete website-only code
-
-Pages (`src/pages/`):
-Index, About, Blog, BlogPost, BlogTaxonomy, Books, BookACall, Contact, Press, Privacy, Terms, Service, AuthorArchive, TaxonomyArchive, DynamicPage
-
-Components (`src/components/site/`):
-Hero, Header, Footer, Testimonials, YouTubeSection, LatestBlogs, SplitMediaCTA, Adventure, ContactBlock, EntrepreneurshipWealth, LearnMoreCTA, ProServices, StoriesOfMyLife, TeamAndPress, TedxBento, ThemeBlocksRenderer, Layout, FormRenderer
-(Keep `DynamicRouter` — admin/landing still needs it? Actually no, will drop it too since no public site pages remain.)
-
-Data: `src/data/services.ts`
-
-## 3. Rewrite `src/App.tsx`
-
-- Remove all public-site imports/routes
-- Keep all `/admin/*` routes exactly as they are
-- Add a minimal landing page at `/` that shows "Parent CMS" + button linking to `/admin`
-- Remove `<DynamicRouter>` catch-all; replace with simple "Not found → /admin" redirect
-
-## 4. Wipe database content (schema stays)
-
-Truncate (data only, no schema changes):
-`cpt_entries`, `entry_field_values`, `entry_terms`, `imported_posts`, `media_meta`, `media_folders`, `image_assets`, `image_import_jobs`, `authors`, `theme_sections`, `theme_templates`, `theme_tokens`, `elementor_templates`, `elementor_site_settings`, `page_blocks`, `page_block_versions`, `page_schemas`, `post_seo`, `seo_scores`, `revisions`, `leads`, `redirects`, `internal_links`, `link_suggestions`, `taxonomies`, `taxonomy_terms`, `template_assignments`, `custom_post_types`, `custom_fields`, `form_definitions`, `import_history`, `orphan_edits`
-
-Keeping data in: `admin_users`, `site_settings`, `cms_releases`, `cms_signing_keys`, `cms_api_registry`, `applied_cms_migrations`, `cms_migration_manifest`, `child_installations`, `child_upgrade_log`, `cms_install_prs`, sync_* tables, cloud_component_* tables, `user_table_prefs`, `activity_log`.
-
-## 5. Add the "Check for CMS updates" self-update system
-
-The parent repo lives at `github.com/pearllemon/parent-cms`. I'll add:
-
-- **Edge function `cms-self-update`** that:
-  1. Calls GitHub API `/repos/pearllemon/parent-cms/releases/latest` (and `/commits/main` as fallback) using `GITHUB_INSTALLER_TOKEN`
-  2. Compares latest tag/sha against `cms.lock.json` in the running install
-  3. Returns `{ currentVersion, latestVersion, updateAvailable, changelogUrl }`
-
-- **Edge function `cms-self-update-apply`** that:
-  1. Opens a PR (or pushes a branch) in the *child* repo using the GitHub App / installer token, bumping `cms.lock.json` and copying new `src/cms-managed/` files from the parent repo's release tarball
-  2. Records the upgrade in `child_upgrade_log`
-  3. Returns PR URL so the user can merge with one click
-
-- **UI**: add an "Updates" card on `AdminDashboard` (and a dedicated `/admin/upgrade-log` enhancement) with:
-  - "Check for updates" button → calls `cms-self-update`
-  - "Install update" button → calls `cms-self-update-apply`
-  - Shows current vs latest version + changelog link
-  - No Lovable AI credits used — pure GitHub REST calls
-
-## 6. Functions I will NOT touch (keep as-is)
-
-`cms-release`, `cms-marketplace`, `seo-file`, `seo-regenerate`, `redirect-resolver`, `site-config`, `image-import-worker`, `cms-forms`, `cms-sdk-stub`
-
-Note: there is no `cms-github-installer` function in the project today — the self-update functions above will cover that role.
+TIER 3 — Child CMS (remixes installed from parent-cms repo)
+  Identical code, runs in child mode. Distribution UI HIDDEN.
+  Auth to Tier 1 = site_id + install_token. No GitHub creds, ever.
+```
 
 ---
 
-### ⚠️ Things I want you to confirm before I run this
+## Work split
 
-1. **Database wipe is irreversible.** Confirm you want me to truncate all the content tables listed in section 4.
-2. **GitHub repo `pearllemon/parent-cms`** — is this remix project already connected to that repo via Lovable's GitHub integration? The self-update edge functions need the `GITHUB_INSTALLER_TOKEN` to have `contents:write` + `pull_requests:write` scope on both the parent repo and any child repos.
-3. **Landing page at `/`** — just a plain "Parent CMS / Go to Admin" page, or do you want a slightly nicer marketing-style splash?
+### A. Tier 1 add-on package (you paste it into the Management project)
+I'll generate it inside this repo at `tier1-management-package/` so you can copy/migrate it over. Contains:
 
-Reply "go" (or with answers/changes) and I'll execute the whole thing in one pass.
+1. **Migration** — extend `sites` (or add `site_install_meta`) with: `install_token text unique`, `github_repo text`, `update_channel text default 'stable'`, `auto_update boolean default false`, `current_version text`, `current_sha text`, `last_config_pull_at timestamptz`. Plus a singleton `parent_release_config` table: `parent_repo`, `default_branch`, `update_workflow_filename`, `signing_public_key`, `registry_endpoints jsonb`, `release_policy jsonb`.
+2. **Edge functions** (4):
+   - `parent-register-site` — child first boot: returns `{ site_id, install_token }`. Reuses existing `heartbeat` row when possible.
+   - `parent-site-config` — returns sanitized `{ parent_repo, default_branch, update_workflow_filename, channel, auto_update, registry_endpoints, signing_public_key }`. No tokens.
+   - `parent-update-check` — calls GitHub with Tier 1's `GITHUB_INSTALLER_TOKEN`, returns `{ latestVersion, latestSha, changelogUrl, updateAvailable }`.
+   - `parent-update-apply` — dispatches the child's `cms-update.yml` workflow using Tier 1's token, logs to a new `child_upgrade_log` table.
+3. **Secret to set on Tier 1**: `GITHUB_INSTALLER_TOKEN` (the only place it lives).
+4. **README** with paste-in steps.
+
+I cannot deploy to Tier 1 from here; you run the migration + deploy functions there.
+
+### B. Tier 2 changes (this repo — I execute now)
+1. **Slim `cms.config.json`** to:
+   ```json
+   { "management_url": "https://zvaiqrewtqvsokzbxnxt.supabase.co",
+     "management_anon_key": "eyJ…",
+     "site_id": "", "install_token": "" }
+   ```
+   Removes `parent_repo`, `channel`, `auto_update` (now come from Tier 1).
+2. **New `src/cms-managed/lib/managementClient.ts`** — `registerSite()`, `pullConfig()`, `checkUpdate()`, `applyUpdate()`. POSTs to `${management_url}/functions/v1/parent-*` with `apikey` + `{ site_id, install_token, … }`. 5-min `localStorage` cache for config.
+3. **Rewire `CmsUpdateCard`** to call `managementClient`. Show channel + last-pulled timestamp.
+4. **Delete** `supabase/functions/cms-self-update-check` and `cms-self-update-apply` from this repo (they hardcoded the repo and assumed token-on-child — wrong tier).
+5. **`VITE_CMS_MODE` gating** (`parent` default here, `child` in distributed template):
+   - `AdminShell.tsx` Distribution section: already conditional, keep.
+   - `src/App.tsx`: also guard routes `/admin/releases`, `installations`, `upgrade-log`, `apis`, `signing-keys`, `setup-wizard` — render `<Navigate to="/admin" replace />` in child mode so deep links don't expose them.
+6. **New parent-only page** `/admin/management-link` — shows Tier 1 URL, site_id, install_token (masked), last config pull, buttons: Register, Pull config now, Rotate token.
+7. **Child template** `cms-distribution/child-template/src/App.tsx`: remove distribution route imports entirely; `.env.example` sets `VITE_CMS_MODE=child`.
+
+### C. Tier 3 (Child installs)
+Nothing extra. Inherits the same `src/cms-managed/` from Tier 2; runs in `child` mode; `cms.config.json` populated by the install PR (site_id + install_token returned by `parent-register-site` on first boot).
+
+---
+
+## Security
+- `GITHUB_INSTALLER_TOKEN` lives ONLY on Tier 1.
+- Tier 2 + Tier 3 authenticate to Tier 1 with `site_id` + `install_token` (32-byte random, rotatable from Tier 1).
+- No Tier 1 response ever contains GitHub credentials.
+- Only Tier 1 calls `api.github.com` or dispatches workflows.
+
+---
+
+## Open questions (need answers before I build)
+
+1. **Channels** — `stable` only for v1, or also `beta`?
+2. **Self-registration** — when a child boots with empty `site_id`, auto-call `parent-register-site` and create itself in Tier 1, OR require manual approval in Tier 1 first?
+3. **Tier 1 delivery** — generate the migration + functions as files under `tier1-management-package/` in this repo for you to copy over? (Recommended.)
+
+Answer those three and I'll execute Part B end-to-end and hand you Part A as a paste-ready package.
