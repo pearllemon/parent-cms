@@ -5,6 +5,7 @@ import { supabase as parent, fetchPosts } from "@/lib/parent";
 import { supabase as cloud } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { RefreshCcw, Activity } from "lucide-react";
+import CmsUpdateCard from "@/components/admin/CmsUpdateCard";
 
 const AdminDashboard = () => {
   const { config, refresh } = useSiteConfig();
@@ -108,6 +109,8 @@ const AdminDashboard = () => {
         <Stat label="Site status" value={config?.site?.status?.toString() ?? "—"} />
         <Stat label="Domain" value={config?.site?.domain?.toString() ?? "—"} />
       </div>
+
+      <CmsUpdateCard />
 
       <div className="flex flex-wrap gap-3">
         <Button asChild><Link to="/admin/posts/new">New post</Link></Button>
