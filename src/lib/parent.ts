@@ -132,7 +132,6 @@ export function getSiteConfig(force = false): Promise<SiteConfig | null> {
   }
 
   configPromise = fetchConfigByDomain().then((cfg) => {
-    const final = cfg || buildLocalFallbackConfig();
     if (cfg) {
       try {
         sessionStorage.setItem("pl_config", JSON.stringify(cfg));
@@ -140,8 +139,14 @@ export function getSiteConfig(force = false): Promise<SiteConfig | null> {
       } catch {
         /* quota */
       }
+      return cfg;
     }
-    return final;
+    // Parent didn't return a site for this domain. Don't cache the failure
+    // (so the next call retries) and fall back to a local-only config so
+    // admin editors stay usable. Posts/pages saves that require a real
+    // parent site_id will still error clearly until the site is registered.
+    configPromise = null;
+    return buildLocalFallbackConfig();
   });
   return configPromise;
 }
