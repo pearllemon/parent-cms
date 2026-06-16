@@ -43,6 +43,24 @@ const CFG_CACHE_KEY = "cms.mgmt.config.v1";
 const CFG_CACHE_TTL_MS = 5 * 60 * 1000;
 const LOCAL_CFG_KEY = "cms.local.config.v1";
 
+// Lazy import to avoid pulling the supabase client into the management client
+// when only the parent-management path is used.
+async function tryLocalGithub() {
+  try {
+    const [{ getGithubConnection, checkUpdateViaPat, applyUpdateViaPat }, parent] = await Promise.all([
+      import("@/lib/githubConnection"),
+      import("@/lib/parent"),
+    ]);
+    const cfg = await parent.getSiteConfig().catch(() => null);
+    const siteId = cfg?.site?.id || null;
+    const conn = await getGithubConnection(siteId);
+    if (!conn || !conn.enabled || !conn.repo) return null;
+    return { conn, checkUpdateViaPat, applyUpdateViaPat };
+  } catch {
+    return null;
+  }
+}
+
 let cachedCfg: ManagementCfg | null = null;
 
 async function loadManagementCfg(): Promise<ManagementCfg> {
@@ -186,6 +204,11 @@ export async function checkUpdate(): Promise<UpdateCheck> {
   } catch {
     /* ignore */
   }
+  // Manual GitHub PAT takes precedence when configured.
+  const local = await tryLocalGithub();
+  if (local) {
+    return local.checkUpdateViaPat(local.conn, currentVersion);
+  }
   return callFn<UpdateCheck>("parent-update-check", { currentVersion, currentSha });
 }
 
@@ -195,6 +218,12 @@ export async function applyUpdate(target?: { ref?: string }): Promise<{
   dispatched: boolean;
   actionsUrl?: string;
 }> {
+  const local = await tryLocalGithub();
+  if (local) {
+    const r = await local.applyUpdateViaPat(local.conn, target?.ref);
+    if (!r.ok) throw new Error(r.error || "GitHub dispatch failed");
+    return { ok: true, dispatched: r.dispatched, actionsUrl: r.actionsUrl };
+  }
   return callFn("parent-update-apply", { targetRef: target?.ref });
 }
 
