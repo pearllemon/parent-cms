@@ -43,11 +43,16 @@ import AdminSigningKeys from "./pages/admin/AdminSigningKeys.tsx";
 import AdminForms from "./pages/admin/AdminForms.tsx";
 import AdminLeads from "./pages/admin/AdminLeads.tsx";
 import AdminComponentCloud from "./pages/admin/AdminComponentCloud.tsx";
+import AdminManagementLink from "./pages/admin/AdminManagementLink.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 import ThemeTokensInjector from "@/components/ThemeTokensInjector";
 import ComponentCloudSync from "@/components/ComponentCloudSync";
 
 const queryClient = new QueryClient();
+
+const IS_CHILD = (import.meta.env.VITE_CMS_MODE || "parent") === "child";
+const ParentOnly = ({ element }: { element: JSX.Element }) =>
+  IS_CHILD ? <Navigate to="/admin" replace /> : element;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -95,12 +100,13 @@ const App = () => (
               <Route path="activity" element={<AdminActivityLog />} />
               <Route path="categories" element={<Navigate to="/admin/taxonomies?tax=category" replace />} />
               <Route path="tags" element={<Navigate to="/admin/taxonomies?tax=tag" replace />} />
-              <Route path="releases" element={<AdminReleases />} />
-              <Route path="installations" element={<AdminInstallations />} />
-              <Route path="upgrade-log" element={<AdminUpgradeLog />} />
-              <Route path="setup-wizard" element={<AdminSetupWizard />} />
-              <Route path="apis" element={<AdminApiRegistry />} />
-              <Route path="signing-keys" element={<AdminSigningKeys />} />
+              <Route path="releases" element={<ParentOnly element={<AdminReleases />} />} />
+              <Route path="installations" element={<ParentOnly element={<AdminInstallations />} />} />
+              <Route path="upgrade-log" element={<ParentOnly element={<AdminUpgradeLog />} />} />
+              <Route path="setup-wizard" element={<ParentOnly element={<AdminSetupWizard />} />} />
+              <Route path="apis" element={<ParentOnly element={<AdminApiRegistry />} />} />
+              <Route path="signing-keys" element={<ParentOnly element={<AdminSigningKeys />} />} />
+              <Route path="management-link" element={<AdminManagementLink />} />
               <Route path="forms" element={<AdminForms />} />
               <Route path="data/:table" element={<GenericCRUD />} />
             </Route>

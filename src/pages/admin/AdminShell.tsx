@@ -259,6 +259,7 @@ const AdminShell = () => {
               <SidebarItem to="/admin/sync" label="Sync" Icon={Cloud} active={location.pathname.startsWith("/admin/sync")} />
               <SidebarItem to="/admin/seo-workspace" label="SEO Workspace" Icon={Search} active={location.pathname.startsWith("/admin/seo")} />
               <SidebarItem to="/admin/activity" label="Activity Log" Icon={Activity} active={location.pathname.startsWith("/admin/activity")} />
+              <SidebarItem to="/admin/management-link" label="Management Link" Icon={Plug} active={location.pathname.startsWith("/admin/management-link")} />
               <SidebarItem to="/admin/settings" label="Settings" Icon={Settings} active={location.pathname.startsWith("/admin/settings")} />
             </div>
           </div>
