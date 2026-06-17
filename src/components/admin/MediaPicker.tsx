@@ -73,6 +73,38 @@ export default function MediaPicker({ open, onOpenChange, onPick, accept = "imag
       }
     } catch { /* ignore */ }
 
+    // 3) Featured/body images discovered inside imported_posts — surfaces
+    // media that was imported with content but never catalogued in media_meta.
+    try {
+      const { data } = await cloudT("imported_posts")
+        .select("id,title,featured_image_url,body")
+        .order("updated_at", { ascending: false })
+        .limit(500);
+      const urlRe = /https?:\/\/[^\s"'<>()]+\.(?:png|jpe?g|gif|webp|svg|avif)(?:\?[^\s"'<>()]*)?/gi;
+      for (const r of (data as any[]) || []) {
+        const urls = new Set<string>();
+        if (r.featured_image_url) urls.add(r.featured_image_url);
+        if (typeof r.body === "string") {
+          for (const m of r.body.matchAll(urlRe)) urls.add(m[0]);
+        }
+        for (const u of urls) {
+          const name = u.split("/").pop()?.split("?")[0] || "image";
+          next.push({ id: `i:${r.id}:${u}`, url: u, name, mime: "image/*", source: "cloud" });
+        }
+      }
+    } catch { /* ignore */ }
+
+    // 4) Anything sitting in the post-images bucket that nobody catalogued.
+    try {
+      const { data: entries } = await cloud.storage.from("post-images")
+        .list("", { limit: 200, sortBy: { column: "created_at", order: "desc" } });
+      for (const e of entries || []) {
+        if (!(e as any).id) continue; // skip folders
+        const { data: pub } = cloud.storage.from("post-images").getPublicUrl(e.name);
+        next.push({ id: `s:${e.name}`, url: pub.publicUrl, name: e.name, mime: (e as any).metadata?.mimetype || "image/*", source: "cloud" });
+      }
+    } catch { /* ignore */ }
+
     // De-dupe by URL
     const seen = new Set<string>();
     setItems(next.filter((i) => (seen.has(i.url) ? false : (seen.add(i.url), true))));
