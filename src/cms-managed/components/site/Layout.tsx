@@ -25,7 +25,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   }, [pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="site-theme-root flex min-h-screen flex-col bg-background">
       {headerTpl ? <ThemeBlocksRenderer blocks={headerTpl.blocks} /> : <Header />}
       <main className="flex-1">{children}</main>
       {footerTpl ? <ThemeBlocksRenderer blocks={footerTpl.blocks} /> : <Footer />}
