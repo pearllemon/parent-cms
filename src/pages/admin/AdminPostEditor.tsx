@@ -195,9 +195,9 @@ const AdminPostEditorWP = () => {
   };
 
   const save = async (overrideStatus?: Form["status"]): Promise<string | null> => {
-    if (!form.title.trim()) return toast.error("Title is required");
-    if (scope === "parent" && !config?.site?.id) return toast.error("Site not loaded");
-    if (!(await ensureCloudSession())) return;
+    if (!form.title.trim()) { toast.error("Title is required"); return null; }
+    if (scope === "parent" && !config?.site?.id) { toast.error("Site not loaded"); return null; }
+    if (!(await ensureCloudSession())) return null;
 
     setSaving(true);
     try {
