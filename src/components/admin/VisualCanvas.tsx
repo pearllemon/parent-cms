@@ -337,19 +337,20 @@ type ListProps = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCommitText: (id: string, text: string) => void;
+  device: Device;
 };
 
-function SortableList({ items, selectedId, onSelect, onCommitText }: ListProps) {
+function SortableList({ items, selectedId, onSelect, onCommitText, device }: ListProps) {
   return (
     <SortableContext items={items.map((b) => b.id)} strategy={verticalListSortingStrategy}>
       {items.map((b) => (
-        <SortableBlock key={b.id} block={b} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+        <SortableBlock key={b.id} block={b} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
       ))}
     </SortableContext>
   );
 }
 
-function SortableBlock(props: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void }) {
+function SortableBlock(props: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void; device: Device }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.block.id });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -357,6 +358,7 @@ function SortableBlock(props: { block: Block; selectedId: string | null; onSelec
     opacity: isDragging ? 0.5 : 1,
     position: "relative",
   };
+  if (isHidden(props.block, props.device)) return null;
   return (
     <div ref={setNodeRef} style={style} className="group/blk">
       <button
@@ -374,18 +376,18 @@ function SortableBlock(props: { block: Block; selectedId: string | null; onSelec
 }
 
 // ============== Render ==============
-function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void }) {
+function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void; device: Device }) {
   const isSel = selectedId === block.id;
   const ring = isSel
     ? "outline outline-2 outline-primary outline-offset-[-2px]"
     : "outline outline-1 outline-transparent hover:outline-primary/40";
   const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onSelect(block.id); };
-  const p = block.props;
+  const p = effProps(block, device);
 
   if (block.type === "section") {
     return (
       <section onClick={handleClick} className={`relative ${ring}`} style={{ padding: p.padding, background: p.background }}>
-        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
       </section>
     );
   }
@@ -397,7 +399,7 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Blo
           display: p.display || "flex", flexDirection: p.direction || "column",
           gap: p.gap, alignItems: p.align || "stretch", justifyContent: p.justify || "flex-start",
         }}>
-        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
       </div>
     );
   }
@@ -474,8 +476,8 @@ function InlineText({ id, value, isSelected, onCommit, multiline }: { id: string
 }
 
 // ============== Inspector ==============
-function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record<string, any>) => void }) {
-  const p = block.props;
+function Inspector({ block, device, onChange }: { block: Block; device: Device; onChange: (patch: Record<string, any>) => void }) {
+  const p = effProps(block, device);
   const isImage = block.type === "image";
   const isText = block.type === "heading" || block.type === "text" || block.type === "button";
   const isHtml = block.type === "html";
@@ -484,8 +486,16 @@ function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record
     <div className="p-3 space-y-3">
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
         <span>{block.type}</span>
-        <span className="text-[10px] opacity-50">{block.id.slice(0, 6)}</span>
+        <span className="text-[10px] opacity-50">
+          {device !== "desktop" && <span className="mr-2 px-1 rounded bg-primary/10 text-primary uppercase">{device}</span>}
+          {block.id.slice(0, 6)}
+        </span>
       </div>
+      {device !== "desktop" && (
+        <p className="text-[10px] text-muted-foreground -mt-1">
+          Editing <strong>{device}</strong> overrides. Switch to Desktop to edit base values.
+        </p>
+      )}
       <Tabs defaultValue={isHtml ? "html" : isImage ? "image" : "layout"} className="space-y-2">
         <TabsList className="w-full h-8">
           <TabsTrigger value="layout" className="text-[11px] flex-1 h-7">Content</TabsTrigger>
