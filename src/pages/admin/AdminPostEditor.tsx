@@ -194,7 +194,7 @@ const AdminPostEditorWP = () => {
     toast.success("Image uploaded");
   };
 
-  const save = async (overrideStatus?: Form["status"]) => {
+  const save = async (overrideStatus?: Form["status"]): Promise<string | null> => {
     if (!form.title.trim()) return toast.error("Title is required");
     if (scope === "parent" && !config?.site?.id) return toast.error("Site not loaded");
     if (!(await ensureCloudSession())) return;
@@ -259,8 +259,10 @@ const AdminPostEditorWP = () => {
       toast.success(status === "published" ? "Published" : status === "trash" ? "Moved to Bin" : "Saved");
       if (isNew) nav(`/admin/posts/${savedId}${scope === "imported" ? "?scope=imported" : ""}`, { replace: true });
       if (status === "trash") nav("/admin/posts");
+      return savedId;
     } catch (e: any) {
       toast.error(e?.message || "Save failed");
+      return null;
     } finally {
       setSaving(false);
     }
@@ -281,9 +283,19 @@ const AdminPostEditorWP = () => {
             <Button
               variant="outline"
               size="sm"
-              disabled={isNew}
-              title={isNew ? "Save the post first" : "Open visual editor"}
-              onClick={() => id && nav(`/admin/edit/${id}`)}
+              disabled={saving}
+              title="Open visual editor"
+              onClick={async () => {
+                if (isNew) {
+                  if (!form.title.trim()) {
+                    setF("title", `Untitled ${form.type}`);
+                  }
+                  const newId = await save("draft");
+                  if (newId) nav(`/admin/edit/${newId}`);
+                } else if (id) {
+                  nav(`/admin/edit/${id}`);
+                }
+              }}
             >
               <LayoutTemplate className="w-4 h-4 mr-1" /> Edit Visually
             </Button>
