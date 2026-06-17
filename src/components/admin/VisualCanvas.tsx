@@ -167,7 +167,14 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
     if (!selected) return;
     update((tree) => {
       const r = findBlock(tree, selected.block.id);
-      if (r) r.block.props = { ...r.block.props, ...patch };
+      if (!r) return;
+      if (device === "desktop") {
+        r.block.props = { ...r.block.props, ...patch };
+      } else {
+        const responsive = { ...(r.block.props.responsive || {}) };
+        responsive[device] = { ...(responsive[device] || {}), ...patch };
+        r.block.props = { ...r.block.props, responsive };
+      }
     });
   };
 
