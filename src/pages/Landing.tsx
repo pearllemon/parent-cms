@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Landing() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-6">
+    <div className="site-theme-root min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-6">
       <div className="max-w-xl text-center space-y-6">
         <p className="uppercase tracking-[0.3em] text-xs text-muted-foreground">Parent CMS</p>
         <h1 className="text-4xl md:text-5xl font-semibold">CMS control plane</h1>
