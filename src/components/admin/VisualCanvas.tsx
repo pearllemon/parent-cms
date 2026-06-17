@@ -43,6 +43,27 @@ export type Block = {
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, mobile: 375 };
 
+// Resolve per-device overrides: props.responsive?.tablet|mobile are shallow-merged
+// over the base props. Desktop reads base props as-is.
+function effProps(block: Block, device: Device): Record<string, any> {
+  const base = block.props || {};
+  if (device === "desktop") return base;
+  const overrides = (base.responsive && base.responsive[device]) || {};
+  return { ...base, ...overrides };
+}
+
+// Should the block be hidden at the current preview device? Reads
+// effective visibility (which may be overridden per device).
+function isHidden(block: Block, device: Device): boolean {
+  const v = effProps(block, device).visibility;
+  if (!v || v === "all") return false;
+  if (v === "hidden") return true;
+  if (v === "desktop-only") return device !== "desktop";
+  if (v === "tablet-only")  return device !== "tablet";
+  if (v === "mobile-only")  return device !== "mobile";
+  return false;
+}
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 const newBlock = (type: BlockType): Block => {
   const base: Record<BlockType, Block> = {
@@ -146,7 +167,14 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
     if (!selected) return;
     update((tree) => {
       const r = findBlock(tree, selected.block.id);
-      if (r) r.block.props = { ...r.block.props, ...patch };
+      if (!r) return;
+      if (device === "desktop") {
+        r.block.props = { ...r.block.props, ...patch };
+      } else {
+        const responsive = { ...(r.block.props.responsive || {}) };
+        responsive[device] = { ...(responsive[device] || {}), ...patch };
+        r.block.props = { ...r.block.props, responsive };
+      }
     });
   };
 
@@ -264,6 +292,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
                     selectedId={selectedId}
                     onSelect={setSelectedId}
                     onCommitText={commitText}
+                  device={device}
                   />
                 </DndContext>
                 <div className="flex items-center justify-center py-3 group">
@@ -286,7 +315,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
         {!selected ? (
           <div className="p-4 text-sm text-muted-foreground">Click a block to edit.</div>
         ) : (
-          <Inspector block={selected.block} onChange={updateSelected} />
+          <Inspector block={selected.block} device={device} onChange={updateSelected} />
         )}
       </div>
     </div>
@@ -308,19 +337,20 @@ type ListProps = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCommitText: (id: string, text: string) => void;
+  device: Device;
 };
 
-function SortableList({ items, selectedId, onSelect, onCommitText }: ListProps) {
+function SortableList({ items, selectedId, onSelect, onCommitText, device }: ListProps) {
   return (
     <SortableContext items={items.map((b) => b.id)} strategy={verticalListSortingStrategy}>
       {items.map((b) => (
-        <SortableBlock key={b.id} block={b} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+        <SortableBlock key={b.id} block={b} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
       ))}
     </SortableContext>
   );
 }
 
-function SortableBlock(props: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void }) {
+function SortableBlock(props: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void; device: Device }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.block.id });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -328,6 +358,7 @@ function SortableBlock(props: { block: Block; selectedId: string | null; onSelec
     opacity: isDragging ? 0.5 : 1,
     position: "relative",
   };
+  if (isHidden(props.block, props.device)) return null;
   return (
     <div ref={setNodeRef} style={style} className="group/blk">
       <button
@@ -345,18 +376,18 @@ function SortableBlock(props: { block: Block; selectedId: string | null; onSelec
 }
 
 // ============== Render ==============
-function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void }) {
+function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { block: Block; selectedId: string | null; onSelect: (id: string) => void; onCommitText: (id: string, text: string) => void; device: Device }) {
   const isSel = selectedId === block.id;
   const ring = isSel
     ? "outline outline-2 outline-primary outline-offset-[-2px]"
     : "outline outline-1 outline-transparent hover:outline-primary/40";
   const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onSelect(block.id); };
-  const p = block.props;
+  const p = effProps(block, device);
 
   if (block.type === "section") {
     return (
       <section onClick={handleClick} className={`relative ${ring}`} style={{ padding: p.padding, background: p.background }}>
-        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
       </section>
     );
   }
@@ -368,7 +399,7 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Blo
           display: p.display || "flex", flexDirection: p.direction || "column",
           gap: p.gap, alignItems: p.align || "stretch", justifyContent: p.justify || "flex-start",
         }}>
-        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} />
+        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
       </div>
     );
   }
@@ -390,12 +421,13 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Blo
     );
   }
   if (block.type === "image") {
+    const wrapAlign = p.imgAlign === "center" ? "mx-auto block" : p.imgAlign === "right" ? "ml-auto block" : "";
     return p.src ? (
-      <img onClick={handleClick} src={p.src} alt={p.alt || ""} className={ring}
-        style={{ width: p.width, height: p.height, objectFit: p.fit, borderRadius: p.radius, border: p.border, boxShadow: p.shadow, margin: p.margin }} />
+      <img onClick={handleClick} src={p.src} alt={p.alt || ""} title={p.title || undefined} className={`${ring} ${wrapAlign}`}
+        style={{ width: p.width, height: p.height, aspectRatio: p.aspectRatio || undefined, objectFit: p.fit, borderRadius: p.radius, border: p.border, boxShadow: p.shadow, margin: p.margin }} />
     ) : (
-      <div onClick={handleClick} className={`bg-muted/60 flex items-center justify-center text-xs text-muted-foreground ${ring}`}
-        style={{ width: p.width, height: p.height === "auto" ? 200 : p.height, borderRadius: p.radius }}>
+      <div onClick={handleClick} className={`bg-muted/60 flex items-center justify-center text-xs text-muted-foreground ${ring} ${wrapAlign}`}
+        style={{ width: p.width, height: p.height === "auto" ? 200 : p.height, aspectRatio: p.aspectRatio || undefined, borderRadius: p.radius }}>
         <ImageIcon className="w-4 h-4 mr-1" /> No image — click and pick one
       </div>
     );
@@ -445,8 +477,8 @@ function InlineText({ id, value, isSelected, onCommit, multiline }: { id: string
 }
 
 // ============== Inspector ==============
-function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record<string, any>) => void }) {
-  const p = block.props;
+function Inspector({ block, device, onChange }: { block: Block; device: Device; onChange: (patch: Record<string, any>) => void }) {
+  const p = effProps(block, device);
   const isImage = block.type === "image";
   const isText = block.type === "heading" || block.type === "text" || block.type === "button";
   const isHtml = block.type === "html";
@@ -455,8 +487,16 @@ function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record
     <div className="p-3 space-y-3">
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
         <span>{block.type}</span>
-        <span className="text-[10px] opacity-50">{block.id.slice(0, 6)}</span>
+        <span className="text-[10px] opacity-50">
+          {device !== "desktop" && <span className="mr-2 px-1 rounded bg-primary/10 text-primary uppercase">{device}</span>}
+          {block.id.slice(0, 6)}
+        </span>
       </div>
+      {device !== "desktop" && (
+        <p className="text-[10px] text-muted-foreground -mt-1">
+          Editing <strong>{device}</strong> overrides. Switch to Desktop to edit base values.
+        </p>
+      )}
       <Tabs defaultValue={isHtml ? "html" : isImage ? "image" : "layout"} className="space-y-2">
         <TabsList className="w-full h-8">
           <TabsTrigger value="layout" className="text-[11px] flex-1 h-7">Content</TabsTrigger>
@@ -578,6 +618,11 @@ function ImageBlockEditor({ p, onChange }: { p: Record<string, any>; onChange: (
         <Input value={p.title || ""} onChange={(e) => onChange({ title: e.target.value })} />
       </div>
       <SelectField label="Object fit" value={p.fit || "cover"} options={["cover", "contain", "fill", "none", "scale-down"]} onChange={(v) => onChange({ fit: v })} />
+      <SelectField label="Aspect ratio" value={p.aspectRatio || "auto"} options={["auto", "1/1", "4/3", "3/2", "16/9", "21/9", "9/16"]} onChange={(v) => onChange({ aspectRatio: v === "auto" ? "" : v })} />
+      <SelectField label="Align" value={p.imgAlign || "left"} options={["left", "center", "right"]} onChange={(v) => onChange({ imgAlign: v })} />
+      <CssField label="Width" value={p.width || ""} onChange={(v) => onChange({ width: v })} placeholder="100%" />
+      <CssField label="Height" value={p.height || ""} onChange={(v) => onChange({ height: v })} placeholder="auto" />
+      <NumField label="Border radius" value={Number(p.radius) || 0} max={128} onChange={(v) => onChange({ radius: v })} />
       <CssField label="Source URL" value={p.src || ""} onChange={(v) => onChange({ src: v })} placeholder="https://…" />
       <MediaPicker
         open={pickerOpen}
