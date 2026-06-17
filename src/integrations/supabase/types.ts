@@ -2007,6 +2007,60 @@ export type Database = {
         }
         Relationships: []
       }
+      section_templates: {
+        Row: {
+          blocks: Json
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          review_notes: string | null
+          reviewed_at: string | null
+          site_id: string | null
+          source: string
+          status: string
+          submitted_at: string | null
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          blocks?: Json
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          site_id?: string | null
+          source?: string
+          status?: string
+          submitted_at?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          blocks?: Json
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          site_id?: string | null
+          source?: string
+          status?: string
+          submitted_at?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       seo_file_versions: {
         Row: {
           content: string
