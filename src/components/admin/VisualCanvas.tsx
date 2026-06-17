@@ -252,17 +252,30 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
           >
             {blocks.length === 0 ? (
               <div className="p-12 text-center text-sm text-muted-foreground">
-                Empty section. Add a block from the left rail.
+                <Button size="sm" variant="outline" onClick={() => addBlock("section")}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add first section
+                </Button>
               </div>
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableList
-                  items={blocks}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  onCommitText={commitText}
-                />
-              </DndContext>
+              <>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableList
+                    items={blocks}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                    onCommitText={commitText}
+                  />
+                </DndContext>
+                <div className="flex items-center justify-center py-3 group">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); addBlock("section"); }}
+                    className="flex items-center gap-1 text-xs text-muted-foreground border border-dashed border-muted-foreground/30 rounded-full px-3 py-1 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                    title="Add new section"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add section
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
