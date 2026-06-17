@@ -1480,6 +1480,48 @@ export type Database = {
           },
         ]
       }
+      media_library: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          file_name: string | null
+          file_size: number | null
+          file_url: string
+          height: number | null
+          id: string
+          mime_type: string | null
+          site_id: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url: string
+          height?: number | null
+          id?: string
+          mime_type?: string | null
+          site_id?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string
+          height?: number | null
+          id?: string
+          mime_type?: string | null
+          site_id?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: []
+      }
       media_meta: {
         Row: {
           alt_text: string | null
@@ -1808,6 +1850,87 @@ export type Database = {
           seo_title?: string | null
           slug?: string | null
           social?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      posts: {
+        Row: {
+          author: string | null
+          body: string | null
+          canonical_url: string | null
+          categories: Json | null
+          created_at: string
+          elementor_data: Json | null
+          excerpt: string | null
+          featured_image_alt: string | null
+          featured_image_url: string | null
+          id: string
+          meta_description: string | null
+          meta_title: string | null
+          parent_id: string | null
+          publish_date: string | null
+          published_at: string | null
+          render_mode: string | null
+          site_id: string | null
+          slug: string
+          status: string
+          tags: Json | null
+          template: string | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          author?: string | null
+          body?: string | null
+          canonical_url?: string | null
+          categories?: Json | null
+          created_at?: string
+          elementor_data?: Json | null
+          excerpt?: string | null
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          parent_id?: string | null
+          publish_date?: string | null
+          published_at?: string | null
+          render_mode?: string | null
+          site_id?: string | null
+          slug?: string
+          status?: string
+          tags?: Json | null
+          template?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          author?: string | null
+          body?: string | null
+          canonical_url?: string | null
+          categories?: Json | null
+          created_at?: string
+          elementor_data?: Json | null
+          excerpt?: string | null
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          parent_id?: string | null
+          publish_date?: string | null
+          published_at?: string | null
+          render_mode?: string | null
+          site_id?: string | null
+          slug?: string
+          status?: string
+          tags?: Json | null
+          template?: string | null
+          title?: string
+          type?: string
           updated_at?: string
         }
         Relationships: []
