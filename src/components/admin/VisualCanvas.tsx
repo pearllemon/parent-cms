@@ -292,6 +292,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
                     selectedId={selectedId}
                     onSelect={setSelectedId}
                     onCommitText={commitText}
+                  device={device}
                   />
                 </DndContext>
                 <div className="flex items-center justify-center py-3 group">
@@ -314,7 +315,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
         {!selected ? (
           <div className="p-4 text-sm text-muted-foreground">Click a block to edit.</div>
         ) : (
-          <Inspector block={selected.block} onChange={updateSelected} />
+          <Inspector block={selected.block} device={device} onChange={updateSelected} />
         )}
       </div>
     </div>
