@@ -617,6 +617,11 @@ function ImageBlockEditor({ p, onChange }: { p: Record<string, any>; onChange: (
         <Input value={p.title || ""} onChange={(e) => onChange({ title: e.target.value })} />
       </div>
       <SelectField label="Object fit" value={p.fit || "cover"} options={["cover", "contain", "fill", "none", "scale-down"]} onChange={(v) => onChange({ fit: v })} />
+      <SelectField label="Aspect ratio" value={p.aspectRatio || "auto"} options={["auto", "1/1", "4/3", "3/2", "16/9", "21/9", "9/16"]} onChange={(v) => onChange({ aspectRatio: v === "auto" ? "" : v })} />
+      <SelectField label="Align" value={p.imgAlign || "left"} options={["left", "center", "right"]} onChange={(v) => onChange({ imgAlign: v })} />
+      <CssField label="Width" value={p.width || ""} onChange={(v) => onChange({ width: v })} placeholder="100%" />
+      <CssField label="Height" value={p.height || ""} onChange={(v) => onChange({ height: v })} placeholder="auto" />
+      <NumField label="Border radius" value={Number(p.radius) || 0} max={128} onChange={(v) => onChange({ radius: v })} />
       <CssField label="Source URL" value={p.src || ""} onChange={(v) => onChange({ src: v })} placeholder="https://…" />
       <MediaPicker
         open={pickerOpen}
