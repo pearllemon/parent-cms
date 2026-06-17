@@ -27,12 +27,12 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Monitor, Tablet, Smartphone, Trash2, ArrowUp, ArrowDown, Plus,
-  Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical,
+  Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical, Code2,
 } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button";
+export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button" | "html";
 export type Block = {
   id: string;
   type: BlockType;
@@ -52,6 +52,7 @@ const newBlock = (type: BlockType): Block => {
     text:      { id: uid(), type, props: { text: "Paragraph text goes here.", fontSize: 16, color: "#475569", align: "left", lineHeight: 1.6 } },
     image:     { id: uid(), type, props: { src: "", alt: "", width: "100%", height: "auto", fit: "cover", radius: 8 } },
     button:    { id: uid(), type, props: { text: "Click me", href: "#", bg: "#0f172a", color: "#ffffff", radius: 6, padding: "12px 24px" } },
+    html:      { id: uid(), type, props: { code: "<div>Custom HTML here</div>" } },
   };
   return base[type];
 };
