@@ -2,6 +2,7 @@
 // Resolves the *real* site row by domain (heartbeat IDs are unstable),
 // caches the full config, and exposes lead/page-view helpers.
 import { createClient } from "@supabase/supabase-js";
+import { supabase as cloudClient } from "@/integrations/supabase/client";
 import { cachedFetch } from "./cache";
 
 // The "parent" supabase client normally points at the Parent Management
@@ -19,9 +20,30 @@ export const SUPABASE_ANON_KEY =
 export const API = `${SUPABASE_URL}/functions/v1/site-config`;
 const HEADERS = { apikey: SUPABASE_ANON_KEY } as const;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, storageKey: "pl-parent-auth" },
-});
+// Self-parent mode: when the "parent" Supabase URL is the same project as
+// the local Lovable Cloud, reuse the SAME client (and therefore the same
+// auth session) instead of spinning up a second one. Otherwise a stale JWT
+// stored under the old "pl-parent-auth" key (often issued by a DIFFERENT
+// Supabase project from a prior install) gets sent to the current project
+// and PostgREST rejects it with PGRST301 "No suitable key or wrong key type".
+const IS_SELF_PARENT =
+  !!SELF_URL && SUPABASE_URL.replace(/\/+$/, "") === SELF_URL.replace(/\/+$/, "");
+
+// One-time cleanup of the stale legacy auth key so any cached cross-project
+// JWT can no longer leak into REST calls.
+if (typeof window !== "undefined" && IS_SELF_PARENT) {
+  try {
+    localStorage.removeItem("pl-parent-auth");
+    // supabase-js v2 also stores under "<storageKey>-code-verifier"
+    localStorage.removeItem("pl-parent-auth-code-verifier");
+  } catch { /* ignore */ }
+}
+
+export const supabase = IS_SELF_PARENT
+  ? (cloudClient as unknown as ReturnType<typeof createClient>)
+  : createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, storageKey: "pl-parent-auth" },
+    });
 
 // ----- Types (loose — parent evolves) ---------------------------------------
 export type SiteConfig = {

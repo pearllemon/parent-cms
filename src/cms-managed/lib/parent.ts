@@ -2,6 +2,7 @@
 // Resolves the *real* site row by domain (heartbeat IDs are unstable),
 // caches the full config, and exposes lead/page-view helpers.
 import { createClient } from "@supabase/supabase-js";
+import { supabase as cloudClient } from "@/integrations/supabase/client";
 import { cachedFetch } from "./cache";
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -10,9 +11,14 @@ export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || impo
 export const API = `${SUPABASE_URL}/functions/v1/site-config`;
 const HEADERS = { apikey: SUPABASE_ANON_KEY } as const;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, storageKey: "pl-child-auth" },
-});
+// Reuse the single shared Lovable Cloud client so authenticated REST calls
+// always carry a JWT issued by THIS Supabase project. A second client with
+// its own storageKey can otherwise hold a stale token from a previous
+// install / different project and trigger PGRST301 "No suitable key".
+if (typeof window !== "undefined") {
+  try { localStorage.removeItem("pl-child-auth"); } catch { /* ignore */ }
+}
+export const supabase = cloudClient as unknown as ReturnType<typeof createClient>;
 
 // ----- Types (loose — parent evolves) ---------------------------------------
 export type SiteConfig = {
