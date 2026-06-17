@@ -252,6 +252,9 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             <InsertBtn label="Button" Icon={MousePointerClick} onClick={() => addBlock("button")} />
             <InsertBtn label="HTML" Icon={Code2} onClick={() => addBlock("html")} />
           </div>
+          <Button size="sm" variant="outline" className="w-full mt-2 h-8 text-xs" onClick={() => setLibraryOpen(true)}>
+            <LibraryBig className="w-3.5 h-3.5 mr-1" /> Section library
+          </Button>
         </div>
 
         {(variants.length > 0 || onSaveVariant) && (
@@ -303,6 +306,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
               <Button size="sm" variant="ghost" onClick={() => move(-1)} title="Move up"><ArrowUp className="w-3.5 h-3.5" /></Button>
               <Button size="sm" variant="ghost" onClick={() => move(1)} title="Move down"><ArrowDown className="w-3.5 h-3.5" /></Button>
               <Button size="sm" variant="ghost" onClick={duplicate} title="Duplicate"><Copy className="w-3.5 h-3.5" /></Button>
+              <Button size="sm" variant="ghost" onClick={saveAsSection} title="Save as section"><Upload className="w-3.5 h-3.5" /></Button>
               <Button size="sm" variant="ghost" onClick={removeSelected} title="Delete"><Trash2 className="w-3.5 h-3.5" /></Button>
             </div>
           )}
