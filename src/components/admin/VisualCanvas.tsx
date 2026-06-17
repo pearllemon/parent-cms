@@ -421,12 +421,13 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { bl
     );
   }
   if (block.type === "image") {
+    const wrapAlign = p.imgAlign === "center" ? "mx-auto block" : p.imgAlign === "right" ? "ml-auto block" : "";
     return p.src ? (
-      <img onClick={handleClick} src={p.src} alt={p.alt || ""} className={ring}
-        style={{ width: p.width, height: p.height, objectFit: p.fit, borderRadius: p.radius, border: p.border, boxShadow: p.shadow, margin: p.margin }} />
+      <img onClick={handleClick} src={p.src} alt={p.alt || ""} title={p.title || undefined} className={`${ring} ${wrapAlign}`}
+        style={{ width: p.width, height: p.height, aspectRatio: p.aspectRatio || undefined, objectFit: p.fit, borderRadius: p.radius, border: p.border, boxShadow: p.shadow, margin: p.margin }} />
     ) : (
-      <div onClick={handleClick} className={`bg-muted/60 flex items-center justify-center text-xs text-muted-foreground ${ring}`}
-        style={{ width: p.width, height: p.height === "auto" ? 200 : p.height, borderRadius: p.radius }}>
+      <div onClick={handleClick} className={`bg-muted/60 flex items-center justify-center text-xs text-muted-foreground ${ring} ${wrapAlign}`}
+        style={{ width: p.width, height: p.height === "auto" ? 200 : p.height, aspectRatio: p.aspectRatio || undefined, borderRadius: p.radius }}>
         <ImageIcon className="w-4 h-4 mr-1" /> No image — click and pick one
       </div>
     );
