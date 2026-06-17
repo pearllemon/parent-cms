@@ -86,6 +86,26 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+// Auto-detect the design template to apply based on slug/title so freshly
+// imported pages already render with a sensible layout (home, about, team,
+// book-a-call, contact). Anything else falls back to "default".
+function detectTemplate(postType: string, slug: string, title: string): string {
+  const s = (slug || "").toLowerCase();
+  const t = (title || "").toLowerCase();
+  const both = `${s} ${t}`;
+  if (postType === "post") return "blog";
+  if (s === "" || s === "/" || s === "home" || s === "homepage" || /\bhome\s*page\b/.test(t))
+    return "home";
+  if (/(^|[-\s])about(-us)?($|[-\s])/.test(both)) return "about";
+  if (/team|meet[-\s]our[-\s]team|our[-\s]team/.test(both)) return "team";
+  if (/book[-\s]a?[-\s]?call|schedule[-\s]a?[-\s]?call|book[-\s]now/.test(both))
+    return "book-a-call";
+  if (/contact/.test(both)) return "contact";
+  if (/service/.test(both)) return "services";
+  if (/pricing|plans/.test(both)) return "pricing";
+  return "default";
+}
+
 // Strip illegal XML 1.0 control chars and try to repair common WXR issues
 // (unterminated CData, stray ]]> inside CData, BOM, NULs).
 function sanitizeWxr(xml: string): string {
