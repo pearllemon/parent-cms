@@ -86,6 +86,26 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+// Auto-detect the design template to apply based on slug/title so freshly
+// imported pages already render with a sensible layout (home, about, team,
+// book-a-call, contact). Anything else falls back to "default".
+function detectTemplate(postType: string, slug: string, title: string): string {
+  const s = (slug || "").toLowerCase();
+  const t = (title || "").toLowerCase();
+  const both = `${s} ${t}`;
+  if (postType === "post") return "blog";
+  if (s === "" || s === "/" || s === "home" || s === "homepage" || /\bhome\s*page\b/.test(t))
+    return "home";
+  if (/(^|[-\s])about(-us)?($|[-\s])/.test(both)) return "about";
+  if (/team|meet[-\s]our[-\s]team|our[-\s]team/.test(both)) return "team";
+  if (/book[-\s]a?[-\s]?call|schedule[-\s]a?[-\s]?call|book[-\s]now/.test(both))
+    return "book-a-call";
+  if (/contact/.test(both)) return "contact";
+  if (/service/.test(both)) return "services";
+  if (/pricing|plans/.test(both)) return "pricing";
+  return "default";
+}
+
 // Strip illegal XML 1.0 control chars and try to repair common WXR issues
 // (unterminated CData, stray ]]> inside CData, BOM, NULs).
 function sanitizeWxr(xml: string): string {
@@ -622,6 +642,66 @@ const AdminImport = () => {
 
       if (lastErr && inserted === 0 && errorSamples.length < 3) {
         errorSamples.push(lastErr);
+      }
+
+      // Mirror the same content into the LIVE `posts` table so the imported
+      // entries show up immediately in Posts / Pages admin lists and on the
+      // public site — no manual "promote" step. We auto-detect a per-page
+      // template by slug/title.
+      const liveRows = chunk.map((it, idx) => {
+        const slug = (it.slug || slugify(it.title) || `wp-${Date.now()}-${i}-${idx}`).slice(0, 200);
+        const type = it.postType === "page" ? "page" : "post";
+        return {
+          site_id,
+          title: it.title || "(untitled)",
+          slug,
+          type,
+          status:
+            it.status === "publish"
+              ? "published"
+              : it.status === "future"
+                ? "scheduled"
+                : "draft",
+          excerpt: it.excerpt || "",
+          body: it.content || "",
+          featured_image_url: it.featuredImageUrl || null,
+          template: detectTemplate(type, slug, it.title),
+          render_mode: /\[et_pb_|elementor|<!-- wp:/.test(it.content || "") ? "blocks" : "html",
+          meta_title:
+            it.meta?.["_yoast_wpseo_title"] ||
+            it.meta?.["rank_math_title"] ||
+            it.meta?.["_aioseo_title"] ||
+            it.title,
+          meta_description:
+            it.meta?.["_yoast_wpseo_metadesc"] ||
+            it.meta?.["rank_math_description"] ||
+            it.meta?.["_aioseo_description"] ||
+            it.excerpt ||
+            "",
+          canonical_url:
+            it.meta?.["_yoast_wpseo_canonical"] ||
+            it.meta?.["rank_math_canonical_url"] ||
+            it.link ||
+            null,
+          author: it.author || null,
+          categories: it.categories as unknown as never,
+          tags: it.tags as unknown as never,
+          publish_date: it.pubDate ? new Date(it.pubDate).toISOString() : null,
+          published_at:
+            it.status === "publish" && it.pubDate ? new Date(it.pubDate).toISOString() : null,
+        };
+      });
+      const { error: liveErr } = await supabase
+        .from("posts")
+        .upsert(liveRows, { onConflict: "site_id,type,slug", ignoreDuplicates: false });
+      if (liveErr) {
+        // Per-row fallback so one bad row doesn't drop the whole batch
+        for (const row of liveRows) {
+          const { error: e3 } = await supabase
+            .from("posts")
+            .upsert(row, { onConflict: "site_id,type,slug" });
+          if (e3 && errorSamples.length < 3) errorSamples.push(`posts: ${e3.message}`);
+        }
       }
 
       setProgress(Math.round(((i + chunk.length) / toImport.length) * 100));
