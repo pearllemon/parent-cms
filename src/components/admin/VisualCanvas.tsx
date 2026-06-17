@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import MediaPicker from "@/components/admin/MediaPicker";
+import SectionLibraryDialog from "@/components/admin/SectionLibraryDialog";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter,
   type DragEndEvent,
@@ -27,8 +28,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Monitor, Tablet, Smartphone, Trash2, ArrowUp, ArrowDown, Plus,
-  Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical, Code2,
+  Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical, Code2, LibraryBig, Upload,
 } from "lucide-react";
+import { saveLocalSection, submitSectionToParent, type SectionTemplate } from "@/lib/sectionLibrary";
+import { toast as sonner } from "sonner";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -104,6 +107,7 @@ type Props = {
 export default function VisualCanvas({ blocks, onChange, variants = [], activeVariantId = null, onVariantChange, onSaveVariant }: Props) {
   const [device, setDevice] = useState<Device>("desktop");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const selected = useMemo(() => (selectedId ? findBlock(blocks, selectedId) : null), [blocks, selectedId]);
@@ -161,6 +165,38 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
       reId(copy);
       r.parent.splice(r.index + 1, 0, copy);
     });
+  };
+
+  // Insert a library section's blocks at the root (or after selected top-level block).
+  const insertSection = (sectionBlocks: any[]) => {
+    update((tree) => {
+      const reId = (b: Block) => { b.id = uid(); b.children?.forEach(reId); };
+      const cloned: Block[] = clone(sectionBlocks || []);
+      cloned.forEach(reId);
+      tree.push(...cloned);
+    });
+    setLibraryOpen(false);
+  };
+
+  // Save the currently selected section (or whole tree) as a local template.
+  const saveAsSection = async () => {
+    const tree: Block[] = selected
+      ? (selected.block.type === "section" ? [selected.block] : [selected.block])
+      : blocks;
+    if (!tree.length) return sonner.error("Nothing to save");
+    const name = window.prompt("Section name", "Untitled section");
+    if (!name) return;
+    const category = window.prompt("Category (hero, testimonials, cta, faq, pricing, gallery, footer, general)", "general") || "general";
+    try {
+      const saved = await saveLocalSection({ name, category, blocks: tree });
+      sonner.success("Saved to local library");
+      if (window.confirm("Submit this section to the Parent library for approval?")) {
+        await submitSectionToParent(saved!);
+        sonner.success("Submitted — pending parent approval");
+      }
+    } catch (e: any) {
+      sonner.error(e?.message || "Save failed");
+    }
   };
 
   const updateSelected = (patch: Record<string, any>) => {
