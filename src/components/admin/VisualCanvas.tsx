@@ -186,6 +186,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             <InsertBtn label="Text" Icon={Type} onClick={() => addBlock("text")} />
             <InsertBtn label="Image" Icon={ImageIcon} onClick={() => addBlock("image")} />
             <InsertBtn label="Button" Icon={MousePointerClick} onClick={() => addBlock("button")} />
+            <InsertBtn label="HTML" Icon={Code2} onClick={() => addBlock("html")} />
           </div>
         </div>
 
