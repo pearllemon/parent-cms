@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { supabase as parent } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
 import {
   EditorProvider,
@@ -33,10 +34,16 @@ type ImportedPost = {
   render_mode: string | null;
 };
 
+type Source =
+  | { table: "posts"; client: typeof parent }
+  | { table: "imported_posts"; client: typeof supabase }
+  | { table: "cpt_entries"; client: typeof supabase };
+
 export default function AdminPageEditor() {
   const { id } = useParams();
   const nav = useNavigate();
   const [post, setPost] = useState<ImportedPost | null>(null);
+  const [source, setSource] = useState<Source | null>(null);
   const [tree, setTree] = useState<any[]>([]);
   const [body, setBody] = useState<string>("");
   const [selected, setSelected] = useState<Path | null>(null);
@@ -58,24 +65,73 @@ export default function AdminPageEditor() {
     }
     (async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("imported_posts")
-        .select("id,title,slug,type,body,elementor_data,render_mode")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) {
-        toast.error("Could not load page: " + error.message);
-        setLoading(false);
-        return;
+      // Try parent `posts` first (default scope), then cloud `imported_posts`,
+      // then `cpt_entries` (stores body inside JSON `data`). The first hit wins
+      // and is also where Save writes back to.
+      let loaded = false;
+
+      // 1) parent posts
+      try {
+        const { data } = await (parent.from("posts") as any)
+          .select("id,title,slug,type,body,elementor_data,render_mode")
+          .eq("id", id)
+          .maybeSingle();
+        if (data) {
+          setPost(data as ImportedPost);
+          setTree(Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : []);
+          setBody(data.body || "");
+          setSource({ table: "posts", client: parent });
+          loaded = true;
+        }
+      } catch { /* ignore */ }
+
+      // 2) imported_posts
+      if (!loaded) {
+        try {
+          const { data } = await supabase
+            .from("imported_posts")
+            .select("id,title,slug,type,body,elementor_data,render_mode")
+            .eq("id", id)
+            .maybeSingle();
+          if (data) {
+            setPost(data as ImportedPost);
+            setTree(Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : []);
+            setBody(data.body || "");
+            setSource({ table: "imported_posts", client: supabase });
+            loaded = true;
+          }
+        } catch { /* ignore */ }
       }
-      if (!data) {
+
+      // 3) cpt_entries (no elementor; body stored in data.body)
+      if (!loaded) {
+        try {
+          const { data } = await (supabase.from("cpt_entries") as any)
+            .select("id,title,slug,cpt_slug,data")
+            .eq("id", id)
+            .maybeSingle();
+          if (data) {
+            const d = (data.data || {}) as any;
+            setPost({
+              id: data.id,
+              title: data.title || "",
+              slug: data.slug || null,
+              type: data.cpt_slug || null,
+              body: typeof d.body === "string" ? d.body : "",
+              elementor_data: Array.isArray(d.elementor_data) ? d.elementor_data : null,
+              render_mode: d.render_mode || null,
+            });
+            setTree(Array.isArray(d.elementor_data) ? d.elementor_data : []);
+            setBody(typeof d.body === "string" ? d.body : "");
+            setSource({ table: "cpt_entries", client: supabase });
+            loaded = true;
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (!loaded) {
         toast.error("Page not found");
-        setLoading(false);
-        return;
       }
-      setPost(data as ImportedPost);
-      setTree(Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : []);
-      setBody(data.body || "");
       setLoading(false);
     })();
   }, [id, nav]);
@@ -107,14 +163,30 @@ export default function AdminPageEditor() {
   }, []);
 
   const handleSave = async () => {
-    if (!post) return;
+    if (!post || !source) return;
     setSaving(true);
-    const payload: { updated_at: string; elementor_data?: any; body?: string } = {
-      updated_at: new Date().toISOString(),
-    };
-    if (hasElementor) payload.elementor_data = tree;
-    else payload.body = body;
-    const { error } = await supabase.from("imported_posts").update(payload).eq("id", post.id);
+    let error: any = null;
+    if (source.table === "cpt_entries") {
+      // Read current data jsonb, merge, write back
+      const { data: row } = await (supabase.from("cpt_entries") as any)
+        .select("data").eq("id", post.id).maybeSingle();
+      const merged = { ...(row?.data || {}) };
+      if (hasElementor) merged.elementor_data = tree;
+      else merged.body = body;
+      const res = await (supabase.from("cpt_entries") as any)
+        .update({ data: merged, updated_at: new Date().toISOString() })
+        .eq("id", post.id);
+      error = res.error;
+    } else {
+      const payload: { updated_at: string; elementor_data?: any; body?: string } = {
+        updated_at: new Date().toISOString(),
+      };
+      if (hasElementor) payload.elementor_data = tree;
+      else payload.body = body;
+      const client = source.client as any;
+      const res = await client.from(source.table).update(payload).eq("id", post.id);
+      error = res.error;
+    }
     setSaving(false);
     if (error) {
       toast.error("Save failed: " + error.message);
