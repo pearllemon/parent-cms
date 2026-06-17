@@ -436,6 +436,7 @@ function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record
   const p = block.props;
   const isImage = block.type === "image";
   const isText = block.type === "heading" || block.type === "text" || block.type === "button";
+  const isHtml = block.type === "html";
 
   return (
     <div className="p-3 space-y-3">
@@ -443,12 +444,14 @@ function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record
         <span>{block.type}</span>
         <span className="text-[10px] opacity-50">{block.id.slice(0, 6)}</span>
       </div>
-      <Tabs defaultValue={isImage ? "image" : "layout"} className="space-y-2">
+      <Tabs defaultValue={isHtml ? "html" : isImage ? "image" : "layout"} className="space-y-2">
         <TabsList className="w-full h-8">
-          <TabsTrigger value="layout" className="text-[11px] flex-1 h-7">Layout</TabsTrigger>
+          <TabsTrigger value="layout" className="text-[11px] flex-1 h-7">Content</TabsTrigger>
           <TabsTrigger value="style" className="text-[11px] flex-1 h-7">Style</TabsTrigger>
+          <TabsTrigger value="advanced" className="text-[11px] flex-1 h-7">Advanced</TabsTrigger>
           {isImage && <TabsTrigger value="image" className="text-[11px] flex-1 h-7">Image</TabsTrigger>}
           {isText && <TabsTrigger value="text" className="text-[11px] flex-1 h-7">Text</TabsTrigger>}
+          {isHtml && <TabsTrigger value="html" className="text-[11px] flex-1 h-7">HTML</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="layout" className="space-y-2">
@@ -512,6 +515,24 @@ function Inspector({ block, onChange }: { block: Block; onChange: (patch: Record
             <SelectField label="Align" value={p.align || "left"} options={["left", "center", "right", "justify"]} onChange={(v) => onChange({ align: v })} />
           </TabsContent>
         )}
+
+        {isHtml && (
+          <TabsContent value="html" className="space-y-2">
+            <div>
+              <Label className="text-[10px] uppercase">HTML / Embed code</Label>
+              <Textarea value={p.code || ""} rows={10} onChange={(e) => onChange({ code: e.target.value })}
+                className="font-mono text-xs" placeholder="<div>Anything…</div>" />
+              <p className="text-[10px] text-muted-foreground mt-1">Rendered live. Use trusted markup only.</p>
+            </div>
+          </TabsContent>
+        )}
+
+        <TabsContent value="advanced" className="space-y-2">
+          <CssField label="CSS classes" value={p.className || ""} onChange={(v) => onChange({ className: v })} placeholder="my-section dark" />
+          <CssField label="HTML id" value={p.htmlId || ""} onChange={(v) => onChange({ htmlId: v })} placeholder="hero" />
+          <CssField label="Z-index" value={String(p.zIndex ?? "")} onChange={(v) => onChange({ zIndex: v })} placeholder="1" />
+          <SelectField label="Visibility" value={p.visibility || "all"} options={["all", "desktop-only", "tablet-only", "mobile-only", "hidden"]} onChange={(v) => onChange({ visibility: v })} />
+        </TabsContent>
       </Tabs>
     </div>
   );
