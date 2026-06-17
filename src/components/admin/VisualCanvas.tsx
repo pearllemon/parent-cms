@@ -396,6 +396,13 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText }: { block: Blo
       </a>
     );
   }
+  if (block.type === "html") {
+    return (
+      <div onClick={handleClick} className={ring}
+        style={{ padding: p.padding, margin: p.margin }}
+        dangerouslySetInnerHTML={{ __html: p.code || "" }} />
+    );
+  }
   return null;
 }
 
