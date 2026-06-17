@@ -358,6 +358,12 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
           <Inspector block={selected.block} device={device} onChange={updateSelected} />
         )}
       </div>
+
+      <SectionLibraryDialog
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        onInsert={insertSection}
+      />
     </div>
   );
 }
