@@ -7,6 +7,29 @@
  */
 import { supabase as cloud } from "@/integrations/supabase/client";
 
+// Self-hosters can set VITE_GITHUB_PAT in their .env as a fallback.
+const ENV_PAT: string =
+  (import.meta as any).env?.VITE_GITHUB_PAT?.toString().trim() || "";
+
+function resolvePat(c: GithubConnection): string {
+  return (c.pat && c.pat.trim()) || ENV_PAT;
+}
+
+async function proxy(action: "test" | "latest" | "dispatch", c: GithubConnection, extra: Record<string, unknown> = {}) {
+  const { data, error } = await (cloud.functions.invoke as any)("github-proxy", {
+    body: {
+      action,
+      repo: c.repo,
+      branch: c.branch,
+      workflow_filename: c.workflow_filename,
+      pat: resolvePat(c) || null,
+      ...extra,
+    },
+  });
+  if (error) throw new Error(error.message || "github-proxy failed");
+  return data as any;
+}
+
 export type GithubConnection = {
   id?: string;
   site_id: string | null;
@@ -49,22 +72,15 @@ export async function testGithubConnection(c: GithubConnection): Promise<{
   latestRelease: { tag: string; sha: string | null; url: string } | null;
   error?: string;
 }> {
-  const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
-  if (c.pat) headers.Authorization = `Bearer ${c.pat.trim()}`;
   try {
-    const repoRes = await fetch(`https://api.github.com/repos/${c.repo}`, { headers });
-    if (!repoRes.ok) {
-      const body = await repoRes.text().catch(() => "");
-      return { ok: false, repoExists: false, isPrivate: null, latestRelease: null, error: `GitHub ${repoRes.status}: ${body.slice(0, 200)}` };
-    }
-    const repo = await repoRes.json();
-    const relRes = await fetch(`https://api.github.com/repos/${c.repo}/releases/latest`, { headers });
-    let latest: { tag: string; sha: string | null; url: string } | null = null;
-    if (relRes.ok) {
-      const r = await relRes.json();
-      latest = { tag: r.tag_name, sha: r.target_commitish || null, url: r.html_url };
-    }
-    return { ok: true, repoExists: true, isPrivate: !!repo.private, latestRelease: latest };
+    const r = await proxy("test", c);
+    return {
+      ok: !!r?.ok,
+      repoExists: !!r?.repoExists,
+      isPrivate: r?.isPrivate ?? null,
+      latestRelease: r?.latestRelease ?? null,
+      error: r?.error,
+    };
   } catch (e: any) {
     return { ok: false, repoExists: false, isPrivate: null, latestRelease: null, error: e?.message || String(e) };
   }
@@ -92,23 +108,15 @@ export async function applyUpdateViaPat(c: GithubConnection, ref?: string): Prom
   actionsUrl?: string;
   error?: string;
 }> {
-  if (!c.pat) return { ok: false, dispatched: false, error: "GitHub PAT required for workflow dispatch" };
-  const wf = c.workflow_filename || "cms-update.yml";
-  const res = await fetch(`https://api.github.com/repos/${c.repo}/actions/workflows/${wf}/dispatches`, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${c.pat.trim()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      ref: c.branch || "main",
-      inputs: ref ? { target_ref: ref } : {},
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    return { ok: false, dispatched: false, error: `dispatch ${res.status}: ${body.slice(0, 200)}` };
+  try {
+    const r = await proxy("dispatch", c, ref ? { ref } : {});
+    return {
+      ok: !!r?.ok,
+      dispatched: !!r?.dispatched,
+      actionsUrl: r?.actionsUrl,
+      error: r?.error,
+    };
+  } catch (e: any) {
+    return { ok: false, dispatched: false, error: e?.message || String(e) };
   }
-  return { ok: true, dispatched: true, actionsUrl: `https://github.com/${c.repo}/actions` };
 }
