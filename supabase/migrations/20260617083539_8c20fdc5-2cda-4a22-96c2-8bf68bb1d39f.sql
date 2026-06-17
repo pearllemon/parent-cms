@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS posts_site_slug_type_uniq ON public.posts (site_id, type, slug) WHERE site_id IS NOT NULL;
