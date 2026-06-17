@@ -1,5 +1,5 @@
-// Applies Theme Designer global tokens (colors / typography) as CSS custom
-// properties on :root, so the live site picks them up without a rebuild.
+// Applies Theme Designer tokens scoped to `.site-theme-root` (frontend only),
+// so CMS theme changes never affect the admin UI design system.
 
 import { useEffect } from "react";
 import { loadTokens } from "@/lib/themeStore";
@@ -28,23 +28,34 @@ function hexToHsl(hex: string): string | null {
 export default function ThemeTokensInjector() {
   useEffect(() => {
     let mounted = true;
+    const STYLE_ID = "site-theme-tokens";
+    const ensureStyle = () => {
+      let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+      if (!el) {
+        el = document.createElement("style");
+        el.id = STYLE_ID;
+        document.head.appendChild(el);
+      }
+      return el;
+    };
     void (async () => {
       try {
         const t = await loadTokens();
         if (!mounted) return;
-        const root = document.documentElement;
+        const decls: string[] = [];
         Object.entries(t.colors || {}).forEach(([name, value]) => {
           if (typeof value !== "string") return;
           const hsl = hexToHsl(value);
-          if (hsl) root.style.setProperty(`--${name}`, hsl);
-          root.style.setProperty(`--color-${name}`, value);
+          if (hsl) decls.push(`--${name}: ${hsl};`);
+          decls.push(`--color-${name}: ${value};`);
         });
-        if (t.typography?.fontFamilyHeading) root.style.setProperty("--font-display", `"${t.typography.fontFamilyHeading}"`);
-        if (t.typography?.fontFamilyBody) root.style.setProperty("--font-body", `"${t.typography.fontFamilyBody}"`);
-        if (t.typography?.baseSize) root.style.setProperty("--font-base-size", `${t.typography.baseSize}px`);
+        if (t.typography?.fontFamilyHeading) decls.push(`--font-display: "${t.typography.fontFamilyHeading}";`);
+        if (t.typography?.fontFamilyBody) decls.push(`--font-body: "${t.typography.fontFamilyBody}";`);
+        if (t.typography?.baseSize) decls.push(`--font-base-size: ${t.typography.baseSize}px;`);
         Object.entries(t.spacing || {}).forEach(([k, v]) => {
-          if (typeof v === "number") root.style.setProperty(`--space-${k}`, `${v}px`);
+          if (typeof v === "number") decls.push(`--space-${k}: ${v}px;`);
         });
+        ensureStyle().textContent = `.site-theme-root{${decls.join("")}}`;
       } catch { /* tokens optional */ }
     })();
     return () => { mounted = false; };
