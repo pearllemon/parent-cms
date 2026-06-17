@@ -183,8 +183,8 @@ export default function AdminPageEditor() {
       };
       if (hasElementor) payload.elementor_data = tree;
       else payload.body = body;
-      const res = await (source.client.from(source.table) as any)
-        .update(payload).eq("id", post.id);
+      const client = source.client as any;
+      const res = await client.from(source.table).update(payload).eq("id", post.id);
       error = res.error;
     }
     setSaving(false);
