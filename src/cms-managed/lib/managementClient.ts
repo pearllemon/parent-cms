@@ -43,6 +43,29 @@ const CFG_CACHE_KEY = "cms.mgmt.config.v1";
 const CFG_CACHE_TTL_MS = 5 * 60 * 1000;
 const LOCAL_CFG_KEY = "cms.local.config.v1";
 
+// When cms.config.json marks this project as its own parent (self_parent:true
+// or site_id:"self"), there is no Tier-1 Parent Management to call. The
+// `parent-site-config` / `parent-update-check` / `parent-update-apply`
+// functions only exist on a real Tier-1 deployment and would fail with
+// "Failed to fetch". In that case we serve sane defaults locally and route
+// update checks through the GitHub PAT connection only.
+let selfParentFlag: boolean | null = null;
+async function isSelfParent(): Promise<boolean> {
+  if (selfParentFlag !== null) return selfParentFlag;
+  try {
+    const res = await fetch("/cms.config.json", { cache: "no-store" });
+    if (res.ok) {
+      const j = await res.json();
+      selfParentFlag = !!j.self_parent || j.site_id === "self";
+    } else {
+      selfParentFlag = false;
+    }
+  } catch {
+    selfParentFlag = false;
+  }
+  return selfParentFlag;
+}
+
 // Lazy import to avoid pulling the supabase client into the management client
 // when only the parent-management path is used.
 async function tryLocalGithub() {
@@ -180,6 +203,22 @@ export async function pullConfig(opts?: { force?: boolean }): Promise<RemoteSite
       /* ignore */
     }
   }
+  if (await isSelfParent()) {
+    // No Tier-1 to ask. Surface whatever the local GitHub connection knows.
+    const local = await tryLocalGithub();
+    const next: RemoteSiteConfig = {
+      parent_repo: local?.conn?.repo || "",
+      default_branch: local?.conn?.branch || "main",
+      update_workflow_filename: "cms-update.yml",
+      channel: "stable",
+      auto_update: false,
+      registry_endpoints: {},
+      signing_public_key: null,
+      fetched_at: Date.now(),
+    };
+    try { localStorage.setItem(CFG_CACHE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  }
   const data = await callFn<Omit<RemoteSiteConfig, "fetched_at">>("parent-site-config", {});
   const next: RemoteSiteConfig = { ...data, fetched_at: Date.now() };
   try {
@@ -209,6 +248,16 @@ export async function checkUpdate(): Promise<UpdateCheck> {
   if (local) {
     return local.checkUpdateViaPat(local.conn, currentVersion);
   }
+  if (await isSelfParent()) {
+    // Self-parent without a configured GitHub PAT: nothing to check.
+    return {
+      latestVersion: currentVersion,
+      latestSha: currentSha,
+      publishedAt: null,
+      changelogUrl: null,
+      updateAvailable: false,
+    };
+  }
   return callFn<UpdateCheck>("parent-update-check", { currentVersion, currentSha });
 }
 
@@ -223,6 +272,9 @@ export async function applyUpdate(target?: { ref?: string }): Promise<{
     const r = await local.applyUpdateViaPat(local.conn, target?.ref);
     if (!r.ok) throw new Error(r.error || "GitHub dispatch failed");
     return { ok: true, dispatched: r.dispatched, actionsUrl: r.actionsUrl };
+  }
+  if (await isSelfParent()) {
+    throw new Error("Configure a GitHub connection (PAT + repo) under Settings to install updates.");
   }
   return callFn("parent-update-apply", { targetRef: target?.ref });
 }
