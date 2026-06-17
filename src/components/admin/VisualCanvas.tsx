@@ -43,6 +43,27 @@ export type Block = {
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, mobile: 375 };
 
+// Resolve per-device overrides: props.responsive?.tablet|mobile are shallow-merged
+// over the base props. Desktop reads base props as-is.
+function effProps(block: Block, device: Device): Record<string, any> {
+  const base = block.props || {};
+  if (device === "desktop") return base;
+  const overrides = (base.responsive && base.responsive[device]) || {};
+  return { ...base, ...overrides };
+}
+
+// Should the block be hidden at the current preview device? Reads
+// effective visibility (which may be overridden per device).
+function isHidden(block: Block, device: Device): boolean {
+  const v = effProps(block, device).visibility;
+  if (!v || v === "all") return false;
+  if (v === "hidden") return true;
+  if (v === "desktop-only") return device !== "desktop";
+  if (v === "tablet-only")  return device !== "tablet";
+  if (v === "mobile-only")  return device !== "mobile";
+  return false;
+}
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 const newBlock = (type: BlockType): Block => {
   const base: Record<BlockType, Block> = {
