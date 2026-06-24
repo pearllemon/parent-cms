@@ -5,6 +5,7 @@ import { supabase as cloud } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 // Mirror the parent-CMS credentials into Lovable Cloud so server-side
 // writes (e.g. WP XML import → imported_posts) pass RLS.
@@ -30,6 +31,7 @@ const AdminLogin = () => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -68,14 +70,24 @@ const AdminLogin = () => {
         <p className="text-sm text-muted-foreground mb-4">Connected to Pearl Lemon parent CMS.</p>
         <form onSubmit={onSubmit} className="space-y-3">
           <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input
-            type="password"
-            placeholder="Password (min 6 chars)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-          />
+          <div className="relative">
+            <Input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password (min 6 chars)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "…" : mode === "signin" ? "Sign in" : "Create account"}
           </Button>

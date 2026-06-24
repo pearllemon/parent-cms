@@ -15,6 +15,7 @@ import {
   rewritePostImageUrls,
 } from "@/lib/imageImport";
 import { importElementorZip, type ElementorImportResult } from "@/lib/elementorImport";
+import { importZipSite, type ZipImportResult } from "@/lib/zipSiteImport";
 
 type ImportHistoryRow = {
   id: string;
@@ -334,6 +335,18 @@ const AdminImport = () => {
   const [elementorResult, setElementorResult] = useState<ElementorImportResult | null>(null);
   const [elementorStatus, setElementorStatus] = useState<string>("");
 
+  // ---- ZIP MD import state ----
+  const [zipMdFile, setZipMdFile] = useState<File | null>(null);
+  const [zipMdImporting, setZipMdImporting] = useState(false);
+  const [zipMdProgress, setZipMdProgress] = useState("");
+  const [zipMdResult, setZipMdResult] = useState<ZipImportResult | null>(null);
+  const [showBrandingModal, setShowBrandingModal] = useState(false);
+  const [brandingOptions, setBrandingOptions] = useState({
+    primary: "#111111",
+    accent: "#ffcc00",
+    font: "Inter",
+  });
+
   const onElementorZip = async (file: File) => {
     setElementorImporting(true);
     setElementorResult(null);
@@ -364,6 +377,53 @@ const AdminImport = () => {
     } finally {
       setElementorImporting(false);
       setElementorStatus("");
+    }
+  };
+
+  const onZipMdFileChange = (file: File) => {
+    setZipMdFile(file);
+    setShowBrandingModal(true);
+  };
+
+  const triggerZipMdImport = async () => {
+    if (!zipMdFile) return;
+    setZipMdImporting(true);
+    setZipMdResult(null);
+    setZipMdProgress("Initializing import…");
+    try {
+      const siteId = config?.site?.id;
+      const res = await importZipSite(
+        zipMdFile,
+        brandingOptions,
+        (msg) => setZipMdProgress(msg),
+        siteId
+      );
+      setZipMdResult(res);
+      const total = res.pages + res.posts;
+      if (siteId) {
+        await supabase.from("import_history").insert({
+          site_id: siteId,
+          source: "zip-md-export",
+          file_name: zipMdFile.name,
+          file_size_bytes: zipMdFile.size,
+          parsed_count: total + res.failed,
+          inserted_count: total,
+          failed_count: res.failed,
+          status: res.failed === 0 ? "completed" : total > 0 ? "partial" : "failed",
+          error_sample: res.errors[0] ?? null,
+        });
+        loadHistory();
+      }
+      if (res.failed === 0) {
+        toast.success(`ZIP Site import complete: ${res.pages} pages, ${res.posts} posts, ${res.images} images.`);
+      } else {
+        toast.warning(`Imported ${total}, ${res.failed} failed. First error: ${res.errors[0] || ""}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ZIP import failed");
+    } finally {
+      setZipMdImporting(false);
+      setZipMdProgress("");
     }
   };
 
@@ -952,6 +1012,169 @@ const AdminImport = () => {
           </div>
         )}
       </div>
+
+      {/* ZIP Website Export (ZIP/MD) Importer */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Sparkles className="w-5 h-5 text-primary" />
+          <h2 className="font-display text-xl">ZIP Website Export (ZIP/MD)</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Import a ZIP export containing structured Markdown pages/posts (under <code>page/</code> and <code>post/</code>). 
+          The importer automatically extracts branding assets, rewrites local image paths to Supabase Storage, 
+          generates highly-polished Elementor-style responsive layouts, and builds global Header/Footer navigation.
+        </p>
+        <label className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:bg-muted/40 transition">
+          <Upload className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+          <span className="text-sm">
+            {zipMdImporting
+              ? zipMdProgress || "Importing ZIP site…"
+              : "Click to choose a website export .zip"}
+          </span>
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            className="hidden"
+            disabled={zipMdImporting}
+            onChange={(e) => e.target.files?.[0] && onZipMdFileChange(e.target.files[0])}
+          />
+        </label>
+        {zipMdResult && (
+          <div className="border rounded-xl p-4 bg-muted/20 text-sm space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              Import Successful
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground">Pages</span>
+                <span className="text-lg font-bold">{zipMdResult.pages}</span>
+              </div>
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground">Posts</span>
+                <span className="text-lg font-bold">{zipMdResult.posts}</span>
+              </div>
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground">Images Uploaded</span>
+                <span className="text-lg font-bold">{zipMdResult.images}</span>
+              </div>
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground">Failed Items</span>
+                <span className="text-lg font-bold text-destructive">{zipMdResult.failed}</span>
+              </div>
+            </div>
+            {zipMdResult.logo && (
+              <div className="pt-2 flex items-center gap-3">
+                <span className="text-xs font-semibold text-muted-foreground">Extracted Logo:</span>
+                <img src={zipMdResult.logo} alt="Extracted Logo" className="h-8 object-contain rounded bg-muted p-1" />
+              </div>
+            )}
+            {zipMdResult.errors.length > 0 && (
+              <details className="text-xs text-muted-foreground pt-1">
+                <summary className="cursor-pointer font-medium text-destructive">
+                  {zipMdResult.errors.length} warning(s) / error(s) occurred
+                </summary>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5 max-h-40 overflow-y-auto font-mono">
+                  {zipMdResult.errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Branding Modal */}
+      {showBrandingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-background border rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div>
+              <h3 className="font-display text-xl font-semibold">Branding Preferences</h3>
+              <p className="text-muted-foreground text-xs mt-1">
+                Customize colors and typography for the imported site. These will sync to your global theme settings.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Primary Color */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Primary Theme Color</label>
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    value={brandingOptions.primary}
+                    onChange={(e) => setBrandingOptions({ ...brandingOptions, primary: e.target.value })}
+                    className="w-10 h-10 border rounded cursor-pointer bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    value={brandingOptions.primary}
+                    onChange={(e) => setBrandingOptions({ ...brandingOptions, primary: e.target.value })}
+                    className="flex-1 px-3 py-2 border rounded-md text-sm bg-muted/40"
+                    placeholder="#111111"
+                  />
+                </div>
+              </div>
+
+              {/* Accent Color */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Accent / Secondary Color</label>
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    value={brandingOptions.accent}
+                    onChange={(e) => setBrandingOptions({ ...brandingOptions, accent: e.target.value })}
+                    className="w-10 h-10 border rounded cursor-pointer bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    value={brandingOptions.accent}
+                    onChange={(e) => setBrandingOptions({ ...brandingOptions, accent: e.target.value })}
+                    className="flex-1 px-3 py-2 border rounded-md text-sm bg-muted/40"
+                    placeholder="#ffcc00"
+                  />
+                </div>
+              </div>
+
+              {/* Font Family */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Font Family</label>
+                <select
+                  value={brandingOptions.font}
+                  onChange={(e) => setBrandingOptions({ ...brandingOptions, font: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
+                >
+                  <option value="Inter">Inter (Clean, Modern Sans-Serif)</option>
+                  <option value="Outfit">Outfit (Elegant, Geometric Sans-Serif)</option>
+                  <option value="Georgia">Georgia (Classic Serif)</option>
+                  <option value="Playfair Display">Playfair Display (Premium Serif)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowBrandingModal(false);
+                  setZipMdFile(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowBrandingModal(false);
+                  triggerZipMdImport();
+                }}
+              >
+                Start ZIP Import
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image import (background worker) */}
       <div className="bg-background border rounded-2xl p-6 space-y-4">

@@ -68,13 +68,26 @@ const AdminDashboard = () => {
   const servicesCount = (config?.services as unknown[] | undefined)?.length ?? 0;
   const parentPageViews = (config as any)?.totalPageViews ?? 0;
 
-  const Stat = ({ label, value, sub }: { label: string; value: string | number | null; sub?: string }) => (
-    <div className="bg-background border rounded-2xl p-5">
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-display text-3xl mt-1">{value ?? "—"}</div>
-      {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
-    </div>
-  );
+  const Stat = ({ label, value, sub }: { label: string; value: string | number | null; sub?: string }) => {
+    const isLongString = typeof value === "string" && value.length > 15;
+    return (
+      <div className="bg-background border rounded-2xl p-5 overflow-hidden flex flex-col justify-between min-h-[110px]">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground truncate">{label}</div>
+          <div
+            className={`font-display mt-1 break-all tracking-tight ${
+              isLongString
+                ? "text-sm sm:text-base font-medium leading-snug text-foreground"
+                : "text-3xl text-foreground"
+            }`}
+          >
+            {value ?? "—"}
+          </div>
+        </div>
+        {sub && <div className="text-xs text-muted-foreground mt-1 truncate">{sub}</div>}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">

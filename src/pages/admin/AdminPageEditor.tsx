@@ -92,39 +92,95 @@ export default function AdminPageEditor() {
 
       // 1) parent posts
       try {
-        const { data } = await (parent.from("posts") as any)
-          .select("id,title,slug,type,body,elementor_data,render_mode")
+        // Fetch guaranteed core columns first to prevent schema errors from breaking load
+        const { data: baseData, error: baseError } = await (parent.from("posts") as any)
+          .select("id,title,slug,type,body")
           .eq("id", id)
           .maybeSingle();
-        if (data) {
-          setPost(data as ImportedPost);
-          const parsedTree = Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : [];
+
+        if (baseData) {
+          const loadedPost: ImportedPost = {
+            id: baseData.id,
+            title: baseData.title || "",
+            slug: baseData.slug || null,
+            type: baseData.type || null,
+            body: baseData.body || "",
+            elementor_data: null,
+            render_mode: null,
+          };
+
+          // Separately try to load elementor_data and render_mode
+          try {
+            const { data: extraData } = await (parent.from("posts") as any)
+              .select("elementor_data,render_mode")
+              .eq("id", id)
+              .maybeSingle();
+            if (extraData) {
+              loadedPost.elementor_data = extraData.elementor_data;
+              loadedPost.render_mode = extraData.render_mode;
+            }
+          } catch {
+            // parent posts table doesn't have these columns yet, which is fine
+          }
+
+          setPost(loadedPost);
+          const parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
           setTree(parsedTree);
-          setBody(data.body || "");
+          setBody(loadedPost.body || "");
           setSource({ table: "posts", client: parent });
-          setEditorMode(parsedTree.length > 0 ? "elementor" : "elementor");
+          setEditorMode("elementor");
           loaded = true;
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn("Parent post load attempt failed:", e);
+      }
 
       // 2) imported_posts
       if (!loaded) {
         try {
-          const { data } = await supabase
+          const { data: baseData } = await supabase
             .from("imported_posts")
-            .select("id,title,slug,type,body,elementor_data,render_mode")
+            .select("id,title,slug,type,body")
             .eq("id", id)
             .maybeSingle();
-          if (data) {
-            setPost(data as ImportedPost);
-            const parsedTree = Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : [];
+
+          if (baseData) {
+            const loadedPost: ImportedPost = {
+              id: baseData.id,
+              title: baseData.title || "",
+              slug: baseData.slug || null,
+              type: baseData.type || null,
+              body: baseData.body || "",
+              elementor_data: null,
+              render_mode: null,
+            };
+
+            // Separately try to load elementor_data and render_mode
+            try {
+              const { data: extraData } = await supabase
+                .from("imported_posts")
+                .select("elementor_data,render_mode")
+                .eq("id", id)
+                .maybeSingle();
+              if (extraData) {
+                loadedPost.elementor_data = extraData.elementor_data;
+                loadedPost.render_mode = extraData.render_mode;
+              }
+            } catch {
+              // columns don't exist
+            }
+
+            setPost(loadedPost);
+            const parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
             setTree(parsedTree);
-            setBody(data.body || "");
+            setBody(loadedPost.body || "");
             setSource({ table: "imported_posts", client: supabase });
-            setEditorMode(parsedTree.length > 0 ? "elementor" : "elementor");
+            setEditorMode("elementor");
             loaded = true;
           }
-        } catch { /* ignore */ }
+        } catch (e) {
+          console.warn("Imported post load attempt failed:", e);
+        }
       }
 
       // 3) cpt_entries (no elementor; body stored in data.body)
@@ -149,10 +205,12 @@ export default function AdminPageEditor() {
             setTree(parsedTree);
             setBody(typeof d.body === "string" ? d.body : "");
             setSource({ table: "cpt_entries", client: supabase });
-            setEditorMode(parsedTree.length > 0 ? "elementor" : "elementor");
+            setEditorMode("elementor");
             loaded = true;
           }
-        } catch { /* ignore */ }
+        } catch (e) {
+          console.warn("CPT load attempt failed:", e);
+        }
       }
 
       if (!loaded) {
