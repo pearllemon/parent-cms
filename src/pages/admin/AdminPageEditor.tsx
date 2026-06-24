@@ -22,7 +22,7 @@ import EditableHtml from "@/components/editor/EditableHtml";
 import SectionLibraryDropZone from "@/components/editor/SectionLibraryDropZone";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, Save } from "lucide-react";
+import { ArrowLeft, ExternalLink, Save, LayoutTemplate } from "lucide-react";
 
 type ImportedPost = {
   id: string;
@@ -39,6 +39,25 @@ type Source =
   | { table: "imported_posts"; client: typeof supabase }
   | { table: "cpt_entries"; client: typeof supabase };
 
+const createSectionNode = (columnsCount = 1) => {
+  const sectionId = Math.random().toString(36).slice(2, 9);
+  const elements = [];
+  for (let i = 0; i < columnsCount; i++) {
+    elements.push({
+      id: Math.random().toString(36).slice(2, 9),
+      elType: "column",
+      settings: { _column_size: 100 / columnsCount },
+      elements: [],
+    });
+  }
+  return {
+    id: sectionId,
+    elType: "section",
+    settings: {},
+    elements,
+  };
+};
+
 export default function AdminPageEditor() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -51,6 +70,7 @@ export default function AdminPageEditor() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editorMode, setEditorMode] = useState<"elementor" | "html">("elementor");
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -78,9 +98,11 @@ export default function AdminPageEditor() {
           .maybeSingle();
         if (data) {
           setPost(data as ImportedPost);
-          setTree(Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : []);
+          const parsedTree = Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : [];
+          setTree(parsedTree);
           setBody(data.body || "");
           setSource({ table: "posts", client: parent });
+          setEditorMode(parsedTree.length > 0 ? "elementor" : "elementor");
           loaded = true;
         }
       } catch { /* ignore */ }
@@ -95,9 +117,11 @@ export default function AdminPageEditor() {
             .maybeSingle();
           if (data) {
             setPost(data as ImportedPost);
-            setTree(Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : []);
+            const parsedTree = Array.isArray(data.elementor_data) ? (data.elementor_data as any[]) : [];
+            setTree(parsedTree);
             setBody(data.body || "");
             setSource({ table: "imported_posts", client: supabase });
+            setEditorMode(parsedTree.length > 0 ? "elementor" : "elementor");
             loaded = true;
           }
         } catch { /* ignore */ }
@@ -121,9 +145,11 @@ export default function AdminPageEditor() {
               elementor_data: Array.isArray(d.elementor_data) ? d.elementor_data : null,
               render_mode: d.render_mode || null,
             });
-            setTree(Array.isArray(d.elementor_data) ? d.elementor_data : []);
+            const parsedTree = Array.isArray(d.elementor_data) ? d.elementor_data : [];
+            setTree(parsedTree);
             setBody(typeof d.body === "string" ? d.body : "");
             setSource({ table: "cpt_entries", client: supabase });
+            setEditorMode(parsedTree.length > 0 ? "elementor" : "elementor");
             loaded = true;
           }
         } catch { /* ignore */ }
@@ -136,10 +162,7 @@ export default function AdminPageEditor() {
     })();
   }, [id, nav]);
 
-  const hasElementor = useMemo(
-    () => tree.length > 0 && post?.render_mode !== "template",
-    [tree, post]
-  );
+  const hasElementor = editorMode === "elementor";
 
   const patchAt = useCallback((path: Path, updater: (s: any) => any) => {
     setTree((t) => {
@@ -220,16 +243,41 @@ export default function AdminPageEditor() {
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Top bar */}
-      <header className="h-14 shrink-0 border-b flex items-center gap-3 px-4">
+      <header className="h-14 shrink-0 border-b flex items-center justify-between gap-3 px-4 bg-background select-none">
         <Button variant="ghost" size="sm" onClick={() => nav("/admin/posts?type=page")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Pages
         </Button>
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{post.title || "(untitled)"}</p>
           <p className="text-xs text-muted-foreground truncate">
-            {hasElementor ? "Elementor page" : "HTML page"} · /{post.slug || ""}
+            {editorMode === "elementor" ? "Elementor Mode" : "HTML Mode"} · /{post.slug || ""}
           </p>
         </div>
+
+        {/* Editor Mode Selector */}
+        <div className="flex items-center bg-muted p-1 rounded-md h-9 border">
+          <button
+            onClick={() => setEditorMode("elementor")}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${
+              editorMode === "elementor"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Visual Editor
+          </button>
+          <button
+            onClick={() => setEditorMode("html")}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${
+              editorMode === "html"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            HTML Editor
+          </button>
+        </div>
+
         {viewHref && (
           <Button asChild variant="ghost" size="sm">
             <a href={viewHref} target="_blank" rel="noopener noreferrer">
@@ -258,7 +306,25 @@ export default function AdminPageEditor() {
                 structural={structural}
                 insertNode={insertNode}
               >
-                <ElementorRenderer data={tree} />
+                {tree.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg m-8 bg-muted/20">
+                    <LayoutTemplate className="w-12 h-12 text-blue-500 mb-4" />
+                    <p className="font-medium text-lg text-foreground">Your Elementor Canvas is Empty</p>
+                    <p className="text-sm text-muted-foreground text-center max-w-sm mt-1 mb-6">
+                      Select a widget from the sidebar library to add it, or click one of the buttons below to quickly insert a layout.
+                    </p>
+                    <div className="flex gap-3">
+                      <Button onClick={() => insertNode(createSectionNode(1))} size="sm">
+                        Add 1-Column Section
+                      </Button>
+                      <Button onClick={() => insertNode(createSectionNode(2))} variant="outline" size="sm">
+                        Add 2-Column Section
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <ElementorRenderer data={tree} />
+                )}
                 <SectionLibraryDropZone />
               </EditorProvider>
             ) : (

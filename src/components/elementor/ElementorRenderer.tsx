@@ -31,10 +31,10 @@ const spacingStyle = (s: any, prefix: "padding" | "margin"): CSSProperties => {
   if (!s) return {};
   const unit = s.unit || "px";
   const out: any = {};
-  if (s.top != null) out[`${prefix}Top`] = `${s.top}${unit}`;
-  if (s.right != null) out[`${prefix}Right`] = `${s.right}${unit}`;
-  if (s.bottom != null) out[`${prefix}Bottom`] = `${s.bottom}${unit}`;
-  if (s.left != null) out[`${prefix}Left`] = `${s.left}${unit}`;
+  if (s.top != null && s.top !== "") out[`${prefix}Top`] = `${s.top}${unit}`;
+  if (s.right != null && s.right !== "") out[`${prefix}Right`] = `${s.right}${unit}`;
+  if (s.bottom != null && s.bottom !== "") out[`${prefix}Bottom`] = `${s.bottom}${unit}`;
+  if (s.left != null && s.left !== "") out[`${prefix}Left`] = `${s.left}${unit}`;
   return out;
 };
 
@@ -74,6 +74,97 @@ const sanitizeHtml = (html: string): string => {
     .replace(/\son\w+\s*=\s*'[^']*'/gi, "");
 };
 
+// ----- Advanced Styling Helpers ------------------------------------------
+
+const getResponsiveClasses = (s: Record<string, any>): string => {
+  const classes = [];
+  const hideDesktop = s.hide_desktop === "yes" || s._hide_desktop === "yes";
+  const hideTablet = s.hide_tablet === "yes" || s._hide_tablet === "yes";
+  const hideMobile = s.hide_mobile === "yes" || s._hide_mobile === "yes";
+
+  if (hideDesktop && hideTablet && hideMobile) {
+    classes.push("hidden");
+  } else if (hideDesktop && hideTablet) {
+    classes.push("md:hidden"); // Hide on tablet and desktop, show on mobile
+  } else if (hideTablet && hideMobile) {
+    classes.push("hidden lg:block"); // Hide on mobile and tablet, show on desktop
+  } else if (hideDesktop && hideMobile) {
+    classes.push("hidden md:block lg:hidden"); // Hide on mobile and desktop, show on tablet
+  } else if (hideDesktop) {
+    classes.push("lg:hidden");
+  } else if (hideTablet) {
+    classes.push("md:max-lg:hidden");
+  } else if (hideMobile) {
+    classes.push("max-md:hidden");
+  }
+  return classes.join(" ");
+};
+
+const getAdvancedStyles = (s: Record<string, any>): CSSProperties => {
+  const style: CSSProperties = {};
+
+  // Margins (supports nested objects and flat schema)
+  const margin = s.margin;
+  if (margin) {
+    const unit = margin.unit || "px";
+    if (margin.top != null && margin.top !== "") style.marginTop = `${margin.top}${unit}`;
+    if (margin.right != null && margin.right !== "") style.marginRight = `${margin.right}${unit}`;
+    if (margin.bottom != null && margin.bottom !== "") style.marginBottom = `${margin.bottom}${unit}`;
+    if (margin.left != null && margin.left !== "") style.marginLeft = `${margin.left}${unit}`;
+  } else {
+    const unit = s.margin_unit || "px";
+    if (s.margin_top != null && s.margin_top !== "") style.marginTop = `${s.margin_top}${unit}`;
+    if (s.margin_right != null && s.margin_right !== "") style.marginRight = `${s.margin_right}${unit}`;
+    if (s.margin_bottom != null && s.margin_bottom !== "") style.marginBottom = `${s.margin_bottom}${unit}`;
+    if (s.margin_left != null && s.margin_left !== "") style.marginLeft = `${s.margin_left}${unit}`;
+  }
+
+  // Padding (supports nested objects and flat schema)
+  const padding = s.padding;
+  if (padding) {
+    const unit = padding.unit || "px";
+    if (padding.top != null && padding.top !== "") style.paddingTop = `${padding.top}${unit}`;
+    if (padding.right != null && padding.right !== "") style.paddingRight = `${padding.right}${unit}`;
+    if (padding.bottom != null && padding.bottom !== "") style.paddingBottom = `${padding.bottom}${unit}`;
+    if (padding.left != null && padding.left !== "") style.paddingLeft = `${padding.left}${unit}`;
+  } else {
+    const unit = s.padding_unit || "px";
+    if (s.padding_top != null && s.padding_top !== "") style.paddingTop = `${s.padding_top}${unit}`;
+    if (s.padding_right != null && s.padding_right !== "") style.paddingRight = `${s.padding_right}${unit}`;
+    if (s.padding_bottom != null && s.padding_bottom !== "") style.paddingBottom = `${s.padding_bottom}${unit}`;
+    if (s.padding_left != null && s.padding_left !== "") style.paddingLeft = `${s.padding_left}${unit}`;
+  }
+
+  // Z-Index
+  const zIndex = s.z_index ?? s._z_index ?? s.zindex;
+  if (zIndex != null && zIndex !== "") {
+    style.zIndex = Number(zIndex);
+  }
+
+  // Animation Delay
+  const delay = s.animation_delay || s._animation_delay;
+  if (delay) {
+    style.animationDelay = `${delay}ms`;
+  }
+
+  return style;
+};
+
+const getAnimationClass = (s: Record<string, any>): string => {
+  const anim = s.animation || s._animation;
+  if (!anim) return "";
+  const mapping: Record<string, string> = {
+    fadeIn: "animate-in fade-in duration-700",
+    fadeInDown: "animate-in fade-in slide-in-from-top-4 duration-700",
+    fadeInUp: "animate-in fade-in slide-in-from-bottom-4 duration-700",
+    fadeInLeft: "animate-in fade-in slide-in-from-left-4 duration-700",
+    fadeInRight: "animate-in fade-in slide-in-from-right-4 duration-700",
+    bounceIn: "animate-in zoom-in-95 duration-500 ease-out",
+    zoomIn: "animate-in zoom-in-90 duration-500",
+  };
+  return mapping[anim] || `animate-${anim}`;
+};
+
 // -------- Widgets ----------------------------------------------------------
 
 function Heading({ s }: { s: Record<string, any> }) {
@@ -105,7 +196,7 @@ function Heading({ s }: { s: Record<string, any> }) {
 function TextEditor({ s }: { s: Record<string, any> }) {
   return (
     <div
-      className="prose prose-neutral max-w-none prose-img:rounded-lg"
+      className="prose prose-neutral max-w-none prose-img:rounded-lg text-foreground"
       style={textAlign(s)}
       dangerouslySetInnerHTML={{ __html: sanitizeHtml(s.editor || "") }}
     />
@@ -146,7 +237,7 @@ function ButtonWidget({ s }: { s: Record<string, any> }) {
         href={href}
         target={target}
         rel={target ? "noopener noreferrer" : undefined}
-        className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-medium transition hover:opacity-90"
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-medium transition hover:opacity-90 shadow-sm"
         style={{
           backgroundColor: s.button_background_color || "hsl(var(--primary))",
           color: s.button_text_color || "hsl(var(--primary-foreground))",
@@ -163,7 +254,7 @@ function Divider({ s }: { s: Record<string, any> }) {
   return (
     <hr
       style={{
-        borderTop: `${px(s.weight) || "1px"} ${s.style || "solid"} ${s.color || "currentColor"}`,
+        borderTop: `${px(s.weight) || "2px"} ${s.style || "solid"} ${s.color || "currentColor"}`,
         opacity: 0.4,
         margin: 0,
       }}
@@ -172,14 +263,14 @@ function Divider({ s }: { s: Record<string, any> }) {
 }
 
 function Spacer({ s }: { s: Record<string, any> }) {
-  return <div aria-hidden style={{ height: px(s.space) || "20px" }} />;
+  return <div aria-hidden style={{ height: px(s.space) || "30px" }} />;
 }
 
 function IconBox({ s }: { s: Record<string, any> }) {
   return (
     <div style={textAlign(s)} className="space-y-2">
       {s.icon?.value?.url && <img src={s.icon.value.url} alt="" className="w-10 h-10 inline-block" />}
-      {s.title_text && <h3 className="font-display text-xl">{s.title_text}</h3>}
+      {s.title_text && <h3 className="font-display text-xl font-medium">{s.title_text}</h3>}
       {s.description_text && (
         <p className="text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(s.description_text) }} />
       )}
@@ -194,7 +285,7 @@ function ImageBox({ s }: { s: Record<string, any> }) {
         <img src={s.image.url} alt={s.image.alt || s.title_text || ""} loading="lazy" className="rounded-lg max-w-full" style={{ width: px(s.image_size) || "120px" }} />
       )}
       <div className="space-y-1">
-        {s.title_text && <h3 className="font-display text-xl">{s.title_text}</h3>}
+        {s.title_text && <h3 className="font-display text-xl font-medium">{s.title_text}</h3>}
         {s.description_text && (
           <p className="text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(s.description_text) }} />
         )}
@@ -222,14 +313,13 @@ function VideoWidget({ s }: { s: Record<string, any> }) {
   if (s.video_type === "hosted" && url) {
     return <video src={url} controls className="w-full rounded-lg" />;
   }
-  // Try to convert YouTube URL to embed
   let embed = url;
   const yt = url.match(/youtu(?:be\.com\/watch\?v=|\.be\/)([\w-]+)/);
   if (yt) embed = `https://www.youtube.com/embed/${yt[1]}`;
   if (!embed) return null;
   return (
     <div className="relative aspect-video">
-      <iframe src={embed} className="absolute inset-0 w-full h-full rounded-lg" allowFullScreen title={s.title || "video"} />
+      <iframe src={embed} className="absolute inset-0 w-full h-full rounded-lg border-0" allowFullScreen title={s.title || "video"} />
     </div>
   );
 }
@@ -249,9 +339,9 @@ function Blockquote({ s }: { s: Record<string, any> }) {
 
 function Testimonial({ s }: { s: Record<string, any> }) {
   return (
-    <figure className="space-y-3 text-center">
+    <figure className="space-y-3 text-center p-6 border rounded-lg bg-card/50">
       {s.testimonial_image?.url && (
-        <img src={s.testimonial_image.url} alt={s.testimonial_name || ""} className="w-16 h-16 rounded-full mx-auto object-cover" />
+        <img src={s.testimonial_image.url} alt={s.testimonial_name || ""} className="w-16 h-16 rounded-full mx-auto object-cover border" />
       )}
       <blockquote className="italic" dangerouslySetInnerHTML={{ __html: sanitizeHtml(s.testimonial_content || "") }} />
       {s.testimonial_name && <figcaption className="font-medium">{s.testimonial_name}</figcaption>}
@@ -265,11 +355,11 @@ function SocialIcons({ s }: { s: Record<string, any> }) {
   return (
     <div className="flex gap-2" style={textAlign(s)}>
       {list.map((it, i) => (
-        <a key={i} href={it.link?.url || "#"} className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted hover:bg-muted/80">
+        <a key={i} href={it.link?.url || "#"} className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted hover:bg-muted/80 transition shadow-sm">
           {it.social_icon?.value?.url ? (
             <img src={it.social_icon.value.url} alt="" className="w-4 h-4" />
           ) : (
-            <span className="text-xs">{it.social_icon?.value?.split?.("-")[1] || "•"}</span>
+            <span className="text-xs uppercase font-semibold">{it.social_icon?.value?.split?.("-")[1] || "•"}</span>
           )}
         </a>
       ))}
@@ -280,7 +370,6 @@ function SocialIcons({ s }: { s: Record<string, any> }) {
 // -------- Container / column logic -----------------------------------------
 
 function gridCols(width: any): string {
-  // Elementor column._column_size is a percentage (e.g. 33.33)
   const n = parseFloat(width);
   if (!isFinite(n) || n <= 0) return "100%";
   return `${n}%`;
@@ -288,7 +377,10 @@ function gridCols(width: any): string {
 
 function Section({ node, path }: { node: ElNode; path: Path }) {
   const s = node.settings || {};
-  const style = containerStyle(s);
+  const style = {
+    ...containerStyle(s),
+    ...getAdvancedStyles(s)
+  };
   const inner = (
     <div
       className="mx-auto w-full"
@@ -304,7 +396,11 @@ function Section({ node, path }: { node: ElNode; path: Path }) {
     </div>
   );
   return (
-    <section style={style} className="relative w-full px-4 py-10 md:py-16">
+    <section
+      id={s.css_id || s._css_id || undefined}
+      style={style}
+      className={`relative w-full px-4 py-10 md:py-16 ${getResponsiveClasses(s)} ${getAnimationClass(s)} ${s.css_classes || s._css_classes || ""}`}
+    >
       {inner}
     </section>
   );
@@ -313,10 +409,16 @@ function Section({ node, path }: { node: ElNode; path: Path }) {
 function Column({ node, path }: { node: ElNode; path: Path }) {
   const s = node.settings || {};
   const width = gridCols(s._column_size ?? s._inline_size ?? 100);
+  const style = {
+    ["--w" as any]: width,
+    ...containerStyle(s),
+    ...getAdvancedStyles(s)
+  };
   return (
     <div
-      className="space-y-4 min-w-0 basis-full md:basis-[calc(var(--w)-1.5rem)]"
-      style={{ ["--w" as any]: width, ...containerStyle(s) }}
+      id={s.css_id || s._css_id || undefined}
+      className={`space-y-4 min-w-0 basis-full md:basis-[calc(var(--w)-1.5rem)] ${getResponsiveClasses(s)} ${getAnimationClass(s)} ${s.css_classes || s._css_classes || ""}`}
+      style={style}
     >
       {(node.elements || []).map((child) => (
         <ElementorNode key={child.id} node={child} path={path} />
@@ -330,6 +432,7 @@ function Container({ node, path }: { node: ElNode; path: Path }) {
   const direction = s.flex_direction || "column";
   const style: CSSProperties = {
     ...containerStyle(s),
+    ...getAdvancedStyles(s),
     display: "flex",
     flexDirection: direction.includes("row") ? "row" : "column",
     flexWrap: "wrap",
@@ -338,7 +441,11 @@ function Container({ node, path }: { node: ElNode; path: Path }) {
     alignItems: s.flex_align_items || undefined,
   };
   return (
-    <div style={style} className="w-full">
+    <div
+      id={s.css_id || s._css_id || undefined}
+      style={style}
+      className={`w-full ${getResponsiveClasses(s)} ${getAnimationClass(s)} ${s.css_classes || s._css_classes || ""}`}
+    >
       {(node.elements || []).map((child) => (
         <ElementorNode key={child.id} node={child} path={path} />
       ))}
@@ -458,9 +565,16 @@ function ElementorNode({ node, path = [] }: { node: ElNode; path?: Path }) {
     );
   }
   if (node.elType === "widget") {
+    const s = node.settings || {};
     return (
       <EditableShell node={node} path={path} kind="widget">
-        <Widget node={node} />
+        <div
+          id={s.css_id || s._css_id || undefined}
+          className={`w-full ${getResponsiveClasses(s)} ${getAnimationClass(s)} ${s.css_classes || s._css_classes || ""}`}
+          style={getAdvancedStyles(s)}
+        >
+          <Widget node={node} />
+        </div>
       </EditableShell>
     );
   }
