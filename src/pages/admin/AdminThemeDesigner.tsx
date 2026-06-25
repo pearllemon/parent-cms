@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2, CloudUpload, Eye } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2, CloudUpload, Eye, Wand2 } from "lucide-react";
 import { publishComponent } from "@/lib/componentCloud";
 import { useSiteConfig } from "@/providers/SiteProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,19 +26,48 @@ import {
   listAssignments, saveAssignment, deleteAssignment,
   type TemplateAssignment, type TemplateScope,
 } from "@/lib/templateAssignments";
+import { seedDefaultTemplates } from "@/lib/defaultTemplates";
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 import ThemeBuilder from "@/components/admin/theme-builder/ThemeBuilder";
 
 export default function AdminThemeDesigner() {
+  const [seeding, setSeeding] = useState(false);
+
+  const handleSeedTemplates = async () => {
+    setSeeding(true);
+    const toastId = toast.loading("Seeding premium default templates...");
+    try {
+      const res = await seedDefaultTemplates((msg) => {
+        toast.loading(msg, { id: toastId });
+      });
+      if (res.success) {
+        toast.success("Successfully seeded 10 premium templates & theme builder configs!", { id: toastId });
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        toast.error("Seeding completed with errors:\n" + res.errors.join("\n"), { id: toastId });
+      }
+    } catch (e) {
+      toast.error("Failed to seed templates: " + (e instanceof Error ? e.message : String(e)), { id: toastId });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-display">Theme Designer</h1>
-        <p className="text-muted-foreground text-sm">
-          Manage reusable sections, page templates, and global design tokens.
-        </p>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-display">Theme Designer</h1>
+          <p className="text-muted-foreground text-sm">
+            Manage reusable sections, page templates, and global design tokens.
+          </p>
+        </div>
+        <Button onClick={handleSeedTemplates} disabled={seeding} variant="secondary" className="gap-2">
+          <Wand2 className="w-4 h-4 text-primary animate-pulse" />
+          {seeding ? "Seeding..." : "Seed Premium Templates"}
+        </Button>
       </header>
 
       <Tabs defaultValue="theme-builder" className="space-y-4">

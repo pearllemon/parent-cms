@@ -986,3 +986,109 @@ export async function importZipSite(
 
   return result;
 }
+
+export async function importSingleMd(
+  file: File,
+  branding: { primary: string; accent: string; font: string },
+  onProgress?: (msg: string) => void,
+  siteId?: string
+): Promise<ZipImportResult> {
+  const result: ZipImportResult = {
+    pages: 0,
+    posts: 0,
+    images: 0,
+    logo: null,
+    failed: 0,
+    errors: [],
+  };
+
+  try {
+    const userId = (await supabase.auth.getUser()).data.user?.id || null;
+    const mdText = await file.text();
+    onProgress?.("Parsing Markdown file…");
+    
+    const filename = file.name;
+    const isPost = filename.toLowerCase().includes("post") || filename.toLowerCase().includes("blog") || filename.toLowerCase().startsWith("p-");
+    const type = isPost ? "post" : "page";
+
+    const parsedPage = parseMarkdownPage(filename, mdText, type);
+    const imageMap = new Map<string, string>();
+
+    onProgress?.("Generating premium visual layout…");
+    const visualTree = generateVisualTree(parsedPage, branding, imageMap);
+    
+    const site_id = siteId || "default";
+    const featuredImage = parsedPage.featuredImage || "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=800&q=80";
+
+    const row = {
+      site_id,
+      title: parsedPage.title,
+      slug: parsedPage.slug,
+      excerpt: parsedPage.metaDescription || `Discover details about ${parsedPage.title}.`,
+      body: parsedPage.sections.map(s => `<h2>${s.title}</h2><p>${s.content.slice(0, 150)}...</p>`).join(""),
+      elementor_data: visualTree as unknown as never,
+      render_mode: parsedPage.type === "post" ? "template" : "elementor",
+      status: "published",
+      publish_date: new Date().toISOString(),
+      featured_image_url: featuredImage,
+      type: parsedPage.type,
+      meta_title: parsedPage.metaTitle || parsedPage.title,
+      meta_description: parsedPage.metaDescription || "",
+      canonical_url: parsedPage.canonicalUrl || "",
+      source: "md-import",
+      imported_by: userId,
+      raw: { original_slug: parsedPage.slug } as unknown as never,
+    };
+
+    onProgress?.("Saving to database…");
+    const { error } = await supabase
+      .from("imported_posts")
+      .upsert(row, { onConflict: "site_id,slug" });
+
+    if (error) {
+      result.failed++;
+      result.errors.push(`Upsert page failed (${parsedPage.title}): ${error.message}`);
+    } else {
+      if (parsedPage.type === "post") result.posts++;
+      else result.pages++;
+
+      // Mirror to live posts table
+      try {
+        const liveRow = {
+          site_id,
+          title: parsedPage.title,
+          slug: parsedPage.slug,
+          type: parsedPage.type,
+          status: "published",
+          excerpt: parsedPage.metaDescription || `Discover details about ${parsedPage.title}.`,
+          body: parsedPage.sections.map(s => `<h2>${s.title}</h2><p>${s.content.slice(0, 150)}...</p>`).join(""),
+          featured_image_url: featuredImage,
+          template: parsedPage.type === "post" ? "blog" : (parsedPage.slug === "" || parsedPage.slug === "home" ? "home" : "default"),
+          render_mode: parsedPage.type === "post" ? "template" : "elementor",
+          elementor_data: visualTree as unknown as never,
+          meta_title: parsedPage.metaTitle || parsedPage.title,
+          meta_description: parsedPage.metaDescription || "",
+          canonical_url: parsedPage.canonicalUrl || "",
+          published_at: new Date().toISOString(),
+          publish_date: new Date().toISOString(),
+        };
+        await supabase.from("posts").upsert(liveRow, { onConflict: "site_id,type,slug" });
+      } catch (e) {
+        console.warn(`Failed to mirror to live posts for ${parsedPage.title}:`, e);
+      }
+    }
+
+    // Auto-regenerate sitemap + llms.txt
+    if (result.pages > 0 || result.posts > 0) {
+      try {
+        const { regenerateSeoFiles } = await import("@/lib/regenerateSeoFiles");
+        await regenerateSeoFiles(window.location.origin, null, undefined, ["sitemap", "llms"]);
+      } catch (e) { console.warn("SEO regen failed:", e); }
+    }
+  } catch (e) {
+    result.failed++;
+    result.errors.push(`Single MD import failed: ${(e as Error).message}`);
+  }
+
+  return result;
+}

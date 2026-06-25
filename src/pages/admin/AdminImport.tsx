@@ -15,7 +15,7 @@ import {
   rewritePostImageUrls,
 } from "@/lib/imageImport";
 import { importElementorZip, type ElementorImportResult } from "@/lib/elementorImport";
-import { importZipSite, type ZipImportResult } from "@/lib/zipSiteImport";
+import { importZipSite, importSingleMd, type ZipImportResult } from "@/lib/zipSiteImport";
 
 type ImportHistoryRow = {
   id: string;
@@ -340,6 +340,10 @@ const AdminImport = () => {
   const [zipMdImporting, setZipMdImporting] = useState(false);
   const [zipMdProgress, setZipMdProgress] = useState("");
   const [zipMdResult, setZipMdResult] = useState<ZipImportResult | null>(null);
+  const [singleMdFile, setSingleMdFile] = useState<File | null>(null);
+  const [singleMdImporting, setSingleMdImporting] = useState(false);
+  const [singleMdProgress, setSingleMdProgress] = useState("");
+  const [singleMdResult, setSingleMdResult] = useState<ZipImportResult | null>(null);
   const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [brandingOptions, setBrandingOptions] = useState({
     primary: "#111111",
@@ -382,7 +386,56 @@ const AdminImport = () => {
 
   const onZipMdFileChange = (file: File) => {
     setZipMdFile(file);
+    setSingleMdFile(null); // Clear other
     setShowBrandingModal(true);
+  };
+
+  const onSingleMdFileChange = (file: File) => {
+    setSingleMdFile(file);
+    setZipMdFile(null); // Clear other
+    setShowBrandingModal(true);
+  };
+
+  const triggerSingleMdImport = async () => {
+    if (!singleMdFile) return;
+    setSingleMdImporting(true);
+    setSingleMdResult(null);
+    setSingleMdProgress("Initializing import…");
+    try {
+      const siteId = config?.site?.id;
+      const res = await importSingleMd(
+        singleMdFile,
+        brandingOptions,
+        (msg) => setSingleMdProgress(msg),
+        siteId
+      );
+      setSingleMdResult(res);
+      const total = res.pages + res.posts;
+      if (siteId) {
+        await supabase.from("import_history").insert({
+          site_id: siteId,
+          source: "single-md-import",
+          file_name: singleMdFile.name,
+          file_size_bytes: singleMdFile.size,
+          parsed_count: total + res.failed,
+          inserted_count: total,
+          failed_count: res.failed,
+          status: res.failed === 0 ? "completed" : total > 0 ? "partial" : "failed",
+          error_sample: res.errors[0] ?? null,
+        });
+        loadHistory();
+      }
+      if (res.failed === 0) {
+        toast.success(`Markdown import complete: ${res.pages} pages, ${res.posts} posts.`);
+      } else {
+        toast.warning(`Imported ${total}, ${res.failed} failed. First error: ${res.errors[0] || ""}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setSingleMdImporting(false);
+      setSingleMdFile(null);
+    }
   };
 
   const triggerZipMdImport = async () => {
@@ -1085,6 +1138,66 @@ const AdminImport = () => {
         )}
       </div>
 
+      {/* Single Markdown File (.md) Importer */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <FileCode2 className="w-5 h-5 text-primary" />
+          <h2 className="font-display text-xl">Single Markdown File (.md)</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Import an individual Markdown file (.md). The system will automatically parse the page or blog post content, extract metadata schemas, and generate a highly-polished Elementor-style responsive visual layout.
+        </p>
+        <label className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:bg-muted/40 transition">
+          <Upload className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+          <span className="text-sm">
+            {singleMdImporting
+              ? singleMdProgress || "Importing Markdown…"
+              : "Click to choose a Markdown .md file"}
+          </span>
+          <input
+            type="file"
+            accept=".md,text/markdown,text/x-markdown"
+            className="hidden"
+            disabled={singleMdImporting}
+            onChange={(e) => e.target.files?.[0] && onSingleMdFileChange(e.target.files[0])}
+          />
+        </label>
+        {singleMdResult && (
+          <div className="border rounded-xl p-4 bg-muted/20 text-sm space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              Import Successful
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-1">
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground">Pages</span>
+                <span className="text-lg font-bold">{singleMdResult.pages}</span>
+              </div>
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground">Posts</span>
+                <span className="text-lg font-bold">{singleMdResult.posts}</span>
+              </div>
+              <div className="bg-background p-3 rounded-lg border text-center">
+                <span className="block text-xs text-muted-foreground font-semibold text-destructive">Failed</span>
+                <span className="text-lg font-bold text-destructive">{singleMdResult.failed}</span>
+              </div>
+            </div>
+            {singleMdResult.errors.length > 0 && (
+              <details className="text-xs text-muted-foreground pt-1">
+                <summary className="cursor-pointer font-medium text-destructive">
+                  {singleMdResult.errors.length} error(s) occurred
+                </summary>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5 max-h-40 overflow-y-auto font-mono">
+                  {singleMdResult.errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Branding Modal */}
       {showBrandingModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -1159,6 +1272,7 @@ const AdminImport = () => {
                 onClick={() => {
                   setShowBrandingModal(false);
                   setZipMdFile(null);
+                  setSingleMdFile(null);
                 }}
               >
                 Cancel
@@ -1166,10 +1280,14 @@ const AdminImport = () => {
               <Button
                 onClick={() => {
                   setShowBrandingModal(false);
-                  triggerZipMdImport();
+                  if (zipMdFile) {
+                    triggerZipMdImport();
+                  } else if (singleMdFile) {
+                    triggerSingleMdImport();
+                  }
                 }}
               >
-                Start ZIP Import
+                Start Import
               </Button>
             </div>
           </div>
