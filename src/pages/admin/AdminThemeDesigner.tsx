@@ -10,9 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2, CloudUpload } from "lucide-react";
+import { Plus, Search, Trash2, Edit3, LayoutTemplate, Boxes, Palette, History as HistoryIcon, RotateCcw, Link2, CloudUpload, Eye } from "lucide-react";
 import { publishComponent } from "@/lib/componentCloud";
 import { useSiteConfig } from "@/providers/SiteProvider";
+import { supabase } from "@/integrations/supabase/client";
+import ElementorRenderer from "@/components/elementor/ElementorRenderer";
 import VisualCanvas, { type Block as VCBlock } from "@/components/admin/VisualCanvas";
 import {
   listSections, listTemplates, saveSection, saveTemplate, deleteSection, deleteTemplate,
@@ -41,11 +43,13 @@ export default function AdminThemeDesigner() {
         <TabsList>
           <TabsTrigger value="sections"><Boxes className="w-4 h-4 mr-1.5" />Sections</TabsTrigger>
           <TabsTrigger value="templates"><LayoutTemplate className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>
+          <TabsTrigger value="global-layouts"><LayoutTemplate className="w-4 h-4 mr-1.5" />Header & Footer</TabsTrigger>
           <TabsTrigger value="assignments"><Link2 className="w-4 h-4 mr-1.5" />Assignments</TabsTrigger>
           <TabsTrigger value="tokens"><Palette className="w-4 h-4 mr-1.5" />Global Design</TabsTrigger>
         </TabsList>
         <TabsContent value="sections"><SectionsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="global-layouts"><GlobalLayoutsTab /></TabsContent>
         <TabsContent value="assignments"><AssignmentsTab /></TabsContent>
         <TabsContent value="tokens"><TokensTab /></TabsContent>
       </Tabs>
@@ -698,6 +702,193 @@ function AssignmentsTab() {
           </ul>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ---------------- Header & Footer Layout Templates ----------------
+function GlobalLayoutsTab() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [previewItem, setPreviewItem] = useState<any | null>(null);
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase
+        .from("elementor_templates")
+        .select("*")
+        .order("kind")
+        .order("title");
+      setItems(data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+  }, []);
+
+  const deleteTpl = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete the layout template "${name}"?`)) return;
+    try {
+      const { error } = await supabase.from("elementor_templates").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Template deleted successfully");
+      void reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  };
+
+  const createNewLayout = async () => {
+    const title = prompt("Enter a title for the new header/footer layout:");
+    if (!title) return;
+    const kind = prompt("Enter template kind ('header' or 'footer'):", "header");
+    if (!kind || (kind !== "header" && kind !== "footer")) {
+      toast.error("Invalid kind. Must be 'header' or 'footer'");
+      return;
+    }
+
+    try {
+      // Create empty section node for editing
+      const emptyLayout = [
+        {
+          id: Math.random().toString(36).slice(2, 9),
+          elType: "section",
+          settings: { padding: { top: 20, bottom: 20, unit: "px" } },
+          elements: [
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "column",
+              settings: { _column_size: 100 },
+              elements: []
+            }
+          ]
+        }
+      ];
+
+      const { data, error } = await supabase
+        .from("elementor_templates")
+        .insert({
+          title,
+          slug: title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          kind,
+          data: emptyLayout,
+          source: "elementor"
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      toast.success(`Created "${title}"`);
+      void reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Creation failed");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+        <p className="text-sm text-muted-foreground max-w-xl">
+          Global Layout Templates govern the structural headers, footers, and floating layouts rendered across child websites.
+        </p>
+        <Button onClick={createNewLayout}>
+          <Plus className="w-4 h-4 mr-1" /> New Layout
+        </Button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading layouts…</p>
+      ) : items.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          No global layout templates found. Run a ZIP site import to generate default header/footer layouts.
+        </Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items.map((item) => (
+            <Card key={item.id} className="p-5 flex flex-col gap-3 hover:shadow-md transition">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h4 className="font-semibold text-base truncate">{item.title || "Untitled Layout"}</h4>
+                  <p className="text-xs text-muted-foreground truncate">Slug: {item.slug || "—"}</p>
+                </div>
+                <Badge variant={item.kind === "header" ? "default" : "secondary"} className="capitalize">
+                  {item.kind}
+                </Badge>
+              </div>
+
+              <div className="bg-muted/30 border rounded-lg p-3 text-xs text-muted-foreground space-y-1 mt-1">
+                <div className="flex justify-between">
+                  <span>Source:</span>
+                  <span className="font-mono">{item.source || "elementor"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last Updated:</span>
+                  <span>{new Date(item.updated_at || item.created_at).toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Widgets Count:</span>
+                  <span>{Array.isArray(item.data) ? item.data.reduce((acc: number, sec: any) => acc + (sec.elements?.reduce((acc2: number, col: any) => acc2 + (col.elements?.length || 0), 0) || 0), 0) : 0}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-auto pt-3">
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => setPreviewItem(item)}>
+                  <Eye className="w-3.5 h-3.5 mr-1" /> Preview
+                </Button>
+                <Button size="sm" className="flex-1" asChild>
+                  <a href={`/admin/edit/${item.id}`}>
+                    <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Visually
+                  </a>
+                </Button>
+                <Button size="sm" variant="ghost" className="px-2" onClick={() => deleteTpl(item.id, item.title || "")}>
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Visual Preview Modal */}
+      {previewItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-4 border-b flex items-center justify-between shrink-0 bg-background">
+              <div>
+                <h3 className="font-semibold text-lg">{previewItem.title}</h3>
+                <p className="text-xs text-muted-foreground">Live Interactive Visual Preview</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" asChild>
+                  <a href={`/admin/edit/${previewItem.id}`}>
+                    <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Visually
+                  </a>
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setPreviewItem(null)}>
+                  Close Preview
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-muted/40 p-6 flex flex-col justify-center">
+              <div className="bg-background shadow-lg rounded-xl border p-4 max-w-4xl mx-auto w-full overflow-hidden">
+                {Array.isArray(previewItem.data) && previewItem.data.length > 0 ? (
+                  <ElementorRenderer data={previewItem.data} />
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground text-sm">
+                    No layout structures inside this template yet. Open in visual editor to design it.
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

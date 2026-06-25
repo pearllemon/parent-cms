@@ -213,6 +213,39 @@ export default function AdminPageEditor() {
         }
       }
 
+      // 4) elementor_templates
+      if (!loaded) {
+        try {
+          const { data: tplData } = await supabase
+            .from("elementor_templates")
+            .select("id,title,slug,data,kind")
+            .eq("id", id)
+            .maybeSingle();
+
+          if (tplData) {
+            const loadedPost: ImportedPost = {
+              id: tplData.id,
+              title: tplData.title || tplData.kind || "Template",
+              slug: tplData.slug || null,
+              type: tplData.kind || null,
+              body: "",
+              elementor_data: Array.isArray(tplData.data) ? (tplData.data as any[]) : null,
+              render_mode: "elementor",
+            };
+
+            setPost(loadedPost);
+            const parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
+            setTree(parsedTree);
+            setBody("");
+            setSource({ table: "elementor_templates", client: supabase });
+            setEditorMode("elementor");
+            loaded = true;
+          }
+        } catch (e) {
+          console.warn("Elementor template load attempt failed:", e);
+        }
+      }
+
       if (!loaded) {
         toast.error("Page not found");
       }
@@ -259,11 +292,15 @@ export default function AdminPageEditor() {
         .eq("id", post.id);
       error = res.error;
     } else {
-      const payload: { updated_at: string; elementor_data?: any; body?: string } = {
+      const payload: any = {
         updated_at: new Date().toISOString(),
       };
-      if (hasElementor) payload.elementor_data = tree;
-      else payload.body = body;
+      if (source.table === "elementor_templates") {
+        payload.data = tree;
+      } else {
+        if (hasElementor) payload.elementor_data = tree;
+        else payload.body = body;
+      }
       const client = source.client as any;
       const res = await client.from(source.table).update(payload).eq("id", post.id);
       error = res.error;
@@ -302,8 +339,8 @@ export default function AdminPageEditor() {
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Top bar */}
       <header className="h-14 shrink-0 border-b flex items-center justify-between gap-3 px-4 bg-background select-none">
-        <Button variant="ghost" size="sm" onClick={() => nav("/admin/posts?type=page")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Pages
+        <Button variant="ghost" size="sm" onClick={() => nav(source?.table === "elementor_templates" ? "/admin/theme-designer" : "/admin/posts?type=page")}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> {source?.table === "elementor_templates" ? "Theme Designer" : "Pages"}
         </Button>
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{post.title || "(untitled)"}</p>
