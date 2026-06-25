@@ -1306,6 +1306,8 @@ export async function importZipSite(
   const mdPostFiles = files.filter((p) => p.match(/^post\/[^/]+\.md$/i) || (p.includes("/post/") && p.endsWith(".md")));
 
   const parsedPages: ParsedPage[] = [];
+  const mdTexts: string[] = [];
+  const filesToParse: { path: string; filename: string; type: "page" | "post" }[] = [];
 
   // Extract Logo Url & Navigation Links
   let globalLogoUrl: string | null = null;
