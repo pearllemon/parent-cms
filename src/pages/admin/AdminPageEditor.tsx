@@ -128,7 +128,8 @@ export default function AdminPageEditor() {
           setTree(parsedTree);
           setBody(loadedPost.body || "");
           setSource({ table: "posts", client: parent });
-          setEditorMode("elementor");
+          const isElementor = loadedPost.render_mode === "elementor" || (parsedTree.length > 0 && loadedPost.render_mode !== "template");
+          setEditorMode(isElementor ? "elementor" : "html");
           loaded = true;
         }
       } catch (e) {
@@ -175,7 +176,8 @@ export default function AdminPageEditor() {
             setTree(parsedTree);
             setBody(loadedPost.body || "");
             setSource({ table: "imported_posts", client: supabase });
-            setEditorMode("elementor");
+            const isElementor = loadedPost.render_mode === "elementor" || (parsedTree.length > 0 && loadedPost.render_mode !== "template");
+            setEditorMode(isElementor ? "elementor" : "html");
             loaded = true;
           }
         } catch (e) {
@@ -192,7 +194,7 @@ export default function AdminPageEditor() {
             .maybeSingle();
           if (data) {
             const d = (data.data || {}) as any;
-            setPost({
+            const loadedPost: ImportedPost = {
               id: data.id,
               title: data.title || "",
               slug: data.slug || null,
@@ -200,12 +202,14 @@ export default function AdminPageEditor() {
               body: typeof d.body === "string" ? d.body : "",
               elementor_data: Array.isArray(d.elementor_data) ? d.elementor_data : null,
               render_mode: d.render_mode || null,
-            });
+            };
+            setPost(loadedPost);
             const parsedTree = Array.isArray(d.elementor_data) ? d.elementor_data : [];
             setTree(parsedTree);
             setBody(typeof d.body === "string" ? d.body : "");
             setSource({ table: "cpt_entries", client: supabase });
-            setEditorMode("elementor");
+            const isElementor = loadedPost.render_mode === "elementor" || (parsedTree.length > 0 && loadedPost.render_mode !== "template");
+            setEditorMode(isElementor ? "elementor" : "html");
             loaded = true;
           }
         } catch (e) {
@@ -238,7 +242,7 @@ export default function AdminPageEditor() {
             setTree(parsedTree);
             setBody("");
             setSource({ table: "elementor_templates", client: supabase });
-            setEditorMode("elementor");
+            setEditorMode("elementor"); // Templates are always Elementor
             loaded = true;
           }
         } catch (e) {

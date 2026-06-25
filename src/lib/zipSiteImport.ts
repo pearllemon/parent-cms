@@ -159,6 +159,81 @@ function resolveImageUrl(url: string | null | undefined, imageMap: Map<string, s
   return url;
 }
 
+function markdownToHtml(md: string, imageMap?: Map<string, string>): string {
+  if (!md) return "";
+  
+  let html = md.replace(/\r\n/g, "\n");
+  
+  // Resolve image helper
+  const resolveImage = (url: string): string => {
+    if (!imageMap) return url;
+    return resolveImageUrl(url, imageMap);
+  };
+  
+  // 1. Headings (h1, h2, h3, h4)
+  html = html.replace(/^####\s+(.*)$/gm, "<h4 style='font-size:18px; font-weight:700; margin-top:25px; margin-bottom:10px;'>$1</h4>");
+  html = html.replace(/^###\s+(.*)$/gm, "<h3 style='font-size:20px; font-weight:700; margin-top:28px; margin-bottom:12px;'>$1</h3>");
+  html = html.replace(/^##\s+(.*)$/gm, "<h2 style='font-size:24px; font-weight:700; margin-top:32px; margin-bottom:15px; border-bottom:1px solid #eaeaea; padding-bottom:8px;'>$1</h2>");
+  html = html.replace(/^#\s+(.*)$/gm, "<h1 style='font-size:30px; font-weight:800; margin-top:35px; margin-bottom:20px;'>$1</h1>");
+  
+  // 2. Blockquotes
+  html = html.replace(/^>\s+(.*)$/gm, "<blockquote style='border-left:4px solid #e94560; padding-left:15px; font-style:italic; color:#555; margin:20px 0;'>$1</blockquote>");
+  
+  // 3. Images - resolve image URLs via imageMap
+  html = html.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, src) => {
+    const resolvedSrc = resolveImage(src);
+    return `<img src='${resolvedSrc}' alt='${alt}' style='max-width:100%; height:auto; border-radius:8px; margin:20px 0; display:block;'/>`;
+  });
+  
+  // 4. Links
+  html = html.replace(/\[(.*?)\]\((.*?)\)/g, "<a href='$2' style='color:#e94560; font-weight:600; text-decoration:underline;'>$1</a>");
+  
+  // 5. Bold and Italic
+  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
+  
+  // 6. Unordered Lists
+  const lines = html.split("\n");
+  let inList = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith("- ") || line.startsWith("* ")) {
+      const content = line.substring(2);
+      if (!inList) {
+        lines[i] = `<ul style='list-style-type:disc; padding-left:25px; margin:15px 0;'>\n<li style='margin-bottom:8px;'>${content}</li>`;
+        inList = true;
+      } else {
+        lines[i] = `<li style='margin-bottom:8px;'>${content}</li>`;
+      }
+    } else {
+      if (inList) {
+        lines[i] = "</ul>\n" + lines[i];
+        inList = false;
+      }
+    }
+  }
+  if (inList) {
+    lines.push("</ul>");
+  }
+  html = lines.join("\n");
+  
+  // 7. Paragraphs
+  const blocks = html.split(/\n\s*\n/);
+  const blockTags = ["<h1", "<h2", "<h3", "<h4", "<blockquote", "<ul", "<img", "<div"];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i].trim();
+    if (!block) continue;
+    
+    const hasBlockTag = blockTags.some(t => block.startsWith(t));
+    if (!hasBlockTag) {
+      blocks[i] = `<p style='margin-bottom:15px; color:#4a5568;'>${block}</p>`;
+    }
+  }
+  html = blocks.join("\n");
+  
+  return html;
+}
+
 function generateVisualTree(
   page: ParsedPage,
   branding: { primary: string; accent: string; font: string },
@@ -167,6 +242,241 @@ function generateVisualTree(
   
   // Resolve image URLs with our uploaded mapped URLs
   const resolveImage = (url: string | null | undefined): string => resolveImageUrl(url, imageMap);
+
+  const pCol = branding.primary;
+  const aCol = branding.accent;
+  const font = branding.font;
+
+  // Check if this page is a post or a standard contiguous article page (0 or 1 checklist/section splits)
+  const isArticle = page.type === "post" || page.sections.length <= 1;
+
+  if (isArticle) {
+    const tree: any[] = [];
+    const contentText = page.sections[0]?.content || "";
+    const articleHtml = markdownToHtml(contentText, imageMap);
+    const featuredImage = resolveImage(page.featuredImage);
+    const postTitle = page.title;
+    
+    // Check if the article is essentially empty (less than 20 characters of real text)
+    const isContentEmpty = contentText.replace(/[#\s─\-=_]/g, "").length < 20;
+    
+    const heroSectionId = Math.random().toString(36).slice(2, 9);
+    
+    // 1. Hero Header Section
+    tree.push({
+      id: heroSectionId,
+      elType: "section",
+      settings: {
+        background_color: pCol === "#111111" ? "#0b0c10" : "#f8f9fa",
+        color: pCol === "#111111" ? "#ffffff" : "#1a202c",
+        padding: { top: 60, bottom: 60, unit: "px" }
+      },
+      elements: [
+        // Title column (60% width)
+        {
+          id: Math.random().toString(36).slice(2, 9),
+          elType: "column",
+          settings: { _column_size: featuredImage ? 60 : 100 },
+          elements: [
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "heading",
+              settings: {
+                title: page.type === "post" ? "BLOG POST" : "ARTICLE",
+                header_size: "span",
+                title_color: aCol,
+                typography_font_size: { size: 13, unit: "px" },
+                typography_font_family: font,
+                typography_font_weight: "700",
+                typography_text_transform: "uppercase",
+                margin: { bottom: 10 }
+              }
+            },
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "heading",
+              settings: {
+                title: postTitle,
+                header_size: "h1",
+                title_color: pCol === "#111111" ? "#ffffff" : pCol,
+                typography_font_size: { size: 36, unit: "px" },
+                typography_font_family: font,
+                typography_font_weight: "800",
+                margin: { bottom: 15 }
+              }
+            },
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "text-editor",
+              settings: {
+                editor: `<p style="font-size: 13px; opacity: 0.8; margin-top: 10px; margin-bottom: 20px; font-family: ${font}">
+                  Published by <strong>Team</strong> &bull; Updated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} &bull; 5 min read
+                </p>`
+              }
+            }
+          ]
+        },
+        // Image column (40% width, only if image exists)
+        featuredImage ? {
+          id: Math.random().toString(36).slice(2, 9),
+          elType: "column",
+          settings: { _column_size: 40 },
+          elements: [
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "image",
+              settings: {
+                image: { url: featuredImage, alt: postTitle },
+                border_radius: { size: 12, unit: "px" },
+                align: "center"
+              }
+            }
+          ]
+        } : null
+      ].filter(Boolean)
+    });
+    
+    // 2. Main Body Section
+    const bodySectionId = Math.random().toString(36).slice(2, 9);
+    tree.push({
+      id: bodySectionId,
+      elType: "section",
+      settings: {
+        background_color: "#ffffff",
+        padding: { top: 50, bottom: 70, unit: "px" }
+      },
+      elements: [
+        // Left Column: Content (70% width)
+        {
+          id: Math.random().toString(36).slice(2, 9),
+          elType: "column",
+          settings: { _column_size: 70, padding: { right: 35, unit: "px" } },
+          elements: [
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "text-editor",
+              settings: {
+                editor: isContentEmpty 
+                  ? `<div style="font-family: ${font}; padding-top: 10px;">
+                      <h2 style="font-size: 24px; color: ${pCol}; margin-bottom: 15px; font-weight: 700;">${postTitle}</h2>
+                      <p style="font-size: 15px; color: #4a5568; line-height: 1.7; margin-bottom: 20px;">
+                        Welcome to our dedicated page for <strong>${postTitle}</strong>. We are currently preparing a comprehensive set of resources, insights, and guides for this section.
+                      </p>
+                      <div style="padding: 30px; background-color: #f7fafc; border-left: 4px solid ${aCol}; border-radius: 6px; margin: 35px 0;">
+                        <h4 style="margin-top: 0; color: ${pCol}; font-size: 18px; margin-bottom: 10px; font-weight: 700;">Need immediate consultation?</h4>
+                        <p style="margin-bottom: 15px; font-size: 14px; color: #4a5568; line-height: 1.6;">Our expert advisors are fully equipped to address your specific questions and design a custom solution tailored to your requirements.</p>
+                        <a href="/book-a-call" style="display: inline-block; padding: 12px 24px; background-color: ${aCol}; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 14px; transition: background-color 0.2s;">Book a Call with Our Team</a>
+                      </div>
+                     </div>`
+                  : `<div style="font-family: ${font}; font-size: 15px; line-height: 1.75; color: #2d3748;">${articleHtml}</div>`
+              }
+            }
+          ]
+        },
+        // Right Column: Sidebar (30% width)
+        {
+          id: Math.random().toString(36).slice(2, 9),
+          elType: "column",
+          settings: { 
+            _column_size: 30,
+            background_color: "#f8f9fa",
+            padding: { top: 30, right: 25, bottom: 30, left: 25, unit: "px" },
+            border_radius: { size: 10, unit: "px" }
+          },
+          elements: [
+            // About Agency Card
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "heading",
+              settings: {
+                title: "About Our Agency",
+                header_size: "h4",
+                title_color: pCol,
+                typography_font_size: { size: 17, unit: "px" },
+                typography_font_family: font,
+                typography_font_weight: "700",
+                margin: { bottom: 12 }
+              }
+            },
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "text-editor",
+              settings: {
+                editor: `<p style="font-size: 13px; color: #4a5568; line-height: 1.6; margin-bottom: 20px; font-family: ${font}">
+                  We are an award-winning consulting agency dedicated to delivering high-impact, data-driven optimization campaigns that boost search rankings and double organic traffic.
+                </p>`
+              }
+            },
+            // Divider
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "spacer",
+              settings: { space: { size: 15, unit: "px" } }
+            },
+            // Call CTA Box
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "column",
+              settings: {
+                background_color: pCol === "#111111" ? "#1e1e24" : pCol,
+                padding: { top: 25, right: 20, bottom: 25, left: 20, unit: "px" },
+                border_radius: { size: 8, unit: "px" }
+              },
+              elements: [
+                {
+                  id: Math.random().toString(36).slice(2, 9),
+                  elType: "widget",
+                  widgetType: "heading",
+                  settings: {
+                    title: "Ready to Scale?",
+                    header_size: "h5",
+                    title_color: "#ffffff",
+                    typography_font_size: { size: 16, unit: "px" },
+                    typography_font_family: font,
+                    typography_font_weight: "700",
+                    margin: { bottom: 8 }
+                  }
+                },
+                {
+                  id: Math.random().toString(36).slice(2, 9),
+                  elType: "widget",
+                  widgetType: "text-editor",
+                  settings: {
+                    editor: `<p style="font-size: 12px; color: #cbd5e1; line-height: 1.5; margin-bottom: 15px; font-family: ${font}">
+                      Schedule a zero-obligation strategy session with our senior advisors today.
+                    </p>`
+                  }
+                },
+                {
+                  id: Math.random().toString(36).slice(2, 9),
+                  elType: "widget",
+                  widgetType: "button",
+                  settings: {
+                    text: "BOOK A CALL",
+                    link: { url: "/book-a-call" },
+                    button_background_color: aCol,
+                    button_text_color: pCol === "#111111" ? "#ffffff" : "#111111",
+                    align: "center",
+                    size: "sm"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+    
+    return tree;
+  }
 
   // Helper to extract texts, bullet points, and headers from parsed section body
   const extractSectionData = (content: string) => {
@@ -204,9 +514,6 @@ function generateVisualTree(
   };
 
   const tree: any[] = [];
-  const pCol = branding.primary;
-  const aCol = branding.accent;
-  const font = branding.font;
 
   // Walk through each section and generate custom premium layouts
   page.sections.forEach((sec, idx) => {
@@ -933,12 +1240,20 @@ export async function importZipSite(
       const visualTree = generateVisualTree(page, branding, imageMap);
       const featuredImage = resolveImageUrl(page.featuredImage, imageMap);
 
+      const fullHtml = page.sections.map((s, sIdx) => {
+        const sectionContentHtml = markdownToHtml(s.content, imageMap);
+        if (s.title === "Hero" || sIdx === 0) {
+          return sectionContentHtml;
+        }
+        return `<h2>${s.title}</h2>\n${sectionContentHtml}`;
+      }).join("\n");
+
       const row = {
         site_id,
         title: page.title,
         slug: page.slug,
         excerpt: page.metaDescription || `Discover details about ${page.title}.`,
-        body: page.sections.map(s => `<h2>${s.title}</h2><p>${s.content.slice(0, 150)}...</p>`).join(""),
+        body: fullHtml,
         elementor_data: visualTree as unknown as never,
         render_mode: page.type === "post" ? "template" : "elementor",
         status: "published",
@@ -973,7 +1288,7 @@ export async function importZipSite(
             type: page.type,
             status: "published",
             excerpt: page.metaDescription || `Discover details about ${page.title}.`,
-            body: page.sections.map(s => `<h2>${s.title}</h2><p>${s.content.slice(0, 150)}...</p>`).join(""),
+            body: fullHtml,
             featured_image_url: featuredImage,
             template: page.type === "post" ? "blog" : (page.slug === "" || page.slug === "home" ? "home" : "default"),
             render_mode: page.type === "post" ? "template" : "elementor",
@@ -1039,12 +1354,20 @@ export async function importSingleMd(
     const site_id = siteId || "default";
     const featuredImage = parsedPage.featuredImage || "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=800&q=80";
 
+    const fullHtml = parsedPage.sections.map((s, sIdx) => {
+      const sectionContentHtml = markdownToHtml(s.content, imageMap);
+      if (s.title === "Hero" || sIdx === 0) {
+        return sectionContentHtml;
+      }
+      return `<h2>${s.title}</h2>\n${sectionContentHtml}`;
+    }).join("\n");
+
     const row = {
       site_id,
       title: parsedPage.title,
       slug: parsedPage.slug,
       excerpt: parsedPage.metaDescription || `Discover details about ${parsedPage.title}.`,
-      body: parsedPage.sections.map(s => `<h2>${s.title}</h2><p>${s.content.slice(0, 150)}...</p>`).join(""),
+      body: fullHtml,
       elementor_data: visualTree as unknown as never,
       render_mode: parsedPage.type === "post" ? "template" : "elementor",
       status: "published",
@@ -1080,7 +1403,7 @@ export async function importSingleMd(
           type: parsedPage.type,
           status: "published",
           excerpt: parsedPage.metaDescription || `Discover details about ${parsedPage.title}.`,
-          body: parsedPage.sections.map(s => `<h2>${s.title}</h2><p>${s.content.slice(0, 150)}...</p>`).join(""),
+          body: fullHtml,
           featured_image_url: featuredImage,
           template: parsedPage.type === "post" ? "blog" : (parsedPage.slug === "" || parsedPage.slug === "home" ? "home" : "default"),
           render_mode: parsedPage.type === "post" ? "template" : "elementor",

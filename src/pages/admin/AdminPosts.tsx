@@ -310,11 +310,9 @@ const AdminPosts = () => {
                       <Button asChild size="sm" variant="ghost" title="View on site">
                         <a href={viewUrl(p)} target="_blank" rel="noopener noreferrer"><Eye className="w-4 h-4" /></a>
                       </Button>
-                      {p.source === "imported" && (
-                        <Button asChild size="sm" variant="outline" title="Inline visual editor">
-                          <Link to={`/admin/edit/${p.id}`}><Wand2 className="w-4 h-4 mr-1" /> Visual</Link>
-                        </Button>
-                      )}
+                      <Button asChild size="sm" variant="outline" title="Inline visual editor">
+                        <Link to={`/admin/edit/${p.id}`}><Wand2 className="w-4 h-4 mr-1" /> Visual</Link>
+                      </Button>
                       <Button asChild size="sm" variant="outline">
                         <Link to={editHref}><Pencil className="w-4 h-4 mr-1" /> Edit</Link>
                       </Button>
