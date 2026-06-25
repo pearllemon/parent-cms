@@ -82,17 +82,22 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
     } catch { /* ignore */ }
   }
 
-  // 3. Parse Sections by spliting after '# PAGE CONTENT'
-  const contentMarker = md.indexOf("# ─────────────────────────────────────────────\n# PAGE CONTENT");
-  const contentMarkerAlt = md.indexOf("# PAGE CONTENT");
-  const markerIndex = contentMarker !== -1 ? contentMarker : contentMarkerAlt;
+  // 3. Parse Sections by splitting after '# PAGE CONTENT'
+  const normalizedMd = md.replace(/\r\n/g, "\n");
+  const contentMarker = normalizedMd.indexOf("# PAGE CONTENT");
+  let bodyText = normalizedMd;
   
-  // Slice body text
-  let bodyText = md;
-  if (markerIndex !== -1) {
-    const rest = md.slice(markerIndex);
-    const contentHeaderEnd = rest.indexOf("\n", rest.indexOf("PAGE CONTENT") + 12);
-    bodyText = rest.slice(contentHeaderEnd === -1 ? 0 : contentHeaderEnd).trim();
+  if (contentMarker !== -1) {
+    const lineEnd = normalizedMd.indexOf("\n", contentMarker);
+    const startIdx = lineEnd !== -1 ? lineEnd + 1 : contentMarker + 14;
+    let rest = normalizedMd.slice(startIdx).trim();
+    
+    // Skip the trailing divider line if it exists
+    if (rest.startsWith("# ──") || rest.startsWith("# ───") || rest.startsWith("# ──────────────────────────────")) {
+      const dividerEnd = rest.indexOf("\n");
+      rest = rest.slice(dividerEnd !== -1 ? dividerEnd + 1 : 0).trim();
+    }
+    bodyText = rest;
   }
 
   // Split content by sections denoted by bullet checklist "- ✅" or h2 "## "
@@ -101,9 +106,21 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
   // The first section before any checklist tag is the Hero intro
   const intro = rawSections[0].trim();
   if (intro) {
-    // Extract first title header # or ## as page title
+    // Extract first title header # or ## as page title, ignoring horizontal lines
+    let firstTitle = "";
     const firstTitleMatch = intro.match(/^[#\s]+([^\n]+)/);
-    if (firstTitleMatch) result.title = firstTitleMatch[1].trim();
+    if (firstTitleMatch) {
+      const matchedTitle = firstTitleMatch[1].trim();
+      // Only set title if it's not a horizontal rule or divider
+      if (!matchedTitle.startsWith("──") && !matchedTitle.startsWith("---")) {
+        firstTitle = matchedTitle;
+      }
+    }
+    
+    if (firstTitle) {
+      result.title = firstTitle;
+    }
+    
     result.sections.push({
       title: "Hero",
       content: intro,
