@@ -120,6 +120,86 @@ function extractNavigationLinks(md: string): { headerLinks: NavLink[]; footerLin
   return { headerLinks, footerLinks };
 }
 
+async function downloadAndMapRemoteImages(
+  mdTexts: string[],
+  imageMap: Map<string, string>,
+  onProgress?: (msg: string) => void
+): Promise<number> {
+  const remoteUrls = new Set<string>();
+  
+  // Match Markdown image syntax: ![alt](url)
+  const mdImgRegex = /!\[[^\]]*\]\((https?:\/\/[^)]+)\)/g;
+  // Match HTML image syntax: <img src="url" .../>
+  const htmlImgRegex = /<img\s+[^>]*src=["'](https?:\/\/[^"']+)["']/g;
+  
+  for (const md of mdTexts) {
+    let match;
+    
+    mdImgRegex.lastIndex = 0;
+    while ((match = mdImgRegex.exec(md)) !== null) {
+      const url = match[1].trim();
+      if (!url.includes(".supabase.co/storage/v1/object/public/")) {
+        remoteUrls.add(url);
+      }
+    }
+    
+    htmlImgRegex.lastIndex = 0;
+    while ((match = htmlImgRegex.exec(md)) !== null) {
+      const url = match[1].trim();
+      if (!url.includes(".supabase.co/storage/v1/object/public/")) {
+        remoteUrls.add(url);
+      }
+    }
+  }
+  
+  if (remoteUrls.size === 0) return 0;
+  
+  onProgress?.(`Found ${remoteUrls.size} remote image URLs. Downloading and caching…`);
+  let downloadedCount = 0;
+  
+  for (const url of remoteUrls) {
+    try {
+      if (imageMap.has(url)) continue;
+      
+      const cleanUrl = url.split("?")[0];
+      const filename = cleanUrl.split("/").pop() || "downloaded-image.png";
+      
+      onProgress?.(`Downloading image: ${filename}`);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`Failed to download image from ${url}: ${response.statusText}`);
+        continue;
+      }
+      
+      const blob = await response.blob();
+      const ext = filename.split(".").pop() || "png";
+      const slug = filename.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50) || "img";
+      const key = `imported/downloaded-${Date.now()}-${slug}.${ext}`;
+      const contentType = blob.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
+      
+      const { error } = await supabase.storage.from("post-images").upload(key, blob, {
+        contentType,
+        cacheControl: "31536000",
+      });
+      
+      if (error) {
+        console.warn(`Failed to upload downloaded image ${filename}: ${error.message}`);
+        continue;
+      }
+      
+      const { data: pub } = supabase.storage.from("post-images").getPublicUrl(key);
+      imageMap.set(url, pub.publicUrl);
+      imageMap.set(filename, pub.publicUrl);
+      downloadedCount++;
+    } catch (e) {
+      console.warn(`Failed to download remote image from ${url}:`, e);
+    }
+  }
+  
+  return downloadedCount;
+}
+
 function parseMarkdownPage(filename: string, md: string, type: "page" | "post"): ParsedPage {
   const cleanedMd = cleanMarkdownJunk(md);
   const navLinks = extractNavigationLinks(md);
@@ -1235,30 +1315,35 @@ export async function importZipSite(
   for (const path of mdPageFiles) {
     try {
       const md = await zip.files[path].async("string");
-      const filename = path.split("/").pop() || "page.md";
-      const parsed = parseMarkdownPage(filename, md, "page");
-      parsedPages.push(parsed);
-      
-      if (parsed.logoUrl && !globalLogoUrl) {
-        globalLogoUrl = parsed.logoUrl;
-      }
-      if (parsed.headerLinks && parsed.headerLinks.length > 0 && globalHeaderLinks.length === 0) {
-        globalHeaderLinks = parsed.headerLinks;
-      }
-      if (parsed.footerLinks && parsed.footerLinks.length > 0 && globalFooterLinks.length === 0) {
-        globalFooterLinks = parsed.footerLinks;
-      }
+      mdTexts.push(md);
+      filesToParse.push({ path, filename: path.split("/").pop() || "page.md", type: "page" });
     } catch (e) {
       result.failed++;
-      result.errors.push(`Page parse failed (${path}): ${(e as Error).message}`);
+      result.errors.push(`Page load failed (${path}): ${(e as Error).message}`);
     }
   }
 
   for (const path of mdPostFiles) {
     try {
       const md = await zip.files[path].async("string");
-      const filename = path.split("/").pop() || "post.md";
-      const parsed = parseMarkdownPage(filename, md, "post");
+      mdTexts.push(md);
+      filesToParse.push({ path, filename: path.split("/").pop() || "post.md", type: "post" });
+    } catch (e) {
+      result.failed++;
+      result.errors.push(`Post load failed (${path}): ${(e as Error).message}`);
+    }
+  }
+
+  // Download and cache remote media files referenced in the markdown content
+  if (mdTexts.length > 0) {
+    await downloadAndMapRemoteImages(mdTexts, imageMap, onProgress);
+  }
+
+  onProgress?.("Parsing content and generating layouts…");
+  for (const item of filesToParse) {
+    try {
+      const md = await zip.files[item.path].async("string");
+      const parsed = parseMarkdownPage(item.filename, md, item.type);
       parsedPages.push(parsed);
       
       if (parsed.logoUrl && !globalLogoUrl) {
@@ -1272,7 +1357,7 @@ export async function importZipSite(
       }
     } catch (e) {
       result.failed++;
-      result.errors.push(`Post parse failed (${path}): ${(e as Error).message}`);
+      result.errors.push(`${item.type === "page" ? "Page" : "Post"} parse failed (${item.path}): ${(e as Error).message}`);
     }
   }
 
@@ -1456,14 +1541,17 @@ export async function importSingleMd(
   try {
     const userId = (await supabase.auth.getUser()).data.user?.id || null;
     const mdText = await file.text();
+    const imageMap = new Map<string, string>();
+
+    // Download and cache remote media files referenced in this single file
+    await downloadAndMapRemoteImages([mdText], imageMap, onProgress);
+
     onProgress?.("Parsing Markdown file…");
-    
     const filename = file.name;
     const isPost = filename.toLowerCase().includes("post") || filename.toLowerCase().includes("blog") || filename.toLowerCase().startsWith("p-");
     const type = isPost ? "post" : "page";
 
     const parsedPage = parseMarkdownPage(filename, mdText, type);
-    const imageMap = new Map<string, string>();
 
     onProgress?.("Generating premium visual layout…");
     const visualTree = generateVisualTree(parsedPage, branding, imageMap);
