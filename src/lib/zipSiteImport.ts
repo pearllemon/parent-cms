@@ -131,6 +131,17 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
 
 // -------- Premium Layout Trees Generator (Elementor-compatible) ------------
 
+function resolveImageUrl(url: string | null | undefined, imageMap: Map<string, string>): string {
+  if (!url) return "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=800&q=80";
+  // Check key mapping (either exact, slug, or filename)
+  for (const [orig, mapped] of imageMap.entries()) {
+    if (url.includes(orig) || orig.includes(url) || url.split("/").pop() === orig.split("/").pop()) {
+      return mapped;
+    }
+  }
+  return url;
+}
+
 function generateVisualTree(
   page: ParsedPage,
   branding: { primary: string; accent: string; font: string },
@@ -138,16 +149,7 @@ function generateVisualTree(
 ): any[] {
   
   // Resolve image URLs with our uploaded mapped URLs
-  const resolveImage = (url: string | null | undefined): string => {
-    if (!url) return "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=800&q=80";
-    // Check key mapping (either exact, slug, or filename)
-    for (const [orig, mapped] of imageMap.entries()) {
-      if (url.includes(orig) || orig.includes(url) || url.split("/").pop() === orig.split("/").pop()) {
-        return mapped;
-      }
-    }
-    return url;
-  };
+  const resolveImage = (url: string | null | undefined): string => resolveImageUrl(url, imageMap);
 
   // Helper to extract texts, bullet points, and headers from parsed section body
   const extractSectionData = (content: string) => {
@@ -912,7 +914,7 @@ export async function importZipSite(
   for (const page of parsedPages) {
     try {
       const visualTree = generateVisualTree(page, branding, imageMap);
-      const featuredImage = resolveImage(page.featuredImage);
+      const featuredImage = resolveImageUrl(page.featuredImage, imageMap);
 
       const row = {
         site_id,
