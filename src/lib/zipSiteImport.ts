@@ -36,7 +36,43 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+function cleanMarkdownJunk(md: string): string {
+  if (!md) return "";
+  
+  let cleaned = md.replace(/\r\n/g, "\n");
+  
+  // Find the starting index of any of the junk/appended footer sections
+  const patterns = [
+    /(?:---\s*\n+)?#+\s+Navigation\s+Links/i,
+    /(?:---\s*\n+)?\*?\s*Copyright\s+©/i,
+    /(?:---\s*\n+)?\*?\s*Generated\s+by\s+Content\s+Snapshot\s+Pro/i,
+  ];
+  
+  let firstIndex = -1;
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (match && match.index !== undefined) {
+      if (firstIndex === -1 || match.index < firstIndex) {
+        firstIndex = match.index;
+      }
+    }
+  }
+  
+  if (firstIndex !== -1) {
+    cleaned = cleaned.substring(0, firstIndex).trim();
+  }
+  
+  // Clean up any remaining trailing separators, linebreaks, or non-breaking spaces
+  while (cleaned.endsWith("---") || cleaned.endsWith("&nbsp;") || cleaned.endsWith(" ")) {
+    cleaned = cleaned.replace(/(?:---\s*|&nbsp;\s*|\s+)$/, "").trim();
+  }
+  
+  return cleaned;
+}
+
 function parseMarkdownPage(filename: string, md: string, type: "page" | "post"): ParsedPage {
+  const cleanedMd = cleanMarkdownJunk(md);
+  
   const result: ParsedPage = {
     title: filename.replace(/\.md$/, ""),
     slug: slugify(filename.replace(/\.md$/, "")),
@@ -52,17 +88,17 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
   if (result.slug === "home") result.slug = ""; // Root path for homepage
 
   // 1. Parse Meta Tags Table
-  const metaTitleMatch = md.match(/\|\s*\*\*Meta Title\*\*\s*\|\s*([^|]+)\|/i);
+  const metaTitleMatch = cleanedMd.match(/\|\s*\*\*Meta Title\*\*\s*\|\s*([^|]+)\|/i);
   if (metaTitleMatch) result.metaTitle = metaTitleMatch[1].trim();
 
-  const metaDescMatch = md.match(/\|\s*\*\*Meta Description\*\*\s*\|\s*([^|]+)\|/i);
+  const metaDescMatch = cleanedMd.match(/\|\s*\*\*Meta Description\*\*\s*\|\s*([^|]+)\|/i);
   if (metaDescMatch) result.metaDescription = metaDescMatch[1].trim();
 
-  const canonicalMatch = md.match(/\|\s*\*\*Canonical URL\*\*\s*\|\s*([^|]+)\|/i);
+  const canonicalMatch = cleanedMd.match(/\|\s*\*\*Canonical URL\*\*\s*\|\s*([^|]+)\|/i);
   if (canonicalMatch) result.canonicalUrl = canonicalMatch[1].trim();
 
   // 2. Extract Logo from JSON-LD Schema
-  const jsonBlocks = md.match(/```json([\s\S]*?)```/g) || [];
+  const jsonBlocks = cleanedMd.match(/```json([\s\S]*?)```/g) || [];
   for (const block of jsonBlocks) {
     try {
       const cleanJson = block.replace(/```json|```/g, "").trim();
@@ -83,7 +119,7 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
   }
 
   // 3. Parse Sections by splitting after '# PAGE CONTENT'
-  const normalizedMd = md.replace(/\r\n/g, "\n");
+  const normalizedMd = cleanedMd;
   const contentMarker = normalizedMd.indexOf("# PAGE CONTENT");
   let bodyText = normalizedMd;
   
@@ -139,7 +175,7 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
 
   // Find first image in body as featured image if none was found in schema
   if (!result.featuredImage) {
-    const imgMatch = md.match(/!\[[^\]]*\]\(([^)]+)\)/i);
+    const imgMatch = cleanedMd.match(/!\[[^\]]*\]\(([^)]+)\)/i);
     if (imgMatch) result.featuredImage = imgMatch[1];
   }
 
