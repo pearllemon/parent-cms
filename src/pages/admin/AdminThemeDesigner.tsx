@@ -29,6 +29,8 @@ import {
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
+import ThemeBuilder from "@/components/admin/theme-builder/ThemeBuilder";
+
 export default function AdminThemeDesigner() {
   return (
     <div className="space-y-6">
@@ -39,14 +41,16 @@ export default function AdminThemeDesigner() {
         </p>
       </header>
 
-      <Tabs defaultValue="sections" className="space-y-4">
+      <Tabs defaultValue="theme-builder" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="theme-builder"><LayoutTemplate className="w-4 h-4 mr-1.5" />Theme Builder</TabsTrigger>
           <TabsTrigger value="sections"><Boxes className="w-4 h-4 mr-1.5" />Sections</TabsTrigger>
           <TabsTrigger value="templates"><LayoutTemplate className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>
           <TabsTrigger value="global-layouts"><LayoutTemplate className="w-4 h-4 mr-1.5" />Header & Footer</TabsTrigger>
           <TabsTrigger value="assignments"><Link2 className="w-4 h-4 mr-1.5" />Assignments</TabsTrigger>
           <TabsTrigger value="tokens"><Palette className="w-4 h-4 mr-1.5" />Global Design</TabsTrigger>
         </TabsList>
+        <TabsContent value="theme-builder"><ThemeBuilder /></TabsContent>
         <TabsContent value="sections"><SectionsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
         <TabsContent value="global-layouts"><GlobalLayoutsTab /></TabsContent>

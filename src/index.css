@@ -75,6 +75,16 @@
     --sidebar-accent-foreground: 121 37% 18%;
     --sidebar-border: 0 0% 90%;
     --sidebar-ring: 132 82% 37%;
+
+    /* Pearl Lemon custom tokens */
+    --pearl-black: 0 0% 4%;
+    --pearl-gold: 46 100% 49%;
+    --pearl-gold-muted: 46 100% 49% / 0.18;
+    --pearl-light: 0 0% 97%;
+    --pearl-white: 0 0% 100%;
+    --pearl-success: 142 71% 45%;
+    --pearl-warning: 38 92% 50%;
+    --pearl-info: 217 91% 60%;
   }
 
   .dark {
@@ -97,6 +107,13 @@
     --border: 121 15% 16%;
     --input: 121 15% 16%;
     --ring: 132 82% 47%;
+
+    /* Pearl Lemon custom tokens (dark mode) */
+    --pearl-black: 0 0% 97%;
+    --pearl-gold: 46 100% 49%;
+    --pearl-gold-muted: 46 100% 49% / 0.25;
+    --pearl-light: 121 15% 14%;
+    --pearl-white: 121 20% 8%;
   }
 }
 
@@ -152,6 +169,23 @@
     background-size: 4px 4px;
     pointer-events: none;
     mix-blend-mode: overlay;
+  }
+
+  /* Pearl Lemon premium utility styles */
+  .pearl-gradient {
+    background: linear-gradient(135deg, hsl(var(--pearl-gold)) 0%, #ffaa00 100%);
+  }
+
+  .pearl-glow {
+    box-shadow: 0 0 30px hsl(var(--pearl-gold) / 0.15);
+  }
+
+  .pearl-card {
+    @apply bg-card rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+
+  .pearl-sidebar-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150;
   }
 }
 
