@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Eye, Pencil, Wand2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, Pencil, Wand2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { SeoScoreDot } from "@/components/admin/seo/SeoScoreBadge";
 import { loadPostSeoMany } from "@/lib/postSeo";
@@ -61,6 +62,145 @@ const AdminPosts = () => {
   const [author, setAuthor] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>("");
+  const [quickEditingId, setQuickEditingId] = useState<string | null>(null);
+  const [quickEditForm, setQuickEditForm] = useState({
+    title: "",
+    slug: "",
+    status: "draft",
+    author: "",
+    template: "default",
+  });
+
+  const startQuickEdit = (p: Post) => {
+    setQuickEditingId(p.id);
+    setQuickEditForm({
+      title: p.title || "",
+      slug: p.slug || "",
+      status: p.status || "draft",
+      author: p.author || "",
+      template: (p as any).template || "default",
+    });
+  };
+
+  const saveQuickEdit = async (p: Post) => {
+    const toastId = toast.loading("Updating post...");
+    try {
+      const payload: any = {
+        title: quickEditForm.title,
+        slug: quickEditForm.slug,
+        status: quickEditForm.status,
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (p.type === "page") {
+        payload.template = quickEditForm.template;
+      }
+      if (p.type === "post" || !p.type) {
+        payload.author = quickEditForm.author;
+      }
+
+      if (p.source === "imported") {
+        const { error } = await cloud
+          .from("imported_posts")
+          .update(payload)
+          .eq("id", p.id);
+        if (error) throw error;
+        
+        // Best effort mirror
+        try {
+          await supabase
+            .from("posts")
+            .update({
+              title: quickEditForm.title,
+              slug: quickEditForm.slug,
+              status: quickEditForm.status,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", p.id);
+        } catch (e) { console.warn("Mirror update failed:", e); }
+      } else {
+        const { error } = await supabase
+          .from("posts")
+          .update(payload)
+          .eq("id", p.id);
+        if (error) throw error;
+      }
+
+      toast.success("Post updated", { id: toastId });
+      refresh();
+      setQuickEditingId(null);
+    } catch (err: any) {
+      toast.error("Update failed: " + err.message, { id: toastId });
+    }
+  };
+
+  const handleDeletePost = async (p: Post) => {
+    if (!confirm(`Are you sure you want to permanently delete "${p.title}"?`)) return;
+    
+    const toastId = toast.loading("Deleting post...");
+    try {
+      if (p.source === "imported") {
+        const { error } = await cloud.from("imported_posts").delete().eq("id", p.id);
+        if (error) throw error;
+        
+        // Best effort mirror delete
+        try {
+          await supabase.from("posts").delete().eq("id", p.id);
+        } catch (e) { console.warn("Mirror delete failed:", e); }
+      } else {
+        const { error } = await supabase.from("posts").delete().eq("id", p.id);
+        if (error) throw error;
+      }
+      
+      toast.success("Post deleted", { id: toastId });
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(p.id);
+        return next;
+      });
+      refresh();
+    } catch (err: any) {
+      toast.error("Delete failed: " + err.message, { id: toastId });
+    }
+  };
+
+  const handleBulkApply = async () => {
+    if (bulkAction !== "delete") return;
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to permanently delete these ${selectedIds.size} items?`)) return;
+    
+    const toastId = toast.loading(`Deleting ${selectedIds.size} items...`);
+    try {
+      const idsArray = Array.from(selectedIds);
+      
+      // Separate ids by source
+      const parentIds = idsArray.filter(id => posts.find(p => p.id === id)?.source === "parent");
+      const importedIds = idsArray.filter(id => posts.find(p => p.id === id)?.source === "imported");
+      
+      if (parentIds.length > 0) {
+        const { error } = await supabase.from("posts").delete().in("id", parentIds);
+        if (error) throw error;
+      }
+      
+      if (importedIds.length > 0) {
+        const { error } = await cloud.from("imported_posts").delete().in("id", importedIds);
+        if (error) throw error;
+        
+        // Best effort mirror delete
+        try {
+          await supabase.from("posts").delete().in("id", importedIds);
+        } catch (e) { console.warn("Mirror delete failed:", e); }
+      }
+      
+      toast.success(`Successfully deleted ${selectedIds.size} items`, { id: toastId });
+      setSelectedIds(new Set());
+      refresh();
+    } catch (err: any) {
+      toast.error("Bulk delete failed: " + err.message, { id: toastId });
+    }
+  };
 
   // Cached query — list renders instantly from cache, refreshes in background.
   const { data, loading, refresh } = useCachedQuery<Post[]>(
@@ -252,10 +392,55 @@ const AdminPosts = () => {
         </Select>
       </div>
 
+      {/* Bulk Actions Bar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap bg-muted/20 p-3 border rounded-2xl">
+        <div className="flex items-center gap-2">
+          <Select value={bulkAction} onValueChange={setBulkAction}>
+            <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Bulk Actions" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="delete">Delete permanently</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleBulkApply} disabled={!bulkAction || selectedIds.size === 0} variant="secondary" size="sm" className="h-9">
+            Apply
+          </Button>
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>{selectedIds.size} items selected</span>
+            <Button onClick={() => setSelectedIds(new Set())} variant="ghost" size="sm" className="h-7 px-2">
+              Deselect All
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="bg-background border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
             <tr>
+              <th className="p-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={pageRows.length > 0 && pageRows.every(r => selectedIds.has(r.id))}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(prev => {
+                        const next = new Set(prev);
+                        pageRows.forEach(r => next.add(r.id));
+                        return next;
+                      });
+                    } else {
+                      setSelectedIds(prev => {
+                        const next = new Set(prev);
+                        pageRows.forEach(r => next.delete(r.id));
+                        return next;
+                      });
+                    }
+                  }}
+                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                />
+              </th>
               {visible("title") && <th className={compact ? "p-2" : "p-3"}>Title</th>}
               {visible("author") && <th className={compact ? "p-2" : "p-3"}>Author</th>}
               {visible("categories") && <th className={compact ? "p-2" : "p-3"}>Categories</th>}
@@ -269,15 +454,117 @@ const AdminPosts = () => {
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={11} className="p-6 text-center text-muted-foreground">Loading…</td></tr>}
-            {!loading && pageRows.length === 0 && <tr><td colSpan={11} className="p-6 text-center text-muted-foreground">No items match your filters.</td></tr>}
+            {loading && <tr><td colSpan={12} className="p-6 text-center text-muted-foreground">Loading…</td></tr>}
+            {!loading && pageRows.length === 0 && <tr><td colSpan={12} className="p-6 text-center text-muted-foreground">No items match your filters.</td></tr>}
             {pageRows.map((p) => {
               const editHref = `/admin/posts/${p.id}${p.source === "imported" ? "?scope=imported" : ""}`;
               const seoKey = `${p.source === "imported" ? "imported" : "parent"}::${p.id}`;
               const seoEntry = seoMap[seoKey];
               const cell = compact ? "p-2" : "p-3";
+              
+              if (p.id === quickEditingId) {
+                return (
+                  <tr key={p.id} className="bg-muted/30 border-t">
+                    <td colSpan={12} className="p-4">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <h4 className="font-semibold text-sm text-foreground">Quick Edit</h4>
+                          <span className="text-xs text-muted-foreground">Slug: /{p.slug}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Title</label>
+                            <Input
+                              value={quickEditForm.title}
+                              onChange={(e) => setQuickEditForm(prev => ({ ...prev, title: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Slug</label>
+                            <Input
+                              value={quickEditForm.slug}
+                              onChange={(e) => setQuickEditForm(prev => ({ ...prev, slug: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Status</label>
+                            <Select
+                              value={quickEditForm.status}
+                              onValueChange={(v) => setQuickEditForm(prev => ({ ...prev, status: v }))}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="draft">Draft</SelectItem>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="published">Published</SelectItem>
+                                <SelectItem value="private">Private</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {(p.type === "post" || !p.type) && (
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium">Author</label>
+                              <Input
+                                value={quickEditForm.author}
+                                onChange={(e) => setQuickEditForm(prev => ({ ...prev, author: e.target.value }))}
+                              />
+                            </div>
+                          )}
+                          {p.type === "page" && (
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium">Template</label>
+                              <Select
+                                value={quickEditForm.template}
+                                onValueChange={(v) => setQuickEditForm(prev => ({ ...prev, template: v }))}
+                              >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="default">Default template</SelectItem>
+                                  <SelectItem value="full-width">Full width</SelectItem>
+                                  <SelectItem value="sidebar-left">Sidebar left</SelectItem>
+                                  <SelectItem value="sidebar-right">Sidebar right</SelectItem>
+                                  <SelectItem value="landing">Landing page</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2 border-t">
+                          <Button variant="outline" size="sm" onClick={() => setQuickEditingId(null)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" onClick={() => saveQuickEdit(p)}>
+                            Update
+                          </Button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+              
               return (
-                <tr key={p.id} className="border-t">
+                <tr key={p.id} className="border-t hover:bg-muted/10 transition-colors">
+                  <td className="p-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(p.id)}
+                      onChange={(e) => {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) {
+                            next.add(p.id);
+                          } else {
+                            next.delete(p.id);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                    />
+                  </td>
                   {visible("title") && (
                     <td className={`${cell} font-medium`}>
                       <div className="flex items-center gap-2">
@@ -310,11 +597,17 @@ const AdminPosts = () => {
                       <Button asChild size="sm" variant="ghost" title="View on site">
                         <a href={viewUrl(p)} target="_blank" rel="noopener noreferrer"><Eye className="w-4 h-4" /></a>
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => startQuickEdit(p)} title="Quick Edit inline">
+                        Quick Edit
+                      </Button>
                       <Button asChild size="sm" variant="outline" title="Inline visual editor">
                         <Link to={`/admin/edit/${p.id}`}><Wand2 className="w-4 h-4 mr-1" /> Visual</Link>
                       </Button>
                       <Button asChild size="sm" variant="outline">
                         <Link to={editHref}><Pencil className="w-4 h-4 mr-1" /> Edit</Link>
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeletePost(p)} title="Delete post permanently">
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </td>

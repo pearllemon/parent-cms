@@ -49,6 +49,14 @@ export default function AdminCPTEntries() {
 function EntryList({ cpt }: { cpt: CPT }) {
   const [rows, setRows] = useState<CPTEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>("");
+  const [quickEditingId, setQuickEditingId] = useState<string | null>(null);
+  const [quickEditForm, setQuickEditForm] = useState({
+    title: "",
+    slug: "",
+    status: "draft" as "draft" | "published" | "archived",
+  });
 
   const load = async () => {
     setLoading(true);
@@ -61,8 +69,69 @@ function EntryList({ cpt }: { cpt: CPT }) {
 
   const del = async (r: CPTEntry) => {
     if (!confirm(`Delete "${r.title}"?`)) return;
-    await (supabase.from(TBL_ENTRY) as any).delete().eq("id", r.id);
+    const { error } = await (supabase.from(TBL_ENTRY) as any).delete().eq("id", r.id);
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      return;
+    }
+    toast.success("Entry deleted");
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.delete(r.id);
+      return next;
+    });
     setRows((rs) => rs.filter((x) => x.id !== r.id));
+  };
+
+  const startQuickEdit = (r: CPTEntry) => {
+    setQuickEditingId(r.id);
+    setQuickEditForm({
+      title: r.title || "",
+      slug: r.slug || "",
+      status: r.status || "draft",
+    });
+  };
+
+  const saveQuickEdit = async (r: CPTEntry) => {
+    const toastId = toast.loading("Updating entry...");
+    try {
+      const finalSlug = quickEditForm.slug || slugify(quickEditForm.title) || `entry-${Date.now()}`;
+      const { error } = await (supabase.from(TBL_ENTRY) as any).update({
+        title: quickEditForm.title,
+        slug: finalSlug,
+        status: quickEditForm.status,
+        updated_at: new Date().toISOString(),
+      }).eq("id", r.id);
+
+      if (error) throw error;
+
+      toast.success("Entry updated", { id: toastId });
+      void load();
+      setQuickEditingId(null);
+    } catch (err: any) {
+      toast.error("Update failed: " + err.message, { id: toastId });
+    }
+  };
+
+  const handleBulkApply = async () => {
+    if (bulkAction !== "delete") return;
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to permanently delete these ${selectedIds.size} entries?`)) return;
+
+    const toastId = toast.loading(`Deleting ${selectedIds.size} entries...`);
+    try {
+      const { error } = await (supabase.from(TBL_ENTRY) as any)
+        .delete()
+        .in("id", Array.from(selectedIds));
+
+      if (error) throw error;
+
+      toast.success(`Successfully deleted ${selectedIds.size} entries`, { id: toastId });
+      setSelectedIds(new Set());
+      void load();
+    } catch (err: any) {
+      toast.error("Bulk delete failed: " + err.message, { id: toastId });
+    }
   };
 
   return (
@@ -76,23 +145,146 @@ function EntryList({ cpt }: { cpt: CPT }) {
         <Button asChild><Link to={`/admin/cpt/${cpt.slug}/entries/new`}><Plus className="w-4 h-4 mr-2" /> New {cpt.label.toLowerCase()}</Link></Button>
       </div>
 
+      {/* Bulk Actions Bar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap bg-muted/20 p-3 border rounded-2xl">
+        <div className="flex items-center gap-2">
+          <Select value={bulkAction} onValueChange={setBulkAction}>
+            <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Bulk Actions" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="delete">Delete permanently</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleBulkApply} disabled={!bulkAction || selectedIds.size === 0} variant="secondary" size="sm" className="h-9">
+            Apply
+          </Button>
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>{selectedIds.size} items selected</span>
+            <Button onClick={() => setSelectedIds(new Set())} variant="ghost" size="sm" className="h-7 px-2">
+              Deselect All
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="border rounded-lg">
         <Table>
-          <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Slug</TableHead><TableHead>Status</TableHead><TableHead>Updated</TableHead><TableHead></TableHead></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <input
+                  type="checkbox"
+                  checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.id))}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(new Set(rows.map((r) => r.id)));
+                    } else {
+                      setSelectedIds(new Set());
+                    }
+                  }}
+                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer align-middle"
+                />
+              </TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Slug</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
           <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.title || "(untitled)"}</TableCell>
-                <TableCell className="text-xs">{r.slug}</TableCell>
-                <TableCell><Badge variant={r.status === "published" ? "default" : "outline"}>{r.status}</Badge></TableCell>
-                <TableCell className="text-xs text-muted-foreground">{new Date(r.updated_at).toLocaleString()}</TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button asChild size="sm" variant="ghost"><Link to={`/admin/cpt/${cpt.slug}/entries/${r.id}`}>Edit</Link></Button>
-                  <Button size="sm" variant="ghost" onClick={() => del(r)}><Trash2 className="w-4 h-4" /></Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{loading ? "Loading…" : "No entries yet."}</TableCell></TableRow>}
+            {rows.map((r) => {
+              if (r.id === quickEditingId) {
+                return (
+                  <TableRow key={r.id} className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell colSpan={6} className="p-4">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <h4 className="font-semibold text-sm text-foreground">Quick Edit</h4>
+                          <span className="text-xs text-muted-foreground">Slug: /{r.slug}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Title</label>
+                            <Input
+                              value={quickEditForm.title}
+                              onChange={(e) => setQuickEditForm(prev => ({ ...prev, title: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Slug</label>
+                            <Input
+                              value={quickEditForm.slug}
+                              onChange={(e) => setQuickEditForm(prev => ({ ...prev, slug: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Status</label>
+                            <Select
+                              value={quickEditForm.status}
+                              onValueChange={(v) => setQuickEditForm(prev => ({ ...prev, status: v as any }))}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="draft">Draft</SelectItem>
+                                <SelectItem value="published">Published</SelectItem>
+                                <SelectItem value="archived">Archived</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2 border-t">
+                          <Button variant="outline" size="sm" onClick={() => setQuickEditingId(null)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" onClick={() => saveQuickEdit(r)}>
+                            Update
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              }
+
+              return (
+                <TableRow key={r.id}>
+                  <TableCell className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(r.id)}
+                      onChange={(e) => {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) {
+                            next.add(r.id);
+                          } else {
+                            next.delete(r.id);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer align-middle"
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={`/admin/cpt/${cpt.slug}/entries/${r.id}`} className="hover:underline">
+                      {r.title || "(untitled)"}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-xs">{r.slug}</TableCell>
+                  <TableCell><Badge variant={r.status === "published" ? "default" : "outline"}>{r.status}</Badge></TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{new Date(r.updated_at).toLocaleString()}</TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="outline" onClick={() => startQuickEdit(r)}>Quick Edit</Button>
+                    <Button asChild size="sm" variant="outline"><Link to={`/admin/cpt/${cpt.slug}/entries/${r.id}`}>Edit</Link></Button>
+                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => del(r)}><Trash2 className="w-4 h-4" /></Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{loading ? "Loading…" : "No entries yet."}</TableCell></TableRow>}
           </TableBody>
         </Table>
       </div>
