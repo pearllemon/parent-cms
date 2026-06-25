@@ -337,7 +337,9 @@ export default function AdminPageEditor() {
     return <div className="p-12 text-center text-muted-foreground">Page not found</div>;
   }
 
-  const viewHref = post.slug ? `/p/${post.slug}` : null;
+  const viewHref = post.slug === "" || post.slug === "home" 
+    ? "/" 
+    : (post.type === "post" ? `/blog/${post.slug}` : `/p/${post.slug}`);
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
@@ -379,7 +381,7 @@ export default function AdminPageEditor() {
 
         {viewHref && (
           <Button asChild variant="ghost" size="sm">
-            <a href={viewHref} target="_blank" rel="noopener noreferrer">
+            <a href={viewHref}>
               <ExternalLink className="h-4 w-4 mr-1" /> View
             </a>
           </Button>

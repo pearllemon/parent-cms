@@ -15,6 +15,8 @@ export type ZipImportResult = {
   errors: string[];
 };
 
+type NavLink = { label: string; url: string };
+
 type ParsedPage = {
   title: string;
   slug: string;
@@ -25,6 +27,8 @@ type ParsedPage = {
   logoUrl: string | null;
   sections: { title: string; content: string }[];
   featuredImage: string | null;
+  headerLinks?: NavLink[];
+  footerLinks?: NavLink[];
 };
 
 // -------- Helpers for sanitizing and parsing -------------------------------
@@ -70,8 +74,55 @@ function cleanMarkdownJunk(md: string): string {
   return cleaned;
 }
 
+function rewriteImportedUrl(url: string): string {
+  try {
+    if (url.startsWith("/") || url.startsWith("#")) return url;
+    const parsed = new URL(url);
+    let path = parsed.pathname;
+    if (path.endsWith("/")) path = path.slice(0, -1);
+    if (!path) return "/";
+    const slug = path.split("/").pop() || "";
+    if (slug === "blog") return "/blog";
+    if (slug === "home" || slug === "") return "/";
+    return `/p/${slug}`;
+  } catch {
+    return url;
+  }
+}
+
+function extractNavigationLinks(md: string): { headerLinks: NavLink[]; footerLinks: NavLink[] } {
+  const headerLinks: NavLink[] = [];
+  const footerLinks: NavLink[] = [];
+  
+  const navMatch = md.match(/##\s+Navigation\s+Links([\s\S]*?)(?:---|\*Copyright|$)/i);
+  if (!navMatch) return { headerLinks, footerLinks };
+  
+  const content = navMatch[1];
+  
+  // Find Header section
+  const headerMatch = content.match(/###\s+Header([\s\S]*?)(?:###\s+Footer|$)/i);
+  if (headerMatch) {
+    const linkMatches = headerMatch[1].matchAll(/-\s*\[([^\]]+)\]\(([^)]+)\)/g);
+    for (const match of linkMatches) {
+      headerLinks.push({ label: match[1].trim(), url: match[2].trim() });
+    }
+  }
+  
+  // Find Footer section
+  const footerMatch = content.match(/###\s+Footer([\s\S]*?)$/i);
+  if (footerMatch) {
+    const linkMatches = footerMatch[1].matchAll(/-\s*\[([^\]]+)\]\(([^)]+)\)/g);
+    for (const match of linkMatches) {
+      footerLinks.push({ label: match[1].trim(), url: match[2].trim() });
+    }
+  }
+  
+  return { headerLinks, footerLinks };
+}
+
 function parseMarkdownPage(filename: string, md: string, type: "page" | "post"): ParsedPage {
   const cleanedMd = cleanMarkdownJunk(md);
+  const navLinks = extractNavigationLinks(md);
   
   const result: ParsedPage = {
     title: filename.replace(/\.md$/, ""),
@@ -83,6 +134,8 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
     logoUrl: null,
     sections: [],
     featuredImage: null,
+    headerLinks: navLinks.headerLinks,
+    footerLinks: navLinks.footerLinks,
   };
 
   if (result.slug === "home") result.slug = ""; // Root path for homepage
@@ -140,7 +193,7 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
   const rawSections = bodyText.split(/(?:-\s*✅\s*|##\s*\[?✅\]?\s*)/i);
   
   // The first section before any checklist tag is the Hero intro
-  const intro = rawSections[0].trim();
+  let intro = rawSections[0].trim();
   if (intro) {
     // Extract first title header # or ## as page title, ignoring horizontal lines
     let firstTitle = "";
@@ -155,6 +208,8 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
     
     if (firstTitle) {
       result.title = firstTitle;
+      // Strip this heading from the intro content so it's not duplicated
+      intro = intro.substring(firstTitleMatch[0].length).trim();
     }
     
     result.sections.push({
@@ -887,8 +942,16 @@ function generateVisualTree(
 
 function generatePremiumHeaderTemplate(
   branding: { primary: string; accent: string; font: string },
-  logoUrl: string | null
+  logoUrl: string | null,
+  navLinks?: NavLink[]
 ): any[] {
+  const linksHtml = navLinks && navLinks.length > 0
+    ? navLinks.map(l => `<a href="${rewriteImportedUrl(l.url)}" style="text-decoration:none; color:#333; font-family:${branding.font}">${l.label}</a>`).join("\n")
+    : `<a href="/seo" style="text-decoration:none; color:#333;">SEO</a>
+       <a href="/ppc" style="text-decoration:none; color:#333;">PPC</a>
+       <a href="/about" style="text-decoration:none; color:#333;">About</a>
+       <a href="/contact" style="text-decoration:none; color:#333;">Contact Us</a>`;
+
   return [
     {
       id: "global-header-section",
@@ -956,10 +1019,7 @@ function generatePremiumHeaderTemplate(
               widgetType: "html",
               settings: {
                 html: `<div style="display:flex; justify-content:center; gap:25px; font-size:14px; font-weight:600; font-family:${branding.font}">
-                  <a href="/seo" style="text-decoration:none; color:#333;">SEO</a>
-                  <a href="/ppc" style="text-decoration:none; color:#333;">PPC</a>
-                  <a href="/about" style="text-decoration:none; color:#333;">About</a>
-                  <a href="/contact" style="text-decoration:none; color:#333;">Contact Us</a>
+                  ${linksHtml}
                 </div>`
               }
             }
@@ -990,8 +1050,16 @@ function generatePremiumHeaderTemplate(
 
 function generatePremiumFooterTemplate(
   branding: { primary: string; accent: string; font: string },
-  logoUrl: string | null
+  logoUrl: string | null,
+  navLinks?: NavLink[]
 ): any[] {
+  const linksHtml = navLinks && navLinks.length > 0
+    ? navLinks.map(l => `<li><a href="${rewriteImportedUrl(l.url)}" style="color:#aaa; text-decoration:none; font-family:${branding.font}">${l.label}</a></li>`).join("\n")
+    : `<li><a href="#" style="color:#aaa; text-decoration:none;">Meet The Team</a></li>
+       <li><a href="#" style="color:#aaa; text-decoration:none;">Why Pearl Lemon</a></li>
+       <li><a href="#" style="color:#aaa; text-decoration:none;">We're Hiring!</a></li>
+       <li><a href="#" style="color:#aaa; text-decoration:none;">B2B Lead Generation</a></li>`;
+
   return [
     {
       id: "global-footer-section",
@@ -1038,10 +1106,7 @@ function generatePremiumFooterTemplate(
               widgetType: "html",
               settings: {
                 html: `<ul style="list-style:none; padding:0; font-size:12px; line-height:2; font-family:${branding.font}">
-                  <li><a href="#" style="color:#aaa; text-decoration:none;">Meet The Team</a></li>
-                  <li><a href="#" style="color:#aaa; text-decoration:none;">Why Pearl Lemon</a></li>
-                  <li><a href="#" style="color:#aaa; text-decoration:none;">We're Hiring!</a></li>
-                  <li><a href="#" style="color:#aaa; text-decoration:none;">B2B Lead Generation</a></li>
+                  ${linksHtml}
                 </ul>`
               }
             }
@@ -1162,8 +1227,10 @@ export async function importZipSite(
 
   const parsedPages: ParsedPage[] = [];
 
-  // Extract Logo Url
+  // Extract Logo Url & Navigation Links
   let globalLogoUrl: string | null = null;
+  let globalHeaderLinks: NavLink[] = [];
+  let globalFooterLinks: NavLink[] = [];
 
   for (const path of mdPageFiles) {
     try {
@@ -1171,8 +1238,15 @@ export async function importZipSite(
       const filename = path.split("/").pop() || "page.md";
       const parsed = parseMarkdownPage(filename, md, "page");
       parsedPages.push(parsed);
+      
       if (parsed.logoUrl && !globalLogoUrl) {
         globalLogoUrl = parsed.logoUrl;
+      }
+      if (parsed.headerLinks && parsed.headerLinks.length > 0 && globalHeaderLinks.length === 0) {
+        globalHeaderLinks = parsed.headerLinks;
+      }
+      if (parsed.footerLinks && parsed.footerLinks.length > 0 && globalFooterLinks.length === 0) {
+        globalFooterLinks = parsed.footerLinks;
       }
     } catch (e) {
       result.failed++;
@@ -1186,8 +1260,15 @@ export async function importZipSite(
       const filename = path.split("/").pop() || "post.md";
       const parsed = parseMarkdownPage(filename, md, "post");
       parsedPages.push(parsed);
+      
       if (parsed.logoUrl && !globalLogoUrl) {
         globalLogoUrl = parsed.logoUrl;
+      }
+      if (parsed.headerLinks && parsed.headerLinks.length > 0 && globalHeaderLinks.length === 0) {
+        globalHeaderLinks = parsed.headerLinks;
+      }
+      if (parsed.footerLinks && parsed.footerLinks.length > 0 && globalFooterLinks.length === 0) {
+        globalFooterLinks = parsed.footerLinks;
       }
     } catch (e) {
       result.failed++;
@@ -1242,7 +1323,7 @@ export async function importZipSite(
   // 4. Create and Save Premium Global Header/Footer Visual Templates
   onProgress?.("Creating premium Header & Footer templates…");
   try {
-    const headerTree = generatePremiumHeaderTemplate(branding, globalLogoUrl);
+    const headerTree = generatePremiumHeaderTemplate(branding, globalLogoUrl, globalHeaderLinks);
     await supabase.from("elementor_templates").upsert({
       source_id: "global-header-layout",
       kind: "header",
@@ -1253,7 +1334,7 @@ export async function importZipSite(
       imported_by: userId,
     }, { onConflict: "source_id" });
 
-    const footerTree = generatePremiumFooterTemplate(branding, globalLogoUrl);
+    const footerTree = generatePremiumFooterTemplate(branding, globalLogoUrl, globalFooterLinks);
     await supabase.from("elementor_templates").upsert({
       source_id: "global-footer-layout",
       kind: "footer",

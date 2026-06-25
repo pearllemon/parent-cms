@@ -47,6 +47,7 @@ import AdminManagementLink from "./pages/admin/AdminManagementLink.tsx";
 import GenericCRUD from "./pages/admin/GenericCRUD.tsx";
 import ThemeTokensInjector from "@/components/ThemeTokensInjector";
 import ComponentCloudSync from "@/components/ComponentCloudSync";
+import PageView from "./pages/PageView.tsx";
 
 const queryClient = new QueryClient();
 
@@ -67,7 +68,10 @@ const App = () => (
           <ThemeTokensInjector />
           <ComponentCloudSync />
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<PageView type="page" homepage={true} />} />
+            <Route path="/p/:slug" element={<PageView type="page" />} />
+            <Route path="/blog/:slug" element={<PageView type="post" />} />
+            <Route path="/blog" element={<PageView type="post" homepage={true} />} />
 
             {/* Admin CMS */}
             <Route path="/admin/login" element={<AdminLogin />} />

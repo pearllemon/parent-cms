@@ -401,7 +401,7 @@ const AdminPostEditorWP = () => {
           <div className="pt-2 flex items-center gap-2">
             {form.slug && (
               <Button asChild size="sm" variant="ghost">
-                <a href={`/${form.type === "page" ? "p" : "blog"}/${fullSlug}`} target="_blank" rel="noopener noreferrer">
+                <a href={fullSlug === "" || fullSlug === "home" ? "/" : `/${form.type === "page" ? "p" : "blog"}/${fullSlug}`}>
                   <ExternalLink className="w-3 h-3 mr-1" /> View
                 </a>
               </Button>
