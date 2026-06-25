@@ -42,12 +42,29 @@ const ErrorPageBuilder = () => {
   const [showForm, setShowForm] = useState(false);
   const [preview, setPreview] = useState<ErrorPageConfig | null>(null);
   const [form, setForm] = useState<Omit<ErrorPageConfig, "id">>(defaultForm);
+  const [tableMissing, setTableMissing] = useState(false);
 
   const fetch404s = async () => {
-    const { data, error } = await supabase.from("error_page_configs").select("*").order("created_at", { ascending: false });
-    if (error) { toast.error("Failed to load 404 configs"); return; }
-    setConfigs((data as unknown as ErrorPageConfig[]) || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.from("error_page_configs").select("*").order("created_at", { ascending: false });
+      if (error) {
+        console.error(error);
+        if (error.message?.includes("relation") || error.message?.includes("cache") || error.message?.includes("schema") || error.code === "PGRST116" || error.code === "42P01") {
+          setTableMissing(true);
+        } else {
+          toast.error("Failed to load 404 configs: " + error.message);
+        }
+        setLoading(false);
+        return;
+      }
+      setConfigs((data as unknown as ErrorPageConfig[]) || []);
+      setTableMissing(false);
+    } catch (err) {
+      console.error(err);
+      setTableMissing(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetch404s(); }, []);
@@ -81,6 +98,22 @@ const ErrorPageBuilder = () => {
     setEditingId(c.id);
     setShowForm(true);
   };
+
+  if (tableMissing) {
+    return (
+      <div className="pearl-card p-6 border-amber-500/30 bg-amber-500/5 text-amber-950 rounded-xl space-y-3">
+        <h3 className="font-semibold text-lg flex items-center gap-2 text-amber-700">
+          ⚠️ Database Schema Configuration Needed
+        </h3>
+        <p className="text-sm leading-relaxed">
+          The <code>error_page_configs</code> table was not found in your database schema cache. This tab manages the central templates for child sites.
+        </p>
+        <p className="text-xs opacity-80">
+          <strong>Resolution:</strong> Please execute the migration script located at <code>supabase/migrations/20260625123500_theme_builder_tables.sql</code> in your Supabase SQL Editor to provision the required database tables, then refresh the page.
+        </p>
+      </div>
+    );
+  }
 
   if (preview) {
     return (

@@ -48,6 +48,7 @@ const FooterBuilder = () => {
   const [tab, setTab] = useState<Tab>("settings");
   const [jsonInput, setJsonInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [tableMissing, setTableMissing] = useState(false);
 
   const active = configs.find(c => c.id === activeId);
 
@@ -57,20 +58,41 @@ const FooterBuilder = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [cfgRes, csRes, phRes] = await Promise.all([
-      supabase.from("footer_configs").select("*").order("created_at"),
-      supabase.from("contact_sets").select("*"),
-      supabase.from("phone_numbers").select("*"),
-    ]);
-    const cfgs = (cfgRes.data || []) as FooterConfig[];
-    setConfigs(cfgs);
-    setContactSets(csRes.data || []);
-    setPhones(phRes.data || []);
-    if (cfgs.length > 0 && !activeId) {
-      setActiveId(cfgs[0].id);
-      await loadFooterData(cfgs[0].id);
+    try {
+      const [cfgRes, csRes, phRes] = await Promise.all([
+        supabase.from("footer_configs").select("*").order("created_at"),
+        supabase.from("contact_sets").select("*"),
+        supabase.from("phone_numbers").select("*"),
+      ]);
+
+      if (cfgRes.error || csRes.error || phRes.error) {
+        const error = cfgRes.error || csRes.error || phRes.error;
+        console.error("Loader error:", error);
+        if (error.message?.includes("relation") || error.message?.includes("cache") || error.message?.includes("schema") || error.code === "PGRST116" || error.code === "42P01") {
+          setTableMissing(true);
+        } else {
+          toast.error("Failed to load footer builder data");
+        }
+        setLoading(false);
+        return;
+      }
+
+      const cfgs = (cfgRes.data || []) as FooterConfig[];
+      setConfigs(cfgs);
+      setContactSets(csRes.data || []);
+      setPhones(phRes.data || []);
+      setTableMissing(false);
+
+      if (cfgs.length > 0 && !activeId) {
+        setActiveId(cfgs[0].id);
+        await loadFooterData(cfgs[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+      setTableMissing(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadFooterData = async (id: string) => {
@@ -223,6 +245,22 @@ const FooterBuilder = () => {
     { id: "json", label: "JSON", icon: <Code2 className="w-3.5 h-3.5" /> },
     { id: "preview", label: "Preview", icon: <Eye className="w-3.5 h-3.5" /> },
   ];
+
+  if (tableMissing) {
+    return (
+      <div className="pearl-card p-6 border-amber-500/30 bg-amber-500/5 text-amber-955 rounded-xl space-y-3">
+        <h3 className="font-semibold text-lg flex items-center gap-2 text-amber-700">
+          ⚠️ Database Schema Configuration Needed
+        </h3>
+        <p className="text-sm leading-relaxed">
+          The <code>footer_configs</code> or other required Theme Builder tables were not found in your database schema cache.
+        </p>
+        <p className="text-xs opacity-80">
+          <strong>Resolution:</strong> Please execute the migration script located at <code>supabase/migrations/20260625123500_theme_builder_tables.sql</code> in your Supabase SQL Editor to provision the required database tables, then refresh the page.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) return <div className="text-sm text-muted-foreground">Loading footer configs…</div>;
 

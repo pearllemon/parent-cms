@@ -722,6 +722,7 @@ function GlobalLayoutsTab() {
       const { data } = await supabase
         .from("elementor_templates")
         .select("*")
+        .in("kind", ["header", "footer"])
         .order("kind")
         .order("title");
       setItems(data || []);

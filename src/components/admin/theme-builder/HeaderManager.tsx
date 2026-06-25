@@ -215,6 +215,7 @@ const HeaderManager = () => {
   const [loading, setLoading] = useState(true);
   const [assignmentSiteId, setAssignmentSiteId] = useState("");
   const [menuDirty, setMenuDirty] = useState(false);
+  const [tableMissing, setTableMissing] = useState(false);
 
   const activeHeader = useMemo(
     () => headers.find((header) => header.id === activeId) || null,
@@ -299,46 +300,58 @@ const HeaderManager = () => {
   const loadAll = async (preferredHeaderId?: string) => {
     setLoading(true);
 
-    const [headersRes, themesRes, contactSetsRes, phonesRes, sitesRes] = await Promise.all([
-      supabase.from("header_configs").select("*").order("created_at"),
-      supabase.from("themes").select("*").order("created_at"),
-      supabase.from("contact_sets").select("*").order("created_at"),
-      supabase.from("phone_numbers").select("*").order("sort_order"),
-      supabase
-        .from("sites")
-        .select("id, name, domain, header_config_id, theme_id, contact_set_id")
-        .order("created_at"),
-    ]);
+    try {
+      const [headersRes, themesRes, contactSetsRes, phonesRes, sitesRes] = await Promise.all([
+        supabase.from("header_configs").select("*").order("created_at"),
+        supabase.from("themes").select("*").order("created_at"),
+        supabase.from("contact_sets").select("*").order("created_at"),
+        supabase.from("phone_numbers").select("*").order("sort_order"),
+        supabase
+          .from("sites")
+          .select("id, name, domain, header_config_id, theme_id, contact_set_id")
+          .order("created_at"),
+      ]);
 
-    if (headersRes.error || themesRes.error || contactSetsRes.error || phonesRes.error || sitesRes.error) {
-      toast.error("Failed to load header builder data");
+      if (headersRes.error || themesRes.error || contactSetsRes.error || phonesRes.error || sitesRes.error) {
+        const error = headersRes.error || themesRes.error || contactSetsRes.error || phonesRes.error || sitesRes.error;
+        console.error("Loader error:", error);
+        if (error.message?.includes("relation") || error.message?.includes("cache") || error.message?.includes("schema") || error.code === "PGRST116" || error.code === "42P01") {
+          setTableMissing(true);
+        } else {
+          toast.error("Failed to load header builder data");
+        }
+        setLoading(false);
+        return;
+      }
+
+      const nextHeaders = (headersRes.data || []) as DbHeaderConfig[];
+      const nextSites = (sitesRes.data || []) as SiteSummary[];
+      const nextActiveId = preferredHeaderId || activeId || nextHeaders[0]?.id || null;
+
+      setHeaders(nextHeaders);
+      setThemes((themesRes.data || []) as DbTheme[]);
+      setContactSets((contactSetsRes.data || []) as DbContactSet[]);
+      setPhones((phonesRes.data || []) as DbPhone[]);
+      setSites(nextSites);
+      setActiveId(nextActiveId);
+      setTableMissing(false);
+
+      if (!assignmentSiteId && nextSites[0]?.id) {
+        setAssignmentSiteId(nextSites[0].id);
+      }
+
+      if (nextActiveId) {
+        await loadHeaderTree(nextActiveId);
+      } else {
+        setNavItems([]);
+        setMenuDirty(false);
+      }
+    } catch (err) {
+      console.error(err);
+      setTableMissing(true);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const nextHeaders = (headersRes.data || []) as DbHeaderConfig[];
-    const nextSites = (sitesRes.data || []) as SiteSummary[];
-    const nextActiveId = preferredHeaderId || activeId || nextHeaders[0]?.id || null;
-
-    setHeaders(nextHeaders);
-    setThemes((themesRes.data || []) as DbTheme[]);
-    setContactSets((contactSetsRes.data || []) as DbContactSet[]);
-    setPhones((phonesRes.data || []) as DbPhone[]);
-    setSites(nextSites);
-    setActiveId(nextActiveId);
-
-    if (!assignmentSiteId && nextSites[0]?.id) {
-      setAssignmentSiteId(nextSites[0].id);
-    }
-
-    if (nextActiveId) {
-      await loadHeaderTree(nextActiveId);
-    } else {
-      setNavItems([]);
-      setMenuDirty(false);
-    }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -738,6 +751,22 @@ const HeaderManager = () => {
     { id: "json", label: "JSON Import", icon: <Code2 className="w-3.5 h-3.5" /> },
     { id: "preview", label: "Live Preview", icon: <Eye className="w-3.5 h-3.5" /> },
   ];
+
+  if (tableMissing) {
+    return (
+      <div className="pearl-card p-6 border-amber-500/30 bg-amber-500/5 text-amber-955 rounded-xl space-y-3">
+        <h3 className="font-semibold text-lg flex items-center gap-2 text-amber-700">
+          ⚠️ Database Schema Configuration Needed
+        </h3>
+        <p className="text-sm leading-relaxed">
+          The <code>header_configs</code> or other required Theme Builder tables were not found in your database schema cache.
+        </p>
+        <p className="text-xs opacity-80">
+          <strong>Resolution:</strong> Please execute the migration script located at <code>supabase/migrations/20260625123500_theme_builder_tables.sql</code> in your Supabase SQL Editor to provision the required database tables, then refresh the page.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading header builder…</div>;
