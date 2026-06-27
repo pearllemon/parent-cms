@@ -6,6 +6,8 @@ import JSZip from "jszip";
 import { supabase } from "@/integrations/supabase/client";
 import { saveTokens } from "./themeStore";
 
+import { parseVideo } from "./parsers/videoParser";
+import { parseGallery } from "./parsers/galleryParser";
 export type ZipImportResult = {
   pages: number;
   posts: number;
@@ -29,6 +31,7 @@ type ParsedPage = {
   featuredImage: string | null;
   headerLinks?: NavLink[];
   footerLinks?: NavLink[];
+  faqQuestions?: string[];
 };
 
 // -------- Helpers for sanitizing and parsing -------------------------------
@@ -123,7 +126,9 @@ function extractNavigationLinks(md: string): { headerLinks: NavLink[]; footerLin
 async function downloadAndMapRemoteImages(
   mdTexts: string[],
   imageMap: Map<string, string>,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  siteId?: string,
+  userId?: string | null
 ): Promise<number> {
   const remoteUrls = new Set<string>();
   
@@ -192,6 +197,30 @@ async function downloadAndMapRemoteImages(
       imageMap.set(url, pub.publicUrl);
       imageMap.set(filename, pub.publicUrl);
       downloadedCount++;
+
+      // Catalog in Media Library
+      try {
+        const targetSiteId = siteId || "default";
+        await supabase.from("media_meta").insert({
+          site_id: targetSiteId,
+          media_url: pub.publicUrl,
+          file_name: filename,
+          mime_type: contentType,
+          size_bytes: blob.size,
+          source: "cloud",
+          folder: "imported",
+        });
+
+        await supabase.from("media_library").insert({
+          site_id: targetSiteId,
+          file_url: pub.publicUrl,
+          file_name: filename,
+          file_size: blob.size,
+          mime_type: contentType,
+        });
+      } catch (dbErr) {
+        console.warn("Failed to catalog downloaded remote image in media library:", dbErr);
+      }
     } catch (e) {
       console.warn(`Failed to download remote image from ${url}:`, e);
     }
@@ -216,6 +245,7 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
     featuredImage: null,
     headerLinks: navLinks.headerLinks,
     footerLinks: navLinks.footerLinks,
+    faqQuestions: [],
   };
 
   if (result.slug === "home") result.slug = ""; // Root path for homepage
@@ -230,7 +260,7 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
   const canonicalMatch = cleanedMd.match(/\|\s*\*\*Canonical URL\*\*\s*\|\s*([^|]+)\|/i);
   if (canonicalMatch) result.canonicalUrl = canonicalMatch[1].trim();
 
-  // 2. Extract Logo from JSON-LD Schema
+  // 2. Extract Logo & FAQs from JSON-LD Schema
   const jsonBlocks = cleanedMd.match(/```json([\s\S]*?)```/g) || [];
   for (const block of jsonBlocks) {
     try {
@@ -247,6 +277,19 @@ function parseMarkdownPage(filename: string, md: string, type: "page" | "post"):
       // Extract featured image from schema as fallback
       if (parsed.image?.url && !result.featuredImage) {
         result.featuredImage = parsed.image.url;
+      }
+
+      // Extract FAQ questions from ItemList schema
+      if (parsed["@type"] === "ItemList" && Array.isArray(parsed.itemListElement)) {
+        parsed.itemListElement.forEach((item: any) => {
+          if (item.name) {
+            const name = item.name.trim();
+            const lower = name.toLowerCase();
+            if (name.includes("?") || lower.includes("faq") || lower.startsWith("how ") || lower.startsWith("what ") || lower.startsWith("why ") || lower.startsWith("do ") || lower.startsWith("are ") || lower.startsWith("can ") || lower.startsWith("which ") || lower.startsWith("is ")) {
+              result.faqQuestions?.push(name);
+            }
+          }
+        });
       }
     } catch { /* ignore */ }
   }
@@ -768,6 +811,280 @@ function generateVisualTree(
       return;
     }
 
+    // Local Helper to parse Accordion blocks
+    const parseAccordion = (content: string, faqQuestions: string[] = [], defaultTitle: string = "Tab") => {
+      const items: { title: string; content: string }[] = [];
+      const tabRegex = /\*\*Q:\s*Accordion\s*Tab\s*(\d+)\*\*/gi;
+      const parts = content.split(tabRegex);
+      const intro = parts[0]?.trim() || "";
+      
+      let questionIndex = 0;
+      for (let i = 1; i < parts.length; i += 2) {
+        const tabNumber = parseInt(parts[i], 10);
+        let tabContent = parts[i + 1] || "";
+        tabContent = tabContent.replace(/^-+\s*$/gm, "").trim();
+        
+        const actualTitle = faqQuestions[questionIndex] || (questionIndex === 0 ? defaultTitle : `${defaultTitle} ${tabNumber}`);
+        questionIndex++;
+        
+        items.push({
+          title: actualTitle,
+          content: markdownToHtml(tabContent, imageMap)
+        });
+      }
+      return { intro, items };
+    };
+
+    // Local Helper to parse Carousel blocks
+    const parseCarousel = (content: string) => {
+      const slides: { image: string; heading: string; description: string; button_text: string; button_url: string }[] = [];
+      const slideRegex = /\*\*Slide\s*(\d+):\*\*/gi;
+      const parts = content.split(slideRegex);
+      const intro = parts[0]?.trim().replace(/🎠\s*Carousel\s*\/\s*Slider/gi, "").trim() || "";
+      
+      for (let i = 1; i < parts.length; i += 2) {
+        const slideContent = parts[i + 1] || "";
+        const lines = slideContent.split("\n").map(l => l.trim()).filter(Boolean);
+        let image = "";
+        let heading = "";
+        let description = "";
+        let button_text = "";
+        let button_url = "";
+        
+        lines.forEach(line => {
+          const imgMatch = line.match(/!\[[^\]]*\]\(([^)]+)\)/);
+          if (imgMatch) {
+            image = resolveImage(imgMatch[1]);
+          } else if (line.toLowerCase().startsWith("- heading:")) {
+            heading = line.replace(/^[-\s]*heading:\s*/i, "").trim();
+          } else if (line.toLowerCase().startsWith("- description:")) {
+            description = line.replace(/^[-\s]*description:\s*/i, "").trim();
+          } else if (line.toLowerCase().startsWith("- button:")) {
+            const btnMatch = line.match(/\[([^\]]+)\]\(([^)]+)\)/);
+            if (btnMatch) {
+              button_text = btnMatch[1];
+              button_url = btnMatch[2];
+            }
+          }
+        });
+        slides.push({ image, heading, description, button_text, button_url });
+      }
+      return { intro, slides };
+    };
+
+    // FAQ / Accordion Section Check
+    const isFaqSection = sec.title.toLowerCase().includes("faq") || 
+                        sec.title.toLowerCase().includes("frequently asked questions") || 
+                        sec.content.toLowerCase().includes("frequently asked questions");
+    if (sec.content.toLowerCase().includes("accordion tab") || isFaqSection) {
+      const sectionTitle = headers[0] || sec.title;
+      const { intro, items } = parseAccordion(
+        sec.content, 
+        isFaqSection ? (page.faqQuestions || []) : [], 
+        sectionTitle
+      );
+      
+      tree.push({
+        id: sectionId,
+        elType: "section",
+        settings: {
+          background_color: "#f8f9fa",
+          padding: { top: 75, bottom: 75, unit: "px" }
+        },
+        elements: [
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            elType: "column",
+            settings: { _column_size: 100 },
+            elements: [
+              {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "heading",
+                settings: {
+                  title: sectionTitle,
+                  header_size: "h2",
+                  title_color: pCol,
+                  typography_font_size: { size: 32, unit: "px" },
+                  typography_font_family: font,
+                  typography_font_weight: "800",
+                  align: "center",
+                  margin: { bottom: 15 }
+                }
+              },
+              intro && {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "text-editor",
+                settings: {
+                  editor: `<p style="font-size: 15px; color: #666; text-align: center; max-width: 650px; margin: 0 auto 35px; font-family: ${font}">${intro}</p>`
+                }
+              },
+              {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "accordion",
+                settings: { items }
+              }
+            ].filter(Boolean) as any[]
+          }
+        ]
+      });
+      return;
+    }
+
+    // Carousel / Slider Section Check
+    if (sec.content.toLowerCase().includes("carousel") || sec.content.toLowerCase().includes("slide 1:")) {
+      const { intro, slides } = parseCarousel(sec.content);
+      const sectionTitle = headers[0] || sec.title;
+      
+      tree.push({
+        id: sectionId,
+        elType: "section",
+        settings: {
+          background_color: "#ffffff",
+          padding: { top: 70, bottom: 70, unit: "px" }
+        },
+        elements: [
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            elType: "column",
+            settings: { _column_size: 100 },
+            elements: [
+              {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "heading",
+                settings: {
+                  title: sectionTitle,
+                  header_size: "h2",
+                  title_color: pCol,
+                  typography_font_size: { size: 32, unit: "px" },
+                  typography_font_family: font,
+                  typography_font_weight: "800",
+                  align: "center",
+                  margin: { bottom: 15 }
+                }
+              },
+              intro && {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "text-editor",
+                settings: {
+                  editor: `<p style="font-size: 15px; color: #666; text-align: center; max-width: 650px; margin: 0 auto 30px; font-family: ${font}">${intro}</p>`
+                }
+              },
+              {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "carousel",
+                settings: { slides }
+              }
+            ].filter(Boolean) as any[]
+          }
+        ]
+      });
+      return;
+    }
+// Video / Embed Section Check
+if (sec.content.toLowerCase().includes('iframe') || sec.content.match(/\[video\s/)) {
+  const video = parseVideo(sec.content);
+  if (video) {
+    const sectionTitle = headers[0] || sec.title;
+    tree.push({
+      id: sectionId,
+      elType: "section",
+      settings: {
+        background_color: "#ffffff",
+        padding: { top: 70, bottom: 70, unit: "px" }
+      },
+      elements: [
+        {
+          id: Math.random().toString(36).slice(2, 9),
+          elType: "column",
+          settings: { _column_size: 100 },
+          elements: [
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "heading",
+              settings: {
+                title: sectionTitle,
+                header_size: "h2",
+                title_color: pCol,
+                typography_font_size: { size: 32, unit: "px" },
+                typography_font_family: font,
+                typography_font_weight: "800",
+                align: "center",
+                margin: { bottom: 15 }
+              }
+            },
+            {
+              id: Math.random().toString(36).slice(2, 9),
+              elType: "widget",
+              widgetType: "video",
+              settings: { src: video.src, title: video.title }
+            }
+          ]
+        }
+      ]
+    });
+    return;
+  }
+}
+
+// Gallery Section Check
+if (parseGallery(sec.content)) {
+  const gallery = parseGallery(sec.content)!;
+  const sectionTitle = headers[0] || sec.title;
+  const slides = gallery.images.map((img) => ({
+    image: img,
+    heading: "",
+    description: "",
+    button_text: "",
+    button_url: ""
+  }));
+  tree.push({
+    id: sectionId,
+    elType: "section",
+    settings: {
+      background_color: "#ffffff",
+      padding: { top: 70, bottom: 70, unit: "px" }
+    },
+    elements: [
+      {
+        id: Math.random().toString(36).slice(2, 9),
+        elType: "column",
+        settings: { _column_size: 100 },
+        elements: [
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            elType: "widget",
+            widgetType: "heading",
+            settings: {
+              title: sectionTitle,
+              header_size: "h2",
+              title_color: pCol,
+              typography_font_size: { size: 32, unit: "px" },
+              typography_font_family: font,
+              typography_font_weight: "800",
+              align: "center",
+              margin: { bottom: 15 }
+            }
+          },
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            elType: "widget",
+            widgetType: "gallery",
+            settings: { images: gallery.images }
+          }
+        ]
+      }
+    ]
+  });
+  return;
+}
+
     // Services Grid / Numbered Cards Layout
     if (sec.title.toLowerCase().includes("service") || sec.title.toLowerCase().includes("our services")) {
       const sectionTitle = headers[0] || sec.title;
@@ -1261,6 +1578,8 @@ export async function importZipSite(
   onProgress?.("Extracting ZIP file archive…");
   const zip = await JSZip.loadAsync(file);
 
+  const site_id = siteId || "default";
+
   // 1. Upload and Map Images
   onProgress?.("Scanning and optimizing image assets…");
   const imageFiles = Object.keys(zip.files).filter(
@@ -1293,6 +1612,29 @@ export async function importZipSite(
       const { data: pub } = supabase.storage.from("post-images").getPublicUrl(key);
       imageMap.set(filename, pub.publicUrl);
       result.images++;
+
+      // Catalog in Media Library
+      try {
+        await supabase.from("media_meta").insert({
+          site_id: site_id,
+          media_url: pub.publicUrl,
+          file_name: filename,
+          mime_type: contentType,
+          size_bytes: blob.size,
+          source: "cloud",
+          folder: "imported",
+        });
+
+        await supabase.from("media_library").insert({
+          site_id: site_id,
+          file_url: pub.publicUrl,
+          file_name: filename,
+          file_size: blob.size,
+          mime_type: contentType,
+        });
+      } catch (dbErr) {
+        console.warn(`Failed to catalog extracted ZIP image:`, dbErr);
+      }
     } catch (e) {
       result.errors.push(`Image extract failed (${path}): ${(e as Error).message}`);
     }
@@ -1338,7 +1680,7 @@ export async function importZipSite(
 
   // Download and cache remote media files referenced in the markdown content
   if (mdTexts.length > 0) {
-    await downloadAndMapRemoteImages(mdTexts, imageMap, onProgress);
+    await downloadAndMapRemoteImages(mdTexts, imageMap, onProgress, site_id, userId);
   }
 
   onProgress?.("Parsing content and generating layouts…");
@@ -1437,7 +1779,6 @@ export async function importZipSite(
 
   // 5. Generate and Upsert Visual Pages
   onProgress?.(`Generating and saving ${parsedPages.length} visual pages/posts…`);
-  const site_id = siteId || "default"; // Default site scope
 
   for (const page of parsedPages) {
     try {
@@ -1546,7 +1887,7 @@ export async function importSingleMd(
     const imageMap = new Map<string, string>();
 
     // Download and cache remote media files referenced in this single file
-    await downloadAndMapRemoteImages([mdText], imageMap, onProgress);
+    await downloadAndMapRemoteImages([mdText], imageMap, onProgress, siteId || "default", userId);
 
     onProgress?.("Parsing Markdown file…");
     const filename = file.name;
