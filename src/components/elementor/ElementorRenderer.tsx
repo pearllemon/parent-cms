@@ -6,7 +6,8 @@
 // through), blockquote, testimonial, social-icons, toggle/tabs (best effort).
 // Unknown widgets render their children so layout is preserved.
 
-import { CSSProperties, ReactNode, useMemo } from "react";
+import { CSSProperties, ReactNode, useMemo, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { useEditor, type Path } from "@/components/editor/EditorContext";
 import NodeToolbar from "@/components/editor/NodeToolbar";
 
@@ -367,6 +368,142 @@ function SocialIcons({ s }: { s: Record<string, any> }) {
   );
 }
 
+function AccordionWidget({ s }: { s: Record<string, any> }) {
+  const items = s.items || [];
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+
+  if (!items.length) return <p className="text-xs text-muted-foreground italic">No accordion items.</p>;
+
+  return (
+    <div className="space-y-3.5 w-full my-6 font-body">
+      {items.map((item: any, idx: number) => {
+        const isOpen = openIdx === idx;
+        return (
+          <div
+            key={idx}
+            className="border rounded-2xl overflow-hidden bg-white shadow-sm transition-all duration-300"
+            style={{
+              borderColor: isOpen ? "hsl(var(--primary))" : "rgb(226, 232, 240)",
+              borderWidth: isOpen ? "2px" : "1px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setOpenIdx(isOpen ? null : idx)}
+              className="w-full px-6 py-4.5 flex justify-between items-center text-left font-bold text-slate-800 hover:bg-slate-50/60 transition-colors gap-4"
+            >
+              <span className="text-base font-extrabold tracking-tight text-slate-900">{item.title || `Item ${idx + 1}`}</span>
+              <span
+                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transform transition-all duration-300 ${isOpen ? "rotate-180" : ""}`}
+                style={{
+                  backgroundColor: isOpen ? "hsl(var(--primary))" : "rgb(241, 245, 249)",
+                  color: isOpen ? "hsl(var(--primary-foreground))" : "rgb(100, 116, 139)",
+                }}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </span>
+            </button>
+            <div
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                isOpen ? "max-h-[800px] opacity-100 border-t border-slate-100 bg-slate-50/15" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div
+                className="px-6 py-5 text-sm text-slate-600 leading-relaxed prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.content || "") }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CarouselWidget({ s }: { s: Record<string, any> }) {
+  const slides = s.slides || [];
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  if (!slides.length) return <p className="text-xs text-muted-foreground italic">No slides.</p>;
+
+  const next = () => setActiveIdx((prev) => (prev + 1) % slides.length);
+  const prev = () => setActiveIdx((prev) => (prev - 1 + slides.length) % slides.length);
+
+  const activeSlide = slides[activeIdx];
+
+  return (
+    <div className="w-full my-8 bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-md flex flex-col md:flex-row relative group min-h-[360px]">
+      {/* Slide Image */}
+      {activeSlide.image && (
+        <div className="w-full md:w-1/2 aspect-video md:aspect-auto md:min-h-[380px] relative overflow-hidden bg-slate-50 shrink-0">
+          <img
+            src={activeSlide.image}
+            alt={activeSlide.heading || ""}
+            className="w-full h-full object-cover transition-transform duration-500 scale-100 group-hover:scale-[1.02]"
+          />
+        </div>
+      )}
+
+      {/* Slide Content */}
+      <div className="p-8 md:p-12 flex flex-col justify-between flex-grow space-y-6">
+        <div className="space-y-4">
+          <div className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: "hsl(var(--accent))" }}>
+            Case Study / Feature
+          </div>
+          <h3 className="text-2xl md:text-3xl font-black font-display text-slate-900 leading-tight">
+            {activeSlide.heading || "Slide Heading"}
+          </h3>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            {activeSlide.description || "Slide description goes here."}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+          {activeSlide.button_text && activeSlide.button_url ? (
+            <a
+              href={activeSlide.button_url}
+              className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all hover:gap-2.5"
+              style={{ color: "hsl(var(--primary))" }}
+            >
+              {activeSlide.button_text} <ArrowRight className="w-4 h-4" style={{ color: "hsl(var(--accent))" }} />
+            </a>
+          ) : <div />}
+
+          {/* Controls */}
+          <div className="flex gap-2">
+            <button
+              onClick={prev}
+              className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-all text-slate-600 hover:text-slate-900"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={next}
+              className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-all text-slate-600 hover:text-slate-900"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Indicators */}
+        <div className="flex gap-1.5 justify-center md:justify-start">
+          {slides.map((_: any, idx: number) => (
+            <button
+              key={idx}
+              onClick={() => setActiveIdx(idx)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${idx === activeIdx ? "w-6" : "w-1.5"}`}
+              style={{
+                backgroundColor: idx === activeIdx ? "hsl(var(--primary))" : "rgb(226, 232, 240)"
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -------- Container / column logic -----------------------------------------
 
 function gridCols(width: any): string {
@@ -473,6 +610,8 @@ function Widget({ node }: { node: ElNode }) {
     case "blockquote": return <Blockquote s={s} />;
     case "testimonial": return <Testimonial s={s} />;
     case "social-icons": return <SocialIcons s={s} />;
+    case "accordion": return <AccordionWidget s={s} />;
+    case "carousel": return <CarouselWidget s={s} />;
     default:
       if (node.elements?.length) {
         return (

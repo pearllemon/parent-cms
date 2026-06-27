@@ -1,4 +1,4 @@
-// Server-side GitHub proxy.
+// Server-side GitHub proxy with authentication guard.
 // - Avoids browser "Failed to fetch" / CORS surprises when child CMS sites
 //   talk to api.github.com directly.
 // - Resolves the PAT in this order:
@@ -10,6 +10,18 @@
 //     dispatch     POST /actions/workflows/:file/dispatches
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+async function requireAuth(req: Request): Promise<Response | { uid: string }> {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  const token = auth.slice(7);
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } });
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data?.user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  return { uid: data.user.id };
+}
 
 type Body = {
   action: "test" | "latest" | "dispatch";
@@ -43,6 +55,20 @@ async function gh(url: string, token: string, init: RequestInit = {}) {
 }
 
 Deno.serve(async (req) => {
+  // Authentication guard for all non-OPTIONS requests
+  if (req.method !== "OPTIONS") {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof Response) return authResult;
+  }
+  // Authentication guard
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.split(" ")[1] || "";
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthenticated" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {

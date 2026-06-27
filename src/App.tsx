@@ -70,6 +70,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<PageView type="page" homepage={true} />} />
             <Route path="/p/:slug" element={<PageView type="page" />} />
+            <Route path="/:slug" element={<PageView type="page" />} />
             <Route path="/blog/:slug" element={<PageView type="post" />} />
             <Route path="/blog" element={<PageView type="post" homepage={true} />} />
 

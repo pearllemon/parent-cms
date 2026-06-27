@@ -117,6 +117,15 @@ function buildLlms(baseUrl: string, s: any, content: { parent: Row[]; imported: 
 }
 
 Deno.serve(async (req) => {
+  // Authentication guard
+  const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.split(" ")[1] || "";
+  const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+  if (error || !user) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthenticated" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
   const baseUrl = body.base_url || "https://deepak-shukla.lovable.app";

@@ -180,17 +180,57 @@ const AdminPostEditorWP = () => {
 
   const onUploadFeatured = async (file: File) => {
     const path = `posts/${config?.site?.id || "x"}/${Date.now()}-${file.name}`;
+    const siteId = config?.site?.id || "default";
+    let publicUrl = "";
     if (scope === "parent") {
       const { error } = await parent.storage.from("media").upload(path, file);
       if (error) return toast.error(error.message);
       const { data } = parent.storage.from("media").getPublicUrl(path);
-      setF("featured_image_url", data.publicUrl);
+      publicUrl = data.publicUrl;
+      setF("featured_image_url", publicUrl);
     } else {
       const { error } = await cloud.storage.from("post-images").upload(path, file);
       if (error) return toast.error(error.message);
       const { data } = cloud.storage.from("post-images").getPublicUrl(path);
-      setF("featured_image_url", data.publicUrl);
+      publicUrl = data.publicUrl;
+      setF("featured_image_url", publicUrl);
     }
+
+    // Catalog in Media Library
+    try {
+      if (scope === "parent") {
+        await parent.from("media_library").insert({
+          site_id: siteId,
+          file_url: publicUrl,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+        });
+      } else {
+        await cloud.from("media_meta").insert({
+          site_id: siteId,
+          media_url: publicUrl,
+          file_name: file.name,
+          mime_type: file.type,
+          size_bytes: file.size,
+          source: "cloud",
+          folder: "uncategorized",
+        });
+        
+        try {
+          await parent.from("media_library").insert({
+            site_id: siteId,
+            file_url: publicUrl,
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+          });
+        } catch {}
+      }
+    } catch (e) {
+      console.warn("Failed to catalog uploaded featured image:", e);
+    }
+
     toast.success("Image uploaded");
   };
 

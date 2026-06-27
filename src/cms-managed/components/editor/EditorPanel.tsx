@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, X } from "lucide-react";
+import { useSiteConfig } from "@/providers/SiteProvider";
+import { Upload, X, Plus, ArrowUp, ArrowDown } from "lucide-react";
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="space-y-1.5">
@@ -89,7 +90,7 @@ function NumberWithUnit({
   );
 }
 
-async function uploadImage(file: File): Promise<string | null> {
+async function uploadImage(file: File, siteId: string): Promise<string | null> {
   const ext = file.name.split(".").pop() || "png";
   const slug = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60) || "img";
   const key = `editor/${Date.now()}-${slug}.${ext}`;
@@ -103,6 +104,33 @@ async function uploadImage(file: File): Promise<string | null> {
     return null;
   }
   const { data } = supabase.storage.from("post-images").getPublicUrl(key);
+
+  // Catalog in Media Library
+  try {
+    await supabase.from("media_meta").insert({
+      site_id: siteId,
+      media_url: data.publicUrl,
+      file_name: file.name,
+      mime_type: file.type,
+      size_bytes: file.size,
+      source: "cloud",
+      folder: "uncategorized",
+    });
+
+    try {
+      const { supabase: parent } = await import("@/lib/parent");
+      await parent.from("media_library").insert({
+        site_id: siteId,
+        file_url: data.publicUrl,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type,
+      });
+    } catch {}
+  } catch (e) {
+    console.warn("Failed to catalog editor uploaded image:", e);
+  }
+
   return data.publicUrl;
 }
 
@@ -114,6 +142,9 @@ function ImagePicker({
   onChange: (v: { url: string; alt?: string; id?: string | number }) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const { config } = useSiteConfig();
+  const siteId = config?.site?.id || "default";
+
   return (
     <div className="space-y-2">
       {value?.url && (
@@ -138,7 +169,7 @@ function ImagePicker({
             const f = e.target.files?.[0];
             if (!f) return;
             setBusy(true);
-            const url = await uploadImage(f);
+            const url = await uploadImage(f, siteId);
             setBusy(false);
             if (url) onChange({ ...(value || {}), url, alt: value?.alt || f.name });
             e.target.value = "";
@@ -312,6 +343,197 @@ function GenericTextFields({ s, patch }: { s: any; patch: (u: (s: any) => any) =
   );
 }
 
+function AccordionFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => void }) {
+  const items = s.items || [];
+  
+  const updateItem = (index: number, key: string, val: any) => {
+    patch((p) => {
+      const nextItems = [...(p.items || [])];
+      nextItems[index] = { ...nextItems[index], [key]: val };
+      return { ...p, items: nextItems };
+    });
+  };
+
+  const addItem = () => {
+    patch((p) => ({
+      ...p,
+      items: [...(p.items || []), { title: "New Accordion Item", content: "<p>Accordion content goes here...</p>" }],
+    }));
+  };
+
+  const removeItem = (index: number) => {
+    patch((p) => ({
+      ...p,
+      items: (p.items || []).filter((_: any, i: number) => i !== index),
+    }));
+  };
+
+  const moveItem = (index: number, direction: "up" | "down") => {
+    patch((p) => {
+      const list = [...(p.items || [])];
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= list.length) return p;
+      const temp = list[index];
+      list[index] = list[target];
+      list[target] = temp;
+      return { ...p, items: list };
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <Label className="text-xs font-bold">Accordion Items ({items.length})</Label>
+        <Button size="sm" onClick={addItem} className="h-7 px-2 text-[10px] flex items-center gap-1">
+          <Plus className="h-3 w-3" /> Add Item
+        </Button>
+      </div>
+      <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1 border rounded-lg p-2.5 bg-slate-50/30">
+        {items.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground italic text-center py-4">No items yet. Click add item.</p>
+        ) : (
+          items.map((item: any, idx: number) => (
+            <div key={idx} className="p-3 border rounded-lg bg-card space-y-2.5 relative group">
+              <div className="flex items-center justify-between gap-2 border-b pb-1.5">
+                <span className="text-[10px] font-bold text-muted-foreground">Item #{idx + 1}</span>
+                <div className="flex gap-0.5">
+                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => moveItem(idx, "up")} disabled={idx === 0} title="Move Up">
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => moveItem(idx, "down")} disabled={idx === items.length - 1} title="Move Down">
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-5 w-5 text-red-500 hover:text-red-700" onClick={() => removeItem(idx)} title="Delete">
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              <Field label="Title / Question">
+                <TextInput value={item.title} onChange={(v) => updateItem(idx, "title", v)} />
+              </Field>
+              <Field label="Content (HTML)">
+                <Textarea
+                  value={item.content ?? ""}
+                  rows={4}
+                  onChange={(e) => updateItem(idx, "content", e.target.value)}
+                  className="text-xs font-mono"
+                />
+              </Field>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CarouselFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => void }) {
+  const slides = s.slides || [];
+
+  const updateSlide = (index: number, key: string, val: any) => {
+    patch((p) => {
+      const nextSlides = [...(p.slides || [])];
+      nextSlides[index] = { ...nextSlides[index], [key]: val };
+      return { ...p, slides: nextSlides };
+    });
+  };
+
+  const addSlide = () => {
+    patch((p) => ({
+      ...p,
+      slides: [
+        ...(p.slides || []),
+        {
+          image: "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=800&q=80",
+          heading: "New Slide Heading",
+          description: "Slide description goes here.",
+          button_text: "Learn More",
+          button_url: "#",
+        },
+      ],
+    }));
+  };
+
+  const removeSlide = (index: number) => {
+    patch((p) => ({
+      ...p,
+      slides: (p.slides || []).filter((_: any, i: number) => i !== index),
+    }));
+  };
+
+  const moveSlide = (index: number, direction: "up" | "down") => {
+    patch((p) => {
+      const list = [...(p.slides || [])];
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= list.length) return p;
+      const temp = list[index];
+      list[index] = list[target];
+      list[target] = temp;
+      return { ...p, slides: list };
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <Label className="text-xs font-bold">Carousel Slides ({slides.length})</Label>
+        <Button size="sm" onClick={addSlide} className="h-7 px-2 text-[10px] flex items-center gap-1">
+          <Plus className="h-3 w-3" /> Add Slide
+        </Button>
+      </div>
+      <div className="space-y-3.5 max-h-[400px] overflow-y-auto pr-1 border rounded-lg p-2.5 bg-slate-50/30">
+        {slides.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground italic text-center py-4">No slides yet. Click add slide.</p>
+        ) : (
+          slides.map((slide: any, idx: number) => (
+            <div key={idx} className="p-3 border rounded-lg bg-card space-y-2.5 relative group">
+              <div className="flex items-center justify-between gap-2 border-b pb-1.5">
+                <span className="text-[10px] font-bold text-muted-foreground">Slide #{idx + 1}</span>
+                <div className="flex gap-0.5">
+                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => moveSlide(idx, "up")} disabled={idx === 0} title="Move Up">
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => moveSlide(idx, "down")} disabled={idx === slides.length - 1} title="Move Down">
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-5 w-5 text-red-500 hover:text-red-700" onClick={() => removeSlide(idx)} title="Delete">
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              <Field label="Image">
+                <ImagePicker
+                  value={{ url: slide.image }}
+                  onChange={(v) => updateSlide(idx, "image", v.url)}
+                />
+              </Field>
+              <Field label="Heading">
+                <TextInput value={slide.heading} onChange={(v) => updateSlide(idx, "heading", v)} />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  value={slide.description ?? ""}
+                  rows={3}
+                  onChange={(e) => updateSlide(idx, "description", e.target.value)}
+                  className="text-xs"
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Button Text">
+                  <TextInput value={slide.button_text} onChange={(v) => updateSlide(idx, "button_text", v)} />
+                </Field>
+                <Field label="Button Link">
+                  <TextInput value={slide.button_url} onChange={(v) => updateSlide(idx, "button_url", v)} />
+                </Field>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ContainerFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => void }) {
   return (
     <>
@@ -362,6 +584,8 @@ function FieldsForWidget({ widgetType, s, patch }: { widgetType: string; s: any;
     case "testimonial":
     case "blockquote":
       return <IconBoxFields s={s} patch={patch} />;
+    case "accordion": return <AccordionFields s={s} patch={patch} />;
+    case "carousel": return <CarouselFields s={s} patch={patch} />;
     default: return <GenericTextFields s={s} patch={patch} />;
   }
 }
