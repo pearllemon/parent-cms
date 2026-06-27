@@ -4,7 +4,18 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+async function requireAuth(req: Request): Promise<Response | { uid: string }> {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer "))
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  const token = auth.slice(7);
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } });
+  const { data, error } = await sb.auth.getUser(token);
+  if (error || !data?.user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  return { uid: data.user.id };
+}
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), {
     status,
@@ -12,11 +23,25 @@ const json = (b: unknown, status = 200) =>
   });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+  return new Response("ok", { headers: corsHeaders });
+}
+// Authentication guard for all non-OPTIONS requests
+if (req.method !== "OPTIONS") {
+  const authResult = await requireAuth(req);
+  if (authResult instanceof Response) return authResult;
+}
 
   const url = new URL(req.url);
   const action = url.searchParams.get("action") || "";
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  // Authentication guard for mutations (except public form_submit)
+  const authSensitiveActions = ["form_save", "form_field_reorder", "form_delete", "form_duplicate", "form_publish"]; // add more if needed
+  if (authSensitiveActions.includes(action)) {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof Response) return authResult;
+  }
 
   try {
     if (req.method === "GET" && action === "forms") {
