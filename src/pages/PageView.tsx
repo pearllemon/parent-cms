@@ -3,7 +3,9 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { supabase as parent } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
+import DOMPurify from 'dompurify';
 import { Button } from "@/components/ui/button";
+import HtmlEmbedSection from "./HtmlEmbedSection";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -308,6 +310,7 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
                 <BookingCalendar branding={branding} />
               </div>
             )}
+            <HtmlEmbedSection branding={branding} html={page?.body || ""} />
 
             {isElementor && page ? (
               <ElementorRenderer data={page.elementor_data!} />
@@ -344,7 +347,7 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
                   <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-12">
                     <div
                       className="prose max-w-none prose-slate font-sans text-slate-800 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: page.body || "" }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.body || "") }}
                     />
                     
                     <aside className="space-y-6">
@@ -785,7 +788,7 @@ function TeamMembersSection({ branding }: { branding: any }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-items-center">
           {TEAM_MEMBERS.map((member, i) => (
             <div key={i} className="bg-white p-6 rounded-3xl border shadow-sm text-center flex flex-col items-center space-y-4 hover:shadow-md transition-shadow">
               <div className="w-24 h-24 rounded-full overflow-hidden border-4 shadow-inner" style={{ borderColor: `${branding.primary}40` }}>
