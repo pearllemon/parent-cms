@@ -12,6 +12,13 @@ export function getCmsMode(): CmsMode {
   // Build-time env override wins
   const envMode = (import.meta.env.VITE_CMS_MODE as string | undefined)?.toLowerCase();
   if (envMode === "child" || envMode === "hybrid" || envMode === "parent") return envMode;
+  
+  // Detect child site dynamically based on Supabase URL
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (supabaseUrl && supabaseUrl !== "https://kpmnwhtrxjsnitlafgom.supabase.co") {
+    return "child";
+  }
+
   try {
     const stored = localStorage.getItem(LS_KEY) as CmsMode | null;
     if (stored === "child" || stored === "hybrid" || stored === "parent") return stored;

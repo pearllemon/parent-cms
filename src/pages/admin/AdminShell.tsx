@@ -10,6 +10,8 @@ import {
   FolderTree, Tag, Activity, Rocket, Server, History, Wand2, Plug, KeyRound, type LucideIcon,
 } from "lucide-react";
 
+import { isChild } from "@/cms-core/mode";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const titleCase = (s: string) =>
@@ -265,7 +267,7 @@ const AdminShell = () => {
           </div>
 
           {/* Distribution — parent-only */}
-          {(import.meta.env.VITE_CMS_MODE || "parent") !== "child" && (
+          {!isChild() && (
             <div>
               <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Distribution</p>
               <div className="space-y-0.5">
