@@ -512,6 +512,21 @@ function convertToMarkdown(tree: any[], htmlBody: string, mode: "elementor" | "h
         lines.push(`[${node.props?.text || ""}](${node.props?.href || "#"})\n`);
       } else if (node.type === "image") {
         lines.push(`![${node.props?.alt || ""}](${node.props?.src || ""})\n`);
+      } else if (node.type === "accordion") {
+        lines.push(`## FAQs\n`);
+        const items = node.props?.items || [];
+        for (const item of items) {
+          lines.push(`**Q: ${item.title || ""}**\n\n${item.content || ""}\n\n---\n`);
+        }
+      } else if (node.type === "contact-section") {
+        lines.push(`## ${node.props?.title || "Get in Touch"}\n\n${node.props?.subtitle || ""}\n\n`);
+        if (node.props?.address) lines.push(`- Address: ${node.props.address}\n`);
+        if (node.props?.phone) lines.push(`- Phone: ${node.props.phone}\n`);
+        if (node.props?.email) lines.push(`- Email: ${node.props.email}\n`);
+        if (node.props?.hours) lines.push(`- Hours: ${node.props.hours}\n`);
+        lines.push(`\n📋 **Contact Form**\n`);
+      } else if (node.type === "blog-section") {
+        lines.push(`## ${node.props?.title || "Latest News"}\n\n${node.props?.subtitle || ""}\n\n- [Dynamic Blog Posts Grid]\n`);
       }
       if (node.children) traverse(node.children);
     }

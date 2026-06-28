@@ -812,27 +812,69 @@ function generateVisualTree(
     }
 
     // Local Helper to parse Accordion blocks
-    const parseAccordion = (content: string, faqQuestions: string[] = [], defaultTitle: string = "Tab") => {
+    const parseAccordion = (content: string, faqQuestions: string[] = [], defaultTitle: string = "Question") => {
       const items: { title: string; content: string }[] = [];
-      const tabRegex = /\*\*Q:\s*Accordion\s*Tab\s*(\d+)\*\*/gi;
-      const parts = content.split(tabRegex);
+      // Split on **Q: or **Q: 
+      const parts = content.split(/\*\*Q:\s*/i);
       const intro = parts[0]?.trim() || "";
       
       let questionIndex = 0;
-      for (let i = 1; i < parts.length; i += 2) {
-        const tabNumber = parseInt(parts[i], 10);
-        let tabContent = parts[i + 1] || "";
-        tabContent = tabContent.replace(/^-+\s*$/gm, "").trim();
+      for (let i = 1; i < parts.length; i++) {
+        const part = parts[i];
+        const starIdx = part.indexOf("**");
+        if (starIdx === -1) continue;
         
-        const actualTitle = faqQuestions[questionIndex] || (questionIndex === 0 ? defaultTitle : `${defaultTitle} ${tabNumber}`);
+        let title = part.substring(0, starIdx).trim();
+        let body = part.substring(starIdx + 2).trim();
+        
+        // Clean up trailing divider lines and whitespace
+        body = body.replace(/^-+\s*$/gm, "").trim();
+        if (body.endsWith("---")) {
+          body = body.slice(0, -3).trim();
+        }
+
+        const actualTitle = title || faqQuestions[questionIndex] || (questionIndex === 0 ? defaultTitle : `${defaultTitle} ${questionIndex + 1}`);
         questionIndex++;
         
         items.push({
           title: actualTitle,
-          content: markdownToHtml(tabContent, imageMap)
+          content: markdownToHtml(body, imageMap)
         });
       }
       return { intro, items };
+    };
+
+    // Local Helper to parse Contact details
+    const parseContactInfo = (content: string) => {
+      const lines = content.split("\n").map(l => l.trim()).filter(Boolean);
+      let address = "";
+      let phone = "";
+      let email = "";
+      let hours = "";
+      let formSlug = "contact";
+
+      lines.forEach(line => {
+        const lower = line.toLowerCase();
+        if (lower.includes("address:") || lower.includes("st,") || lower.includes("street,") || lower.includes("road,")) {
+          address = line.replace(/^[-\s✅]*address:\s*/i, "").replace(/^[-\s✅]*/, "").replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1").trim();
+        }
+        else if (lower.includes("phone:") || lower.includes("tel:") || lower.includes("call:") || (lower.includes("+") && /\d{5,}/.test(lower))) {
+          phone = line.replace(/^[-\s✅]*(phone|tel|call):\s*/i, "").replace(/^[-\s✅]*/, "").replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1").trim();
+        }
+        else if (lower.includes("email:") || lower.includes("mail:") || lower.includes("@")) {
+          const mailMatch = line.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
+          if (mailMatch) email = mailMatch[1];
+        }
+        else if (lower.includes("hours:") || lower.includes("monday to") || lower.includes("working hours") || lower.includes("9-5") || lower.includes("9am")) {
+          hours = line.replace(/^[-\s✅]*(hours|working hours):\s*/i, "").replace(/^[-\s✅]*/, "").replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1").trim();
+        }
+        else if (lower.includes("📋") || lower.includes("form")) {
+          const formMatch = line.match(/📋\s*\*\*([^*]+)\*\*/i) || line.match(/form:\s*([a-zA-Z0-9_-]+)/i);
+          if (formMatch) formSlug = slugify(formMatch[1]);
+        }
+      });
+
+      return { address, phone, email, hours, formSlug };
     };
 
     // Local Helper to parse Carousel blocks
@@ -875,7 +917,8 @@ function generateVisualTree(
     // FAQ / Accordion Section Check
     const isFaqSection = sec.title.toLowerCase().includes("faq") || 
                         sec.title.toLowerCase().includes("frequently asked questions") || 
-                        sec.content.toLowerCase().includes("frequently asked questions");
+                        sec.content.toLowerCase().includes("frequently asked questions") ||
+                        sec.content.includes("**Q:");
     if (sec.content.toLowerCase().includes("accordion tab") || isFaqSection) {
       const sectionTitle = headers[0] || sec.title;
       const { intro, items } = parseAccordion(
@@ -927,6 +970,88 @@ function generateVisualTree(
                 settings: { items }
               }
             ].filter(Boolean) as any[]
+          }
+        ]
+      });
+      return;
+    }
+
+    // Contact Section Check
+    const isContactSection = sec.title.toLowerCase().includes("contact") || 
+                            sec.title.toLowerCase().includes("get in touch") || 
+                            sec.content.includes("📋");
+    if (isContactSection) {
+      const sectionTitle = headers[0] || sec.title;
+      const { address, phone, email, hours, formSlug } = parseContactInfo(sec.content);
+      const subtitle = paragraphs.join(" ");
+
+      tree.push({
+        id: sectionId,
+        elType: "section",
+        settings: {
+          background_color: "#ffffff",
+          padding: { top: 70, bottom: 70, unit: "px" }
+        },
+        elements: [
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            elType: "column",
+            settings: { _column_size: 100 },
+            elements: [
+              {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "contact-section",
+                settings: {
+                  title: sectionTitle,
+                  subtitle,
+                  address,
+                  phone,
+                  email,
+                  hours,
+                  formSlug
+                }
+              }
+            ]
+          }
+        ]
+      });
+      return;
+    }
+
+    // Blog / Latest Posts Section Check
+    const isBlogSection = sec.title.toLowerCase().includes("news") || 
+                         sec.title.toLowerCase().includes("updates") || 
+                         sec.title.toLowerCase().includes("blog") ||
+                         sec.title.toLowerCase().includes("insights");
+    if (isBlogSection) {
+      const sectionTitle = headers[0] || sec.title;
+      const subtitle = paragraphs.join(" ");
+
+      tree.push({
+        id: sectionId,
+        elType: "section",
+        settings: {
+          background_color: "#f8f9fa",
+          padding: { top: 75, bottom: 75, unit: "px" }
+        },
+        elements: [
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            elType: "column",
+            settings: { _column_size: 100 },
+            elements: [
+              {
+                id: Math.random().toString(36).slice(2, 9),
+                elType: "widget",
+                widgetType: "blog-section",
+                settings: {
+                  title: sectionTitle,
+                  subtitle,
+                  limit: 3
+                }
+              }
+            ]
           }
         ]
       });

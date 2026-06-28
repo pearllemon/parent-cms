@@ -114,6 +114,8 @@ foreach ($repoName in $ChildRepos) {
         "src/cms-core",
         "src/cms-managed",
         "src/components/admin",
+        "src/components/elementor",
+        "src/components/editor",
         "src/pages/admin",
         "src/admin-bundle",
         "src/lib"

@@ -6,10 +6,12 @@
 // through), blockquote, testimonial, social-icons, toggle/tabs (best effort).
 // Unknown widgets render their children so layout is preserved.
 
-import { CSSProperties, ReactNode, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { CSSProperties, ReactNode, useMemo, useState, useEffect } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ArrowRight, MapPin, Phone, Mail, Clock, Calendar } from "lucide-react";
 import { useEditor, type Path } from "@/components/editor/EditorContext";
 import NodeToolbar from "@/components/editor/NodeToolbar";
+import FormRenderer from "@/components/site/FormRenderer";
+import { supabase } from "@/integrations/supabase/client";
 
 type ElNode = {
   id?: string;
@@ -504,6 +506,205 @@ function CarouselWidget({ s }: { s: Record<string, any> }) {
   );
 }
 
+function ContactSectionWidget({ s }: { s: Record<string, any> }) {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start my-8 font-sans w-full">
+      {/* Left Column: Info */}
+      <div className="lg:col-span-5 space-y-6 text-left">
+        <div className="space-y-3">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
+            {s.title || "Get in Touch"}
+          </h2>
+          {s.subtitle && (
+            <p className="text-slate-500 text-sm leading-relaxed">
+              {s.subtitle}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-4 pt-4">
+          {s.address && (
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+                <MapPin className="w-5 h-5 text-primary" style={{ color: "var(--theme-primary, #FA8739)" }} />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Our Address</h4>
+                <p className="text-sm text-slate-700 mt-0.5">{s.address}</p>
+              </div>
+            </div>
+          )}
+
+          {s.phone && (
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+                <Phone className="w-5 h-5 text-primary" style={{ color: "var(--theme-primary, #FA8739)" }} />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Phone Number</h4>
+                <p className="text-sm text-slate-700 mt-0.5">
+                  <a href={`tel:${s.phone}`} className="hover:underline">{s.phone}</a>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {s.email && (
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+                <Mail className="w-5 h-5 text-primary" style={{ color: "var(--theme-primary, #FA8739)" }} />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Email Us</h4>
+                <p className="text-sm text-slate-700 mt-0.5">
+                  <a href={`mailto:${s.email}`} className="hover:underline">{s.email}</a>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {s.hours && (
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+                <Clock className="w-5 h-5 text-primary" style={{ color: "var(--theme-primary, #FA8739)" }} />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Working Hours</h4>
+                <p className="text-sm text-slate-700 mt-0.5">{s.hours}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Column: Form Card */}
+      <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
+        <FormRenderer slug={s.formSlug || "contact"} id={s.formId} />
+      </div>
+    </div>
+  );
+}
+
+function BlogSectionWidget({ s }: { s: Record<string, any> }) {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const limit = Number(s.limit) || 3;
+
+  useEffect(() => {
+    let active = true;
+    async function fetchPosts() {
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select("id,title,slug,type,excerpt,featured_image_url,publish_date")
+          .eq("type", "post")
+          .eq("status", "published")
+          .order("publish_date", { ascending: false })
+          .limit(limit);
+
+        if (error) throw error;
+        if (active) setPosts(data || []);
+      } catch (err) {
+        console.error("Error fetching blog posts in widget:", err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    fetchPosts();
+    return () => { active = false; };
+  }, [limit]);
+
+  if (loading) {
+    return (
+      <div className="w-full py-12 text-center font-sans">
+        <div className="inline-block w-6 h-6 border-2 border-t-transparent border-slate-400 rounded-full animate-spin"></div>
+        <p className="text-xs text-slate-400 mt-2">Loading latest articles…</p>
+      </div>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <div className="w-full py-8 text-center border border-dashed rounded-2xl bg-slate-50/50 my-6 font-sans">
+        <p className="text-sm text-slate-500">No blog posts found. Publish some articles to show them here!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full my-8 font-sans space-y-8 text-left">
+      {(s.title || s.subtitle) && (
+        <div className="text-center space-y-2">
+          {s.title && <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">{s.title}</h2>}
+          {s.subtitle && <p className="text-slate-500 text-sm max-w-xl mx-auto leading-relaxed">{s.subtitle}</p>}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+        {posts.map((post) => {
+          const dateStr = post.publish_date
+            ? new Date(post.publish_date).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : null;
+
+          const link = `/blog/${post.slug}`;
+
+          return (
+            <article
+              key={post.id}
+              className="group bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col h-full"
+            >
+              {/* Featured Image */}
+              <a href={link} className="block aspect-video w-full overflow-hidden bg-slate-100 relative shrink-0">
+                <img
+                  src={post.featured_image_url || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80"}
+                  alt={post.title}
+                  loading="lazy"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              </a>
+
+              {/* Content Body */}
+              <div className="p-6 flex flex-col justify-between flex-grow space-y-4">
+                <div className="space-y-2.5 text-left">
+                  {dateStr && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>{dateStr}</span>
+                    </div>
+                  )}
+                  <h3 className="font-extrabold text-lg text-slate-900 leading-snug hover:text-primary transition-colors line-clamp-2">
+                    <a href={link} style={{ color: "inherit" }}>{post.title}</a>
+                  </h3>
+                  {post.excerpt && (
+                    <p className="text-slate-500 text-xs leading-relaxed line-clamp-3">
+                      {post.excerpt}
+                    </p>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <a
+                    href={link}
+                    className="inline-flex items-center gap-1 text-xs font-bold transition-all hover:gap-2"
+                    style={{ color: "var(--theme-primary, #FA8739)" }}
+                  >
+                    Read Article
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // -------- Container / column logic -----------------------------------------
 
 function gridCols(width: any): string {
@@ -612,6 +813,8 @@ function Widget({ node }: { node: ElNode }) {
     case "social-icons": return <SocialIcons s={s} />;
     case "accordion": return <AccordionWidget s={s} />;
     case "carousel": return <CarouselWidget s={s} />;
+    case "contact-section": return <ContactSectionWidget s={s} />;
+    case "blog-section": return <BlogSectionWidget s={s} />;
     default:
       if (node.elements?.length) {
         return (

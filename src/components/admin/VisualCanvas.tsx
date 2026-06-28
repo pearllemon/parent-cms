@@ -30,13 +30,14 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Monitor, Tablet, Smartphone, Trash2, ArrowUp, ArrowDown, Plus,
   Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical, Code2, LibraryBig, Upload,
+  HelpCircle, Mail, BookOpen, ChevronDown, Calendar, ArrowRight, MapPin, Phone, Clock
 } from "lucide-react";
 import { saveLocalSection, submitSectionToParent, type SectionTemplate } from "@/lib/sectionLibrary";
 import { toast as sonner } from "sonner";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button" | "html" | "form";
+export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button" | "html" | "form" | "accordion" | "contact-section" | "blog-section";
 export type Block = {
   id: string;
   type: BlockType;
@@ -79,6 +80,38 @@ const newBlock = (type: BlockType): Block => {
     button:    { id: uid(), type, props: { text: "Click me", href: "#", bg: "#0f172a", color: "#ffffff", radius: 6, padding: "12px 24px" } },
     html:      { id: uid(), type, props: { code: "<div>Custom HTML here</div>" } },
     form:      { id: uid(), type, props: { formSlug: "contact", formId: "" } },
+    accordion: {
+      id: uid(),
+      type,
+      props: {
+        items: [
+          { title: "What is a BREEAM assessment?", content: "A BREEAM assessment is a sustainability evaluation for buildings, measuring environmental performance across energy efficiency, water usage, waste management, and indoor environmental quality." },
+          { title: "How does the certification process work?", content: "BREEAM evaluates buildings at each stage of their lifecycle—from design to operation. Points are awarded across multiple sustainability categories, and the total score determines the certification level, ranging from Pass to Outstanding." }
+        ]
+      }
+    },
+    "contact-section": {
+      id: uid(),
+      type,
+      props: {
+        title: "Get in Touch",
+        subtitle: "Reach out to us today for expert BREEAM assessment services tailored to your project's needs. Fill out the form below, and our team will get back to you shortly.",
+        address: "2nd Floor, 123 Victoria St, London SW1E 6DE",
+        phone: "+44 20 7946 0958",
+        email: "info@breeamassessment.co.uk",
+        hours: "Monday to Friday (9-5)",
+        formSlug: "contact"
+      }
+    },
+    "blog-section": {
+      id: uid(),
+      type,
+      props: {
+        title: "News & Updates",
+        subtitle: "Stay up to date with the latest sustainability insights, BREEAM guidance, and project case studies.",
+        limit: 3
+      }
+    }
   };
   return base[type];
 };
@@ -254,6 +287,9 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             <InsertBtn label="Button" Icon={MousePointerClick} onClick={() => addBlock("button")} />
             <InsertBtn label="HTML" Icon={Code2} onClick={() => addBlock("html")} />
             <InsertBtn label="Form" Icon={Layers} onClick={() => addBlock("form")} />
+            <InsertBtn label="Accordion" Icon={HelpCircle} onClick={() => addBlock("accordion")} />
+            <InsertBtn label="Contact" Icon={Mail} onClick={() => addBlock("contact-section")} />
+            <InsertBtn label="Blog" Icon={BookOpen} onClick={() => addBlock("blog-section")} />
           </div>
           <Button size="sm" variant="outline" className="w-full mt-2 h-8 text-xs" onClick={() => setLibraryOpen(true)}>
             <LibraryBig className="w-3.5 h-3.5 mr-1" /> Section library
@@ -508,6 +544,96 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { bl
       </div>
     );
   }
+  if (block.type === "accordion") {
+    const items = p.items || [];
+    return (
+      <div onClick={handleClick} className={`w-full p-4 my-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl ${ring}`}>
+        <div className="flex items-center gap-2 mb-3 text-xs text-slate-400 uppercase font-semibold">
+          <HelpCircle className="w-4 h-4" />
+          <span>FAQ Accordion Widget</span>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No items. Open the content inspector to add some.</p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((it: any, idx: number) => (
+              <div key={idx} className="bg-white border rounded-xl p-3.5 flex justify-between items-center text-sm font-bold text-slate-800 shadow-sm">
+                <span>{it.title || `FAQ Item ${idx + 1}`}</span>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (block.type === "contact-section") {
+    return (
+      <div onClick={handleClick} className={`w-full p-6 my-4 bg-slate-50/80 border border-dashed border-slate-200 rounded-3xl grid grid-cols-1 md:grid-cols-2 gap-6 items-start ${ring}`}>
+        <div className="space-y-4 text-left">
+          <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-semibold">
+            <Mail className="w-4 h-4" />
+            <span>Contact Section Widget</span>
+          </div>
+          <h3 className="text-xl font-black text-slate-950">{p.title || "Get in Touch"}</h3>
+          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{p.subtitle}</p>
+          <div className="space-y-2 pt-2 text-xs text-slate-600">
+            {p.address && <p className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary" /> {p.address}</p>}
+            {p.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-primary" /> {p.phone}</p>}
+            {p.email && <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-primary" /> {p.email}</p>}
+            {p.hours && <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> {p.hours}</p>}
+          </div>
+        </div>
+        <div className="bg-white p-4 border rounded-2xl shadow-sm text-center py-6">
+          <Layers className="w-6 h-6 mx-auto text-primary mb-2 opacity-60" />
+          <p className="text-xs font-semibold text-slate-700">Form: {p.formSlug || "contact"}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Mock Form Card</p>
+        </div>
+      </div>
+    );
+  }
+  if (block.type === "blog-section") {
+    const limit = Number(p.limit) || 3;
+    const mockPosts = Array.from({ length: limit }).map((_, i) => ({
+      title: `Example Blog Article ${i + 1}`,
+      excerpt: "This is a brief preview of the article content. It automatically adapts to your branding settings.",
+      date: "29 Jun 2026"
+    }));
+    return (
+      <div onClick={handleClick} className={`w-full p-6 my-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl space-y-6 ${ring}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-semibold">
+            <BookOpen className="w-4 h-4" />
+            <span>Latest Blog Posts Grid</span>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-bold">Dynamic</span>
+        </div>
+        <div className="text-center space-y-1">
+          <h3 className="text-xl font-black text-slate-900">{p.title || "News & Updates"}</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">{p.subtitle}</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {mockPosts.map((post, idx) => (
+            <div key={idx} className="bg-white border rounded-2xl overflow-hidden shadow-sm flex flex-col h-full text-left">
+              <div className="aspect-video bg-slate-100 w-full flex items-center justify-center text-slate-300 text-xs">
+                Featured Image
+              </div>
+              <div className="p-4 space-y-2 flex-grow flex flex-col justify-between">
+                <div className="space-y-1">
+                  <span className="text-[9px] font-semibold text-slate-400 block">{post.date}</span>
+                  <h4 className="font-bold text-xs text-slate-900 line-clamp-2">{post.title}</h4>
+                  <p className="text-[10px] text-slate-500 line-clamp-2">{post.excerpt}</p>
+                </div>
+                <div className="text-[10px] font-bold text-primary pt-2 flex items-center gap-0.5">
+                  Read Article <ArrowRight className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return null;
 }
 
@@ -543,6 +669,9 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
   const isText = block.type === "heading" || block.type === "text" || block.type === "button";
   const isHtml = block.type === "html";
   const isForm = block.type === "form";
+  const isAccordion = block.type === "accordion";
+  const isContact = block.type === "contact-section";
+  const isBlog = block.type === "blog-section";
 
   return (
     <div className="p-3 space-y-3">
@@ -558,7 +687,7 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
           Editing <strong>{device}</strong> overrides. Switch to Desktop to edit base values.
         </p>
       )}
-      <Tabs defaultValue={isHtml ? "html" : isImage ? "image" : "layout"} className="space-y-2">
+      <Tabs defaultValue={isHtml ? "html" : isImage ? "image" : isAccordion ? "accordion" : isContact ? "contact" : isBlog ? "blog" : "layout"} className="space-y-2">
         <TabsList className="w-full h-8">
           <TabsTrigger value="layout" className="text-[11px] flex-1 h-7">Content</TabsTrigger>
           <TabsTrigger value="style" className="text-[11px] flex-1 h-7">Style</TabsTrigger>
@@ -567,6 +696,9 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
           {isText && <TabsTrigger value="text" className="text-[11px] flex-1 h-7">Text</TabsTrigger>}
           {isHtml && <TabsTrigger value="html" className="text-[11px] flex-1 h-7">HTML</TabsTrigger>}
           {isForm && <TabsTrigger value="form" className="text-[11px] flex-1 h-7">Form</TabsTrigger>}
+          {isAccordion && <TabsTrigger value="accordion" className="text-[11px] flex-1 h-7">FAQ</TabsTrigger>}
+          {isContact && <TabsTrigger value="contact" className="text-[11px] flex-1 h-7">Contact</TabsTrigger>}
+          {isBlog && <TabsTrigger value="blog" className="text-[11px] flex-1 h-7">Blog</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="layout" className="space-y-2">
@@ -648,6 +780,96 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
             <p className="text-[10px] text-muted-foreground mt-1">
               Select a form from your Forms database to render in this block.
             </p>
+          </TabsContent>
+        )}
+
+        {isAccordion && (
+          <TabsContent value="accordion" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <Label className="text-[10px] uppercase">Accordion FAQ Items</Label>
+              <Button size="sm" variant="outline" className="h-7 text-[10px]"
+                onClick={() => {
+                  const items = [...(p.items || [])];
+                  items.push({ title: "New Question?", content: "Provide an answer here." });
+                  onChange({ items });
+                }}>
+                + Add Item
+              </Button>
+            </div>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+              {(p.items || []).map((it: any, idx: number) => (
+                <div key={idx} className="border p-2 rounded-xl bg-muted/20 space-y-2 relative">
+                  <button type="button" className="absolute top-2 right-2 text-destructive hover:opacity-80"
+                    onClick={() => {
+                      const items = [...(p.items || [])];
+                      items.splice(idx, 1);
+                      onChange({ items });
+                    }}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="pr-6">
+                    <Label className="text-[9px] uppercase">Question {idx + 1}</Label>
+                    <Input value={it.title || ""} onChange={(e) => {
+                      const items = [...(p.items || [])];
+                      items[idx].title = e.target.value;
+                      onChange({ items });
+                    }} className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] uppercase">Answer</Label>
+                    <Textarea value={it.content || ""} rows={2} onChange={(e) => {
+                      const items = [...(p.items || [])];
+                      items[idx].content = e.target.value;
+                      onChange({ items });
+                    }} className="text-xs p-1 h-16 resize-none" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+        )}
+
+        {isContact && (
+          <TabsContent value="contact" className="space-y-3">
+            <div>
+              <Label className="text-[10px] uppercase">Widget Title</Label>
+              <Input value={p.title || ""} onChange={(e) => onChange({ title: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase">Subtitle</Label>
+              <Textarea value={p.subtitle || ""} rows={2} onChange={(e) => onChange({ subtitle: e.target.value })} className="text-xs resize-none" />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase">Address</Label>
+              <Input value={p.address || ""} onChange={(e) => onChange({ address: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase">Phone</Label>
+              <Input value={p.phone || ""} onChange={(e) => onChange({ phone: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase">Email</Label>
+              <Input value={p.email || ""} onChange={(e) => onChange({ email: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase">Working Hours</Label>
+              <Input value={p.hours || ""} onChange={(e) => onChange({ hours: e.target.value })} />
+            </div>
+            <FormSelector value={p.formSlug || ""} onChange={(slug) => onChange({ formSlug: slug })} />
+          </TabsContent>
+        )}
+
+        {isBlog && (
+          <TabsContent value="blog" className="space-y-3">
+            <div>
+              <Label className="text-[10px] uppercase">Widget Title</Label>
+              <Input value={p.title || ""} onChange={(e) => onChange({ title: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase">Subtitle</Label>
+              <Textarea value={p.subtitle || ""} rows={2} onChange={(e) => onChange({ subtitle: e.target.value })} className="text-xs resize-none" />
+            </div>
+            <NumField label="Posts Limit" value={Number(p.limit) || 3} min={1} max={9} onChange={(v) => onChange({ limit: v })} />
           </TabsContent>
         )}
 
