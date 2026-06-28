@@ -22,7 +22,10 @@ import EditableHtml from "@/components/editor/EditableHtml";
 import SectionLibraryDropZone from "@/components/editor/SectionLibraryDropZone";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, Save, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, ExternalLink, Save, LayoutTemplate, Sparkles, Copy, Check, Terminal } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 
 type ImportedPost = {
   id: string;
@@ -386,6 +389,22 @@ export default function AdminPageEditor() {
             </a>
           </Button>
         )}
+        
+        <AiCopilotDialog
+          tree={tree}
+          body={body}
+          editorMode={editorMode}
+          title={post.title}
+          onApply={(newTree, newBody) => {
+            if (editorMode === "elementor") {
+              setTree(newTree);
+            } else {
+              setBody(newBody);
+            }
+            setDirty(true);
+          }}
+        />
+
         <Button onClick={handleSave} disabled={!dirty || saving} size="sm">
           <Save className="h-4 w-4 mr-1" />
           {saving ? "Saving…" : dirty ? "Save changes" : "Saved"}
@@ -461,5 +480,292 @@ export default function AdminPageEditor() {
         )}
       </div>
     </div>
+  );
+}
+
+// ========= AI Design Copilot Helpers & Components =========
+
+function convertToMarkdown(tree: any[], htmlBody: string, mode: "elementor" | "html"): string {
+  if (mode === "html") {
+    let md = htmlBody || "";
+    md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n\n');
+    md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n\n');
+    md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '### $1\n\n');
+    md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');
+    md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
+    md = md.replace(/<br\s*\/?>/gi, '\n');
+    md = md.replace(/<[^>]+>/g, ''); 
+    return md.trim();
+  }
+
+  const lines: string[] = [];
+  const traverse = (nodes: any[]) => {
+    if (!Array.isArray(nodes)) return;
+    for (const node of nodes) {
+      if (node.type === "heading") {
+        const level = node.props?.level || 2;
+        const hash = "#".repeat(level);
+        lines.push(`${hash} ${node.props?.text || ""}\n`);
+      } else if (node.type === "text") {
+        lines.push(`${node.props?.text || ""}\n`);
+      } else if (node.type === "button") {
+        lines.push(`[${node.props?.text || ""}](${node.props?.href || "#"})\n`);
+      } else if (node.type === "image") {
+        lines.push(`![${node.props?.alt || ""}](${node.props?.src || ""})\n`);
+      }
+      if (node.children) traverse(node.children);
+    }
+  };
+  traverse(tree);
+  return lines.join("\n");
+}
+
+interface AiCopilotProps {
+  tree: any[];
+  body: string;
+  editorMode: "elementor" | "html";
+  title: string;
+  onApply: (newTree: any[], newBody: string) => void;
+}
+
+function AiCopilotDialog({ tree, body, editorMode, title, onApply }: AiCopilotProps) {
+  const [open, setOpen] = useState(false);
+  const [copiedType, setCopiedType] = useState<string | null>(null);
+  const [importText, setImportText] = useState("");
+
+  const getMarkdown = () => {
+    return convertToMarkdown(tree, body, editorMode);
+  };
+
+  const getDesign = () => {
+    if (editorMode === "elementor") {
+      return JSON.stringify(tree, null, 2);
+    }
+    return JSON.stringify({ html: body }, null, 2);
+  };
+
+  const getSchema = () => {
+    const data = {
+      currentPage: {
+        title,
+        editorMode,
+        blocks: editorMode === "elementor" ? tree : [{ type: "html", props: { code: body } }]
+      },
+      availableWidgets: [
+        {
+          type: "section",
+          description: "Top-level layout section wrapper.",
+          properties: {
+            padding: "string (e.g. '64px 24px')",
+            background: "string (color hex or url)"
+          }
+        },
+        {
+          type: "container",
+          description: "Flex container for grouping elements inside a section.",
+          properties: {
+            maxWidth: "string (e.g. '1100px')",
+            direction: "row | column",
+            gap: "string (e.g. '24px')",
+            alignItems: "string",
+            justifyContent: "string"
+          }
+        },
+        {
+          type: "heading",
+          description: "Heading text.",
+          properties: {
+            text: "string",
+            level: "number (1-6)",
+            fontSize: "number (px)",
+            color: "string",
+            align: "left | center | right | justify"
+          }
+        },
+        {
+          type: "text",
+          description: "Rich text paragraph.",
+          properties: {
+            text: "string",
+            fontSize: "number (px)",
+            color: "string",
+            align: "left | center | right | justify"
+          }
+        },
+        {
+          type: "image",
+          description: "Image element.",
+          properties: {
+            src: "string (url)",
+            alt: "string",
+            width: "string (e.g. '100%')"
+          }
+        },
+        {
+          type: "button",
+          description: "Interactive button link.",
+          properties: {
+            text: "string",
+            href: "string",
+            bg: "string (color)",
+            color: "string (color)"
+          }
+        },
+        {
+          type: "html",
+          description: "Custom raw HTML block.",
+          properties: {
+            code: "string"
+          }
+        },
+        {
+          type: "form",
+          description: "Lead form block.",
+          properties: {
+            formSlug: "string (e.g. 'contact')"
+          }
+        }
+      ]
+    };
+    return JSON.stringify(data, null, 2);
+  };
+
+  const handleCopy = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedType(type);
+    toast.success("Copied to clipboard!");
+    setTimeout(() => setCopiedType(null), 2000);
+  };
+
+  const handleApply = () => {
+    try {
+      const parsed = JSON.parse(importText);
+      if (editorMode === "elementor") {
+        let newTree: any[] = [];
+        if (Array.isArray(parsed)) {
+          newTree = parsed;
+        } else if (parsed && Array.isArray(parsed.blocks)) {
+          newTree = parsed.blocks;
+        } else if (parsed && parsed.currentPage && Array.isArray(parsed.currentPage.blocks)) {
+          newTree = parsed.currentPage.blocks;
+        } else {
+          throw new Error("Could not find a valid blocks array in the pasted JSON.");
+        }
+        onApply(newTree, "");
+      } else {
+        let newHtml = "";
+        if (typeof parsed === "string") {
+          newHtml = parsed;
+        } else if (parsed && typeof parsed.html === "string") {
+          newHtml = parsed.html;
+        } else if (parsed && parsed.currentPage && typeof parsed.currentPage.body === "string") {
+          newHtml = parsed.currentPage.body;
+        } else {
+          throw new Error("Could not find html content in the pasted JSON.");
+        }
+        onApply([], newHtml);
+      }
+      toast.success("Design applied successfully!");
+      setOpen(false);
+    } catch (e: any) {
+      toast.error("Failed to parse and apply: " + e.message);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5 border-orange-200 hover:border-orange-300 hover:bg-orange-50/50">
+          <Sparkles className="h-4 w-4 text-orange-500 animate-pulse" />
+          AI Copilot
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-orange-500" />
+            AI Design Copilot
+          </DialogTitle>
+          <DialogDescription>
+            Copy your page content or layout, paste it into ChatGPT/Claude to design it, and paste it back here to apply instantly.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="copy" className="w-full mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="copy">1. Copy to AI</TabsTrigger>
+            <TabsTrigger value="apply">2. Paste from AI</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="copy" className="space-y-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="border rounded-xl p-4 bg-slate-50/50 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-bold text-sm">Copy Page Text</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Copy only the headings and text paragraphs as clean Markdown. Best for rewriting content.
+                  </p>
+                </div>
+                <Button size="sm" className="w-full" onClick={() => handleCopy(getMarkdown(), "md")}>
+                  {copiedType === "md" ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                  {copiedType === "md" ? "Copied" : "Copy Markdown"}
+                </Button>
+              </div>
+
+              <div className="border rounded-xl p-4 bg-slate-50/50 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-bold text-sm">Copy Design + Text</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Copy the current layout blocks and content as JSON. Best for AI to reorganize sections.
+                  </p>
+                </div>
+                <Button size="sm" className="w-full" onClick={() => handleCopy(getDesign(), "design")}>
+                  {copiedType === "design" ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                  {copiedType === "design" ? "Copied" : "Copy Design JSON"}
+                </Button>
+              </div>
+
+              <div className="border rounded-xl p-4 bg-slate-50/50 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-bold text-sm">Copy Design + Widgets</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Copy layout, text, and the schema of all available widgets. Best for AI to generate new sections.
+                  </p>
+                </div>
+                <Button size="sm" className="w-full" onClick={() => handleCopy(getSchema(), "schema")}>
+                  {copiedType === "schema" ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                  {copiedType === "schema" ? "Copied" : "Copy Full Package"}
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="apply" className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold flex items-center gap-1.5">
+                <Terminal className="h-4 w-4 text-orange-500" />
+                Paste redesigned JSON from AI:
+              </label>
+              <Textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder={
+                  editorMode === "elementor" 
+                    ? "Paste the redesigned blocks array or full package JSON here..." 
+                    : "Paste the raw HTML or JSON with html property here..."
+                }
+                className="font-mono text-xs h-60 bg-slate-950 text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={handleApply} disabled={!importText.trim()} className="bg-orange-500 hover:bg-orange-600 text-slate-950 font-bold">
+                Apply Design
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }

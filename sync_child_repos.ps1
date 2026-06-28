@@ -284,7 +284,7 @@ foreach ($repoName in $ChildRepos) {
             New-Item -ItemType Directory -Path $migrationDir -Force | Out-Null
         }
         $migrationPath = Join-Path $migrationDir "20260629000000_seed_breeam_homepage.sql"
-        $sqlContent = @"
+        $sqlContent = @'
 -- Seed BREEAM site settings if empty
 INSERT INTO public.site_settings (id, site_name, site_url)
 VALUES ('default', 'Breeam Assessment UK', 'https://breeamassessment.co.uk')
@@ -421,7 +421,7 @@ DECLARE
       </div>
     </div>
   </section>
-
+ 
   <!-- FAQs Section -->
   <section class="max-w-4xl mx-auto px-6">
     <div class="text-center space-y-3 mb-12">
@@ -516,7 +516,7 @@ BEGIN
         status = EXCLUDED.status,
         updated_at = now();
 END $$;
-"@
+'@
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($migrationPath, $sqlContent, $utf8NoBom)
     }
