@@ -172,8 +172,8 @@ const AdminShell = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
-      <aside className="w-64 bg-foreground text-background p-4 flex flex-col">
+    <div className="admin-theme flex min-h-screen bg-background text-slate-800">
+      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
         <Link to="/" className="font-display text-xl mb-6">
           {config?.site?.name?.toString().slice(0, 22) || "CMS"}
         </Link>

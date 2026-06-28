@@ -64,7 +64,7 @@ const AdminLogin = () => {
 
 
   return (
-    <div className="min-h-screen grid place-items-center bg-muted/40 p-4">
+    <div className="admin-theme min-h-screen grid place-items-center bg-muted/40 p-4">
       <div className="w-full max-w-sm bg-background rounded-2xl p-6 shadow-lg border">
         <h1 className="font-display text-2xl mb-1">Admin {mode === "signin" ? "sign in" : "sign up"}</h1>
         <p className="text-sm text-muted-foreground mb-4">Connected to Pearl Lemon parent CMS.</p>
