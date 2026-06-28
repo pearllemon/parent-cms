@@ -30,6 +30,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 function admin() {
   return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
@@ -53,6 +54,44 @@ function canonicalize(value: unknown): string {
   ).join(",") + "}";
 }
 
+// Gate /register behind an authenticated admin JWT so anonymous callers
+// cannot pollute child_installations with fake rows.
+async function requireAdmin(req: Request): Promise<{ uid: string } | Response> {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const token = auth.slice(7);
+  const sb = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data, error } = await sb.auth.getClaims(token);
+  const uid = data?.claims?.sub as string | undefined;
+  if (error || !uid) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const svc = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+  const { data: row } = await svc
+    .from("admin_users")
+    .select("role")
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (!row || !["owner", "super-admin", "admin"].includes((row as { role: string }).role)) {
+    return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  return { uid };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
@@ -63,6 +102,9 @@ Deno.serve(async (req) => {
 
     /* ------------------------- POST /register ------------------------- */
     if (req.method === "POST" && path.startsWith("/register")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+      
       const body = await req.json().catch(() => ({} as any));
       const { site_id, site_name, site_url, mode, shim_version } = body || {};
       if (!site_id) return json({ error: "site_id required" }, 400);

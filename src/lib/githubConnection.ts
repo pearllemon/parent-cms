@@ -7,12 +7,8 @@
  */
 import { supabase as cloud } from "@/integrations/supabase/client";
 
-// Self-hosters can set VITE_GITHUB_PAT in their .env as a fallback.
-const ENV_PAT: string =
-  (import.meta as any).env?.VITE_GITHUB_PAT?.toString().trim() || "";
-
 function resolvePat(c: GithubConnection): string {
-  return (c.pat && c.pat.trim()) || ENV_PAT;
+  return (c.pat && c.pat.trim()) || "";
 }
 
 async function proxy(action: "test" | "latest" | "dispatch", c: GithubConnection, extra: Record<string, unknown> = {}) {

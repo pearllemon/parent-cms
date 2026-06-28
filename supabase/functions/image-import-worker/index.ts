@@ -493,12 +493,40 @@ async function processJob(jobId: string): Promise<{ done: boolean; processed: nu
   return { done: true, processed: pending.length, remaining: 0 };
 }
 
+async function requireAuth(req: Request): Promise<Response | { uid: string }> {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const token = auth.slice(7);
+  // Service-role token (used by the parent → worker reinvoke chain) is allowed.
+  if (token === SERVICE_ROLE) return { uid: "service_role" };
+  const sb = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data, error } = await sb.auth.getClaims(token);
+  if (error || !data?.claims?.sub) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  return { uid: data.claims.sub as string };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof Response) return authResult;
+
     const body = await req.json().catch(() => ({}));
     const jobId = typeof body?.job_id === "string" ? body.job_id : "";
     if (!jobId) {

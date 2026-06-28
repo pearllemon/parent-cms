@@ -8,9 +8,24 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 function admin() {
   return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+}
+
+async function requireAuth(req: Request): Promise<Response | null> {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+  const token = auth.slice(7);
+  if (token === SERVICE_KEY) return null;
+  const sb = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data, error } = await sb.auth.getClaims(token);
+  if (error || !data?.claims?.sub) return json({ error: "Unauthorized" }, 401);
+  return null;
 }
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
@@ -25,6 +40,13 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action") || "config";
   const sb = admin();
+
+  // Actions that mutate management data or expose unfiltered content require auth.
+  const AUTHED_ACTIONS = new Set(["heartbeat", "config", "siteConfig", "dynamic_page"]);
+  if (AUTHED_ACTIONS.has(action)) {
+    const unauthorized = await requireAuth(req);
+    if (unauthorized) return unauthorized;
+  }
 
   try {
     // 1. Heartbeat - Auto-detect and register child site
@@ -65,7 +87,7 @@ Deno.serve(async (req) => {
             site_id: newSiteId,
             site_url: newUrl,
             site_name: newName,
-            mode: "draft",
+            mode: "child",
             upgrade_state: "unknown",
             last_seen_at: new Date().toISOString(),
             auto_upgrade: true,
@@ -132,7 +154,7 @@ Deno.serve(async (req) => {
             site_id: newSiteId,
             site_url: newUrl,
             site_name: newName,
-            mode: "draft",
+            mode: "child",
             upgrade_state: "unknown",
             last_seen_at: new Date().toISOString(),
             auto_upgrade: true,
@@ -250,7 +272,7 @@ Deno.serve(async (req) => {
       const slug = url.searchParams.get("slug") || "";
       const type = url.searchParams.get("type") || "";
 
-      let q = sb.from("imported_posts").select("*").eq("site_id", siteId);
+      let q = sb.from("imported_posts").select("*").eq("site_id", siteId).eq("status", "published");
       if (slug) q = q.eq("slug", slug);
       if (type) q = q.eq("type", type);
       
@@ -278,12 +300,18 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const { site_id, page_path, referrer, user_agent } = body;
       
+      const siteIdVal = String(site_id || "default").trim().slice(0, 100);
+      const pathVal = String(page_path || "/").trim().slice(0, 2048);
+      const referrerVal = referrer ? String(referrer).trim().slice(0, 2048) : null;
+      const userAgentVal = user_agent ? String(user_agent).trim().slice(0, 500) : null;
+      const sessionIdVal = String(body.session_id || crypto.randomUUID()).trim().slice(0, 100);
+
       const { error } = await sb.from("page_view_events").insert({
-        site_id: site_id || "default",
-        path: page_path || "/",
-        referrer: referrer || null,
-        user_agent: user_agent || null,
-        session_id: body.session_id || crypto.randomUUID()
+        site_id: siteIdVal,
+        path: pathVal,
+        referrer: referrerVal,
+        user_agent: userAgentVal,
+        session_id: sessionIdVal
       });
       
       return json({ ok: !error, error: error?.message });
@@ -294,13 +322,21 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const { name, email, phone, message, source_site_id } = body;
       
-      if (!email) return json({ error: "email required" }, 400);
+      const nameVal = String(name || "").trim().slice(0, 150);
+      const emailVal = String(email || "").trim().toLowerCase();
+      const phoneVal = String(phone || "").trim().slice(0, 50);
+      const messageVal = String(message || "").trim().slice(0, 3000);
+
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailVal || !EMAIL_RE.test(emailVal) || emailVal.length > 255) {
+        return json({ error: "invalid or missing email" }, 400);
+      }
 
       const { error } = await sb.from("leads").insert({
-        name: name || "Website lead",
-        email: email,
-        phone: phone || null,
-        message: message || null,
+        name: nameVal || "Website lead",
+        email: emailVal,
+        phone: phoneVal || null,
+        message: messageVal || null,
         source: "parentcms-form",
         metadata: { site_id: source_site_id || null }
       });

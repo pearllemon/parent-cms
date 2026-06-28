@@ -114,6 +114,29 @@ function buildLlms(baseUrl: string, s: any, content: { parent: Row[]; imported: 
   }
   if (s.directives) out.push("", "## Optional", String(s.directives).trim());
   return out.join("\n") + "\n";
+// SSRF guard: only allow public https URLs and (optionally) restrict to a host
+// suffix allowlist. Blocks loopback, RFC1918, link-local, and metadata IPs.
+function isSafeHttpsUrl(raw: string, allowHostSuffixes?: string[]): boolean {
+  let u: URL;
+  try { u = new URL(raw); } catch { return false; }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  if (
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    host === "169.254.169.254"
+  ) return false;
+  if (allowHostSuffixes && !allowHostSuffixes.some((s) => host === s || host.endsWith(`.${s}`))) {
+    return false;
+  }
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -143,12 +166,16 @@ Deno.serve(async (req) => {
     // Optional parent posts
     let parent: Row[] = [];
     if (body.parent_url && body.parent_anon && body.parent_site_id) {
-      try {
-        const res = await fetch(`${body.parent_url}/rest/v1/posts?select=slug,updated_at,type,title&site_id=eq.${body.parent_site_id}&status=eq.published&limit=5000`, {
-          headers: { apikey: body.parent_anon, Authorization: `Bearer ${body.parent_anon}` },
-        });
-        if (res.ok) parent = (await res.json()) as Row[];
-      } catch { /* ignore */ }
+      if (isSafeHttpsUrl(body.parent_url, ["supabase.co", "supabase.in"])) {
+        try {
+          const safeSiteId = encodeURIComponent(body.parent_site_id);
+          const res = await fetch(`${body.parent_url}/rest/v1/posts?select=slug,updated_at,type,title&site_id=eq.${safeSiteId}&status=eq.published&limit=5000`, {
+            headers: { apikey: body.parent_anon, Authorization: `Bearer ${body.parent_anon}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.ok) parent = (await res.json()) as Row[];
+        } catch { /* ignore */ }
+      }
     }
 
     const { data: rows } = await supabase.from("seo_files").select("*");
@@ -179,12 +206,13 @@ Deno.serve(async (req) => {
     }
 
     // Optional webhook ping (notify parent / child sync)
-    if (body.webhook) {
+    if (body.webhook && isSafeHttpsUrl(body.webhook)) {
       try {
         await fetch(body.webhook, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ event: "seo_regenerated", base_url: baseUrl, results, ts: new Date().toISOString() }),
+          signal: AbortSignal.timeout(10000),
         });
       } catch { /* non-fatal */ }
     }

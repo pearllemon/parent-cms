@@ -8,6 +8,7 @@
 // - Media Library popup for image blocks.
 
 import React, { useMemo, useState } from "react";
+import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -491,7 +492,7 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { bl
     return (
       <div onClick={handleClick} className={ring}
         style={{ padding: p.padding, margin: p.margin }}
-        dangerouslySetInnerHTML={{ __html: p.code || "" }} />
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }} />
     );
   }
   return null;

@@ -124,11 +124,14 @@ Deno.serve(async (req) => {
       const kind = url.searchParams.get("kind");
       const id = url.searchParams.get("id");
       if (!kind || !id) return json({ error: "kind and id required" }, 400);
-      const { data, error } = await sb.from("cloud_components")
-        .select("*")
-        .eq("id", id)
-        .eq("kind", kind)
-        .maybeSingle();
+
+      const auth = req.headers.get("Authorization") || "";
+      const isAuthed = auth.startsWith("Bearer ");
+      let q = sb.from("cloud_components").select("*").eq("id", id).eq("kind", kind);
+      if (!isAuthed) {
+        q = q.eq("status", "approved").eq("visibility", "public");
+      }
+      const { data, error } = await q.maybeSingle();
       if (error) return json({ error: error.message }, 500);
       if (!data) return json({ error: "not found" }, 404);
       return json(data);
@@ -271,6 +274,16 @@ Deno.serve(async (req) => {
     if (req.method === "POST" && (action === "approve" || action === "reject")) {
       const me = await requireAuth(req);
       if (me instanceof Response) return me;
+      
+      const { data: adminRow } = await sb
+        .from("admin_users")
+        .select("role")
+        .eq("user_id", me.uid)
+        .maybeSingle();
+      if (!adminRow || !["owner", "super-admin", "admin"].includes((adminRow as { role: string }).role)) {
+        return json({ error: "Forbidden: admin role required" }, 403);
+      }
+
       const { id, notes } = await req.json();
       if (!id) return json({ error: "id required" }, 400);
 
