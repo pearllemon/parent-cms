@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { supabase as parent } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
 import DOMPurify from 'dompurify';
+import FormRenderer from "@/components/site/FormRenderer";
 import { Button } from "@/components/ui/button";
 import HtmlEmbedSection from "./HtmlEmbedSection";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,8 @@ import {
   CheckCircle2,
   Calendar,
   Sparkles,
-  Users
+  Users,
+  MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -73,6 +75,8 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
     font: "Poppins",
   });
 
+  const [siteSettings, setSiteSettings] = useState<any>(null);
+
   const targetSlug = homepage ? "" : slug;
   const targetType = propType || (homepage ? "page" : "page");
 
@@ -80,6 +84,10 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
   const is404Page = targetSlug === "404";
   const isThankYouPage = targetSlug === "thank-you";
   const isBlogIndex = targetSlug === "blog" || (propType === "post" && homepage);
+  const isContactPage = useMemo(() => {
+    const s = targetSlug.toLowerCase();
+    return s === "contact" || s === "contact-us" || s === "get-in-touch";
+  }, [targetSlug]);
   const isBookingPage = useMemo(() => {
     const s = targetSlug.toLowerCase();
     return s.includes("call") || s.includes("book") || s.includes("booking") || s.includes("schedule") || s.includes("appointment");
@@ -103,6 +111,16 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
         }
       } catch (e) {
         console.warn("Failed to load theme tokens:", e);
+      }
+
+      // Fetch site settings for contact details
+      try {
+        const { data: settings } = await supabase.from("site_settings").select("*").limit(1).maybeSingle();
+        if (settings) {
+          setSiteSettings(settings);
+        }
+      } catch (e) {
+        console.warn("Failed to load site settings:", e);
       }
 
       // If we are on the blog index, fetch posts list
@@ -303,6 +321,8 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
           <ThankYouPage branding={branding} />
         ) : isBlogIndex ? (
           <BlogIndexPage posts={posts} branding={branding} />
+        ) : isContactPage && page ? (
+          <ContactPageView page={page} branding={branding} siteSettings={siteSettings} />
         ) : (
           <div className="w-full">
             {isBookingPage && (
@@ -379,7 +399,7 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
         )}
 
         {/* 3. RENDER GLOBAL CONTACT FORM (Show on all standard pages/posts, hide on 404/thank-you) */}
-        {page && !is404Page && !isThankYouPage && (
+        {page && !is404Page && !isThankYouPage && !isContactPage && (
           <GlobalContactForm branding={branding} onSubmitSuccess={() => nav("/thank-you")} />
         )}
       </main>
@@ -798,14 +818,179 @@ function TeamMembersSection({ branding }: { branding: any }) {
                 <h4 className="font-bold text-base text-slate-900">{member.name}</h4>
                 <p className="text-xs font-extrabold uppercase tracking-widest text-[10px]" style={{ color: branding.primary }}>{member.role}</p>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {member.description}
-              </p>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-[200px]">{member.description}</p>
             </div>
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+// 6. GORGEOUS UNIFIED CONTACT PAGE VIEW
+function ContactPageView({ page, branding, siteSettings }: { page: any; branding: any; siteSettings: any }) {
+  const address = siteSettings?.contact_address || "Kemp House, 152 – 160 City Road London, EC1V 2NX United Kingdom";
+  const phone = siteSettings?.contact_phone || "+442071833436";
+  const email = siteSettings?.email_from_address || "info@pearllemongroup.com";
+
+  return (
+    <div className="w-full bg-white">
+      {/* Banner / Hero */}
+      <section className="relative text-white py-24 px-6 overflow-hidden bg-[#0c0d0e]">
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:32px_32px]" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl opacity-20" style={{ backgroundColor: branding.primary }} />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full blur-3xl opacity-20" style={{ backgroundColor: branding.primary }} />
+        
+        <div className="max-w-4xl mx-auto text-center relative z-10 space-y-4">
+          <span className="text-xs font-bold uppercase tracking-widest px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10" style={{ color: branding.primary }}>
+            Get In Touch
+          </span>
+          <h1 className="text-4xl md:text-6xl font-extrabold font-display tracking-tight leading-none">
+            {page.title || "Contact Us"}
+          </h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+            Have questions or ready to scale? Reach out to our team of experts today and let's build something exceptional together.
+          </p>
+        </div>
+      </section>
+
+      {/* Main Grid Content */}
+      <section className="py-20 px-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          
+          {/* Left Column - Contact Info */}
+          <div className="lg:col-span-5 space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                We'd Love To Hear From You!
+              </h2>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Have any questions? Please get in touch! If you’d prefer to speak directly with a consultant, feel free to schedule a session.
+              </p>
+            </div>
+
+            {/* Info Cards */}
+            <div className="grid grid-cols-1 gap-4">
+              <ContactInfoCard
+                icon={<MapPin className="w-5 h-5" />}
+                title="Office Address"
+                value={address}
+                branding={branding}
+              />
+              <ContactInfoCard
+                icon={<Phone className="w-5 h-5" />}
+                title="Phone Numbers"
+                value={
+                  <div className="space-y-1.5 text-sm text-slate-600">
+                    <a href={`tel:${phone}`} className="hover:underline block font-semibold text-slate-800">{phone} (UK Office)</a>
+                    <a href="tel:+447454539583" className="hover:underline block font-semibold text-slate-800">+44 7454 539583 (UK Mobile)</a>
+                  </div>
+                }
+                branding={branding}
+              />
+              <ContactInfoCard
+                icon={<Mail className="w-5 h-5" />}
+                title="Email Address"
+                value={<a href={`mailto:${email}`} className="hover:underline font-semibold text-slate-800">{email}</a>}
+                branding={branding}
+              />
+            </div>
+
+            {/* Workflow Steps / Timeline */}
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4 shadow-sm">
+              <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Our Simple Process</h4>
+              <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-bold text-slate-600 relative">
+                <div className="space-y-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center mx-auto text-slate-950 font-bold" style={{ backgroundColor: branding.primary }}>1</div>
+                  <div>Submit Form</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center mx-auto text-slate-950 font-bold" style={{ backgroundColor: branding.primary }}>2</div>
+                  <div>We Review</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center mx-auto text-slate-950 font-bold" style={{ backgroundColor: branding.primary }}>3</div>
+                  <div>You Get a Call</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Form Card */}
+          <div className="lg:col-span-7">
+            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-xl space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-slate-900">Send us a Message</h3>
+                <p className="text-xs text-slate-400">Fill in your details below and we will get back to you in under 4 minutes.</p>
+              </div>
+              
+              <FormRenderer slug="contact" branding={branding} />
+              
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                <span>🔒 Secure 256-bit SSL connection</span>
+                <span>⚡ Response time: &lt; 4 mins</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="bg-slate-50 py-20 px-6 border-t border-slate-100">
+        <div className="max-w-4xl mx-auto space-y-12">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Positive Reviews From Our Customers
+            </h2>
+            <p className="text-slate-500 text-sm max-w-lg mx-auto">
+              What investors and clients value most is our transparency, integrity, and lack of pushy sales tactics.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <TestimonialCard
+              quote="The value was not in being told to proceed, but in understanding why waiting made sense. That restraint saved time, capital, and future complications. It felt like advice given without an agenda."
+              author="Marcus Feldman"
+              role="Business Owner & UK Property Investor"
+            />
+            <TestimonialCard
+              quote="This felt very different from typical property advice. Calm, disciplined, and focused on risk rather than upside. I came away with a recommendation I could stand behind, even though it meant not acting immediately."
+              author="Jonathan Hale"
+              role="Portfolio Investor, South East England"
+            />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ContactInfoCard({ icon, title, value, branding }: { icon: React.ReactNode; title: string; value: React.ReactNode; branding: any }) {
+  return (
+    <div className="flex gap-4 p-5 rounded-2xl border border-slate-100 bg-white hover:shadow-md transition-shadow">
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${branding.primary}15`, color: branding.primary }}>
+        {icon}
+      </div>
+      <div className="space-y-1">
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</h4>
+        <div className="text-sm text-slate-600 leading-relaxed font-medium">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function TestimonialCard({ quote, author, role }: { quote: string; author: string; role: string }) {
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-150 relative space-y-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+      <p className="text-xs text-slate-600 leading-relaxed italic">
+        "{quote}"
+      </p>
+      <div className="space-y-0.5">
+        <h5 className="font-bold text-xs text-slate-900">{author}</h5>
+        <p className="text-[10px] text-slate-400 font-semibold">{role}</p>
+      </div>
+      <span className="absolute bottom-4 right-6 text-5xl font-black text-slate-100 select-none pointer-events-none">”</span>
+    </div>
   );
 }
 

@@ -2,10 +2,12 @@
 // Mirrors the block schema used by VisualCanvas.tsx.
 
 import React from "react";
+import DOMPurify from "dompurify";
+import FormRenderer from "./FormRenderer";
 
 type Block = {
   id: string;
-  type: "section" | "container" | "heading" | "text" | "image" | "button";
+  type: "section" | "container" | "heading" | "text" | "image" | "button" | "html" | "form";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   props: Record<string, any>;
   children?: Block[];
@@ -97,6 +99,20 @@ function renderBlock(b: Block): React.ReactNode {
         >
           {p.text}
         </a>
+      );
+    case "html":
+      return (
+        <div
+          key={b.id}
+          style={{ padding: p.padding, margin: p.margin }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }}
+        />
+      );
+    case "form":
+      return (
+        <div key={b.id} className="w-full my-4">
+          <FormRenderer slug={p.formSlug} id={p.formId} />
+        </div>
       );
     default:
       return null;

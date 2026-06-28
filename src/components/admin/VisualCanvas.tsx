@@ -36,7 +36,7 @@ import { toast as sonner } from "sonner";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button" | "html";
+export type BlockType = "section" | "container" | "heading" | "text" | "image" | "button" | "html" | "form";
 export type Block = {
   id: string;
   type: BlockType;
@@ -78,6 +78,7 @@ const newBlock = (type: BlockType): Block => {
     image:     { id: uid(), type, props: { src: "", alt: "", width: "100%", height: "auto", fit: "cover", radius: 8 } },
     button:    { id: uid(), type, props: { text: "Click me", href: "#", bg: "#0f172a", color: "#ffffff", radius: 6, padding: "12px 24px" } },
     html:      { id: uid(), type, props: { code: "<div>Custom HTML here</div>" } },
+    form:      { id: uid(), type, props: { formSlug: "contact", formId: "" } },
   };
   return base[type];
 };
@@ -252,6 +253,7 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             <InsertBtn label="Image" Icon={ImageIcon} onClick={() => addBlock("image")} />
             <InsertBtn label="Button" Icon={MousePointerClick} onClick={() => addBlock("button")} />
             <InsertBtn label="HTML" Icon={Code2} onClick={() => addBlock("html")} />
+            <InsertBtn label="Form" Icon={Layers} onClick={() => addBlock("form")} />
           </div>
           <Button size="sm" variant="outline" className="w-full mt-2 h-8 text-xs" onClick={() => setLibraryOpen(true)}>
             <LibraryBig className="w-3.5 h-3.5 mr-1" /> Section library
@@ -495,6 +497,17 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { bl
         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }} />
     );
   }
+  if (block.type === "form") {
+    return (
+      <div onClick={handleClick} className={`p-4 border border-dashed border-primary/40 rounded-xl bg-muted/10 ${ring}`}>
+        <div className="text-center py-6">
+          <Layers className="w-8 h-8 mx-auto text-primary mb-2" />
+          <p className="text-sm font-semibold text-foreground">Form: {p.formSlug || "Unconfigured"}</p>
+          <p className="text-xs text-muted-foreground mt-1">Connected to Forms Ecosystem</p>
+        </div>
+      </div>
+    );
+  }
   return null;
 }
 
@@ -529,6 +542,7 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
   const isImage = block.type === "image";
   const isText = block.type === "heading" || block.type === "text" || block.type === "button";
   const isHtml = block.type === "html";
+  const isForm = block.type === "form";
 
   return (
     <div className="p-3 space-y-3">
@@ -552,6 +566,7 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
           {isImage && <TabsTrigger value="image" className="text-[11px] flex-1 h-7">Image</TabsTrigger>}
           {isText && <TabsTrigger value="text" className="text-[11px] flex-1 h-7">Text</TabsTrigger>}
           {isHtml && <TabsTrigger value="html" className="text-[11px] flex-1 h-7">HTML</TabsTrigger>}
+          {isForm && <TabsTrigger value="form" className="text-[11px] flex-1 h-7">Form</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="layout" className="space-y-2">
@@ -624,6 +639,15 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
                 className="font-mono text-xs" placeholder="<div>Anything…</div>" />
               <p className="text-[10px] text-muted-foreground mt-1">Rendered live. Use trusted markup only.</p>
             </div>
+          </TabsContent>
+        )}
+
+        {isForm && (
+          <TabsContent value="form" className="space-y-2">
+            <FormSelector value={p.formSlug || ""} onChange={(slug) => onChange({ formSlug: slug })} />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Select a form from your Forms database to render in this block.
+            </p>
           </TabsContent>
         )}
 
@@ -736,3 +760,30 @@ const SHADOW_PRESETS = [
   { label: "Xl", value: "0 20px 50px rgba(0,0,0,.2)" },
   { label: "Inner", value: "inset 0 2px 4px rgba(0,0,0,.06)" },
 ];
+
+function FormSelector({ value, onChange }: { value: string; onChange: (slug: string) => void }) {
+  const [forms, setForms] = useState<any[]>([]);
+  useEffect(() => {
+    import("@/lib/forms").then((m) => {
+      m.listForms().then((list) => {
+        setForms(list || []);
+      });
+    });
+  }, []);
+
+  return (
+    <div>
+      <Label className="text-[10px] uppercase">Select Form</Label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-md border bg-background px-3 py-2 text-xs text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary/40 outline-none transition-all"
+      >
+        <option value="">Select a form...</option>
+        {forms.map((f) => (
+          <option key={f.id} value={f.slug}>{f.name} ({f.slug})</option>
+        ))}
+      </select>
+    </div>
+  );
+}
