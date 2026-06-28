@@ -8,6 +8,8 @@ $LogFile = Join-Path $ParentPath "sync_child_repos.log"
 # Load GitHub PAT from .env file or environment
 $GithubPat = ""
 $EnvFile = Join-Path $ParentPath ".env"
+$RootEnvFile = "F:/MCP For Pearl Lemon/Lovable Project/.env"
+
 if (Test-Path $EnvFile) {
     Get-Content $EnvFile | ForEach-Object {
         if ($_ -match "VITE_GITHUB_PAT\s*=\s*(.*)") {
@@ -15,8 +17,21 @@ if (Test-Path $EnvFile) {
         }
     }
 }
+if (-not $GithubPat -and (Test-Path $RootEnvFile)) {
+    Get-Content $RootEnvFile | ForEach-Object {
+        if ($_ -match "GITHUB_PAT\s*=\s*(.*)") {
+            $GithubPat = $Matches[1].Trim().Trim('"').Trim("'")
+        }
+        elseif ($_ -match "GITHUB_CLASSIC_TOKEN\s*=\s*(.*)") {
+            $GithubPat = $Matches[1].Trim().Trim('"').Trim("'")
+        }
+    }
+}
 if (-not $GithubPat) {
     $GithubPat = $env:VITE_GITHUB_PAT
+}
+if (-not $GithubPat) {
+    $GithubPat = $env:GITHUB_PAT
 }
 
 $GitBaseUrl = "https://github.com/pearllemon"
@@ -44,7 +59,8 @@ $ChildRepos = @(
     "realestatepropertymanagement.co.uk",
     "corporatecateringlondon.uk",
     "theleadgenerationagency.uk",
-    "deepak-shukla"
+    "deepak-shukla",
+    "breeamassessment"
 )
 
 # Helper: Write timestamped message to console and log file
@@ -99,6 +115,7 @@ foreach ($repoName in $ChildRepos) {
         "src/cms-managed",
         "src/components/admin",
         "src/pages/admin",
+        "src/admin-bundle",
         "src/lib"
     )
 
@@ -174,8 +191,9 @@ foreach ($repoName in $ChildRepos) {
             }
         }
 
-        # Save merged package.json back
-        $childPackage | ConvertTo-Json -Depth 100 | Out-File -FilePath $childPackagePath -Encoding utf8
+        # Save merged package.json back safely without BOM
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($childPackagePath, ($childPackage | ConvertTo-Json -Depth 100), $utf8NoBom)
     }
 
     # Append .admin-theme to index.css if not present
@@ -227,6 +245,9 @@ foreach ($repoName in $ChildRepos) {
         if ($parentAppContent -match "(import AdminShell[\s\S]*?import GenericCRUD from[\s\S]*?;)") {
             $parentAdminImports = $Matches[1]
             
+            # Append ParentOnly definition so it is available in child sites
+            $parentAdminImports += "`n`nconst IS_CHILD = (import.meta.env.VITE_CMS_MODE || `"parent`") === `"child`";`nconst ParentOnly = ({ element }: { element: any }) => IS_CHILD ? <Navigate to=`"/admin`" replace /> : element;"
+
             # Replace admin imports in child App.tsx
             if ($childAppContent -match "(import AdminShell[\s\S]*?import GenericCRUD from[\s\S]*?;)") {
                 $childAppContent = $childAppContent -replace [regex]::Escape($Matches[1]), $parentAdminImports

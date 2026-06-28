@@ -44,6 +44,11 @@ export default function ThemeTokensInjector() {
       try {
         const t = await loadTokens();
         if (!mounted) return;
+        
+        // If tokens haven't been saved to DB yet (no ID), do not inject defaults.
+        // This allows the site's index.css to provide the fallback colors safely.
+        if (!t.id) return;
+
         const decls: string[] = [];
         Object.entries(t.colors || {}).forEach(([name, value]) => {
           if (typeof value !== "string") return;

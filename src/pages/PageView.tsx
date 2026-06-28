@@ -67,6 +67,19 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
   const [footerTree, setFooterTree] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<any[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [latestPosts, setLatestPosts] = useState<any[]>([]);
+
+  // Check if user is logged in to show the floating preview bar
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAdmin(!!session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAdmin(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Dynamic branding state synced from theme_tokens
   const [branding, setBranding] = useState<{ primary: string; accent: string; font: string }>({
@@ -149,6 +162,38 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
           setPosts(unique);
         } catch (e) {
           console.warn("Failed to load blog posts list:", e);
+        }
+      }
+      
+      // If we are on the homepage, fetch the latest 3 posts for the blog grid
+      if (homepage) {
+        try {
+          const { data: localPosts } = await supabase
+            .from("imported_posts")
+            .select("id,title,slug,excerpt,featured_image_url,publish_date,type")
+            .eq("type", "post")
+            .eq("status", "published")
+            .order("publish_date", { ascending: false })
+            .limit(3);
+          
+          const { data: parentPosts } = await parent
+            .from("posts")
+            .select("id,title,slug,excerpt,featured_image_url,publish_date,type")
+            .eq("type", "post")
+            .eq("status", "published")
+            .order("publish_date", { ascending: false })
+            .limit(3);
+
+          const merged = [...(parentPosts || []), ...(localPosts || [])];
+          const seen = new Set<string>();
+          const unique = merged.filter((p) => {
+            const key = `${p.slug}`;
+            return seen.has(key) ? false : (seen.add(key), true);
+          }).slice(0, 3);
+          
+          setLatestPosts(unique);
+        } catch (e) {
+          console.warn("Failed to load latest posts for homepage:", e);
         }
       }
 
@@ -262,7 +307,7 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
       `}</style>
 
       {/* Floating Admin Preview Bar */}
-      {page && (
+      {page && isAdmin && (
         <div className="sticky top-0 z-50 bg-[#0c0d0e]/95 backdrop-blur-md text-white h-11 px-4 flex items-center justify-between text-xs font-medium border-b border-white/5 select-none shadow-md">
           <div className="flex items-center gap-2.5">
             <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: branding.primary }}></span>
@@ -396,6 +441,45 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
               <TeamMembersSection branding={branding} />
             )}
           </div>
+        )}
+
+        {/* 2.5 RENDER HOMEPAGE BLOG POST GRID */}
+        {homepage && latestPosts.length > 0 && (
+          <section className="py-16 px-6 bg-slate-50 border-t border-b border-slate-100 shrink-0">
+            <div className="max-w-6xl mx-auto space-y-10">
+              <div className="text-center space-y-3">
+                <h2 className="text-3xl font-extrabold font-display text-slate-900">Latest News & Updates</h2>
+                <p className="text-sm text-slate-500 max-w-xl mx-auto">
+                  Stay updated with the latest insights, guidelines, and news about BREEAM assessments in the UK.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {latestPosts.map((post) => (
+                  <article key={post.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
+                    {post.featured_image_url && (
+                      <Link to={`/blog/${post.slug}`} className="block aspect-video overflow-hidden border-b">
+                        <img src={post.featured_image_url} alt={post.title} className="w-full h-full object-cover hover:scale-102 transition-transform duration-300" />
+                      </Link>
+                    )}
+                    <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-base text-slate-900 line-clamp-2 transition-colors hover:opacity-80">
+                          <Link to={`/blog/${post.slug}`}>{post.title}</Link>
+                        </h3>
+                        {post.excerpt && <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">{post.excerpt}</p>}
+                      </div>
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>{post.publish_date ? new Date(post.publish_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Recent'}</span>
+                        <Link to={`/blog/${post.slug}`} className="font-bold hover:underline flex items-center gap-1" style={{ color: branding.primary }}>
+                          Read More <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
         )}
 
         {/* 3. RENDER GLOBAL CONTACT FORM (Show on all standard pages/posts, hide on 404/thank-you) */}
