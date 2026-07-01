@@ -277,114 +277,172 @@ function BlogSectionWidget({ p }: { p: Record<string, any> }) {
 // --- Main Block Renderer ---
 function renderBlock(b: Block): React.ReactNode {
   const p = b.props || {};
-  switch (b.type) {
-    case "section":
-      return (
-        <section
-          key={b.id}
-          style={{ padding: p.padding, background: p.background, color: p.color }}
-        >
-          {(b.children || []).map(renderBlock)}
-        </section>
-      );
-    case "container":
-      return (
-        <div
-          key={b.id}
-          style={{
-            maxWidth: p.maxWidth,
-            padding: p.padding,
-            margin: "0 auto",
-            display: p.display || "flex",
-            flexDirection: (p.direction || "column") as React.CSSProperties["flexDirection"],
-            gap: p.gap,
-            alignItems: p.align,
-            justifyContent: p.justify,
-          }}
-        >
-          {(b.children || []).map(renderBlock)}
-        </div>
-      );
-    case "heading": {
-      const Tag = (`h${Math.min(6, Math.max(1, Number(p.level) || 2))}`) as keyof JSX.IntrinsicElements;
-      return (
-        <Tag
-          key={b.id}
-          style={{
-            fontSize: p.fontSize, color: p.color, textAlign: p.align,
-            fontWeight: p.fontWeight, lineHeight: p.lineHeight,
-            margin: p.margin,
-          }}
-        >
-          {p.text}
-        </Tag>
-      );
+
+  const getBlockElement = (): React.ReactNode => {
+    switch (b.type) {
+      case "section": {
+        const isFullWidth = p.layout === "full-width";
+        const isFullHeight = p.height === "fit-screen" || p.height === "viewport";
+        return (
+          <section
+            className={`w-full ${isFullWidth ? "px-0" : "px-4"}`}
+            style={{
+              padding: isFullWidth ? "0" : p.padding,
+              background: p.background,
+              color: p.color,
+              minHeight: isFullHeight ? "100vh" : (p.height === "min-height" ? p.minHeight : undefined),
+              display: isFullHeight || p.height === "min-height" ? "flex" : undefined,
+              flexDirection: isFullHeight || p.height === "min-height" ? "column" : undefined,
+              justifyContent: isFullHeight || p.height === "min-height" ? "center" : undefined,
+            }}
+          >
+            <div 
+              className="w-full mx-auto" 
+              style={{ 
+                maxWidth: isFullWidth ? "100%" : p.maxWidth || "1200px",
+                height: isFullHeight ? "100%" : undefined
+              }}
+            >
+              {(b.children || []).map(renderBlock)}
+            </div>
+          </section>
+        );
+      }
+      case "container": {
+        const isFullWidth = p.layout === "full-width";
+        const isFullHeight = p.height === "fit-screen" || p.height === "viewport";
+        return (
+          <div
+            style={{
+              maxWidth: isFullWidth ? "100%" : p.maxWidth,
+              padding: p.padding,
+              margin: "0 auto",
+              display: p.display || "flex",
+              flexDirection: (p.direction || "column") as React.CSSProperties["flexDirection"],
+              gap: p.gap,
+              alignItems: p.align,
+              justifyContent: p.justify,
+              minHeight: isFullHeight ? "100vh" : (p.height === "min-height" ? p.minHeight : undefined),
+            }}
+          >
+            {(b.children || []).map(renderBlock)}
+          </div>
+        );
+      }
+      case "heading": {
+        const Tag = (`h${Math.min(6, Math.max(1, Number(p.level) || 2))}`) as keyof JSX.IntrinsicElements;
+        return (
+          <Tag
+            style={{
+              fontSize: p.fontSize, color: p.color, textAlign: p.align,
+              fontWeight: p.fontWeight, margin: p.margin,
+            }}
+          >
+            {p.text}
+          </Tag>
+        );
+      }
+      case "text":
+        return (
+          <p
+            style={{
+              fontSize: p.fontSize, color: p.color, textAlign: p.align,
+              lineHeight: p.lineHeight, margin: p.margin,
+            }}
+          >
+            {p.text}
+          </p>
+        );
+      case "image":
+        return p.src ? (
+          <img
+            src={p.src}
+            alt={p.alt || ""}
+            title={p.title}
+            loading="lazy"
+            style={{
+              width: p.width, height: p.height,
+              objectFit: p.fit as React.CSSProperties["objectFit"],
+              borderRadius: p.radius,
+            }}
+          />
+        ) : null;
+      case "button":
+        return (
+          <a
+            href={p.href || "#"}
+            style={{
+              display: "inline-block",
+              background: p.bg, color: p.color,
+              borderRadius: p.radius, padding: p.padding,
+              textDecoration: "none", fontWeight: 600,
+            }}
+          >
+            {p.text}
+          </a>
+        );
+      case "html":
+        return (
+          <div
+            style={{ padding: p.padding, margin: p.margin }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }}
+          />
+        );
+      case "form":
+        return (
+          <div className="w-full my-4">
+            <FormRenderer slug={p.formSlug} id={p.formId} />
+          </div>
+        );
+      case "accordion":
+        return <AccordionWidget items={p.items} />;
+      case "contact-section":
+        return <ContactSectionWidget p={p} />;
+      case "blog-section":
+        return <BlogSectionWidget p={p} />;
+      default:
+        return null;
     }
-    case "text":
-      return (
-        <p
-          key={b.id}
-          style={{
-            fontSize: p.fontSize, color: p.color, textAlign: p.align,
-            lineHeight: p.lineHeight, margin: p.margin,
-          }}
-        >
-          {p.text}
-        </p>
-      );
-    case "image":
-      return p.src ? (
-        <img
-          key={b.id}
-          src={p.src}
-          alt={p.alt || ""}
-          title={p.title}
-          loading="lazy"
-          style={{
-            width: p.width, height: p.height,
-            objectFit: p.fit as React.CSSProperties["objectFit"],
-            borderRadius: p.radius,
-          }}
-        />
-      ) : null;
-    case "button":
-      return (
-        <a
-          key={b.id}
-          href={p.href || "#"}
-          style={{
-            display: "inline-block",
-            background: p.bg, color: p.color,
-            borderRadius: p.radius, padding: p.padding,
-            textDecoration: "none", fontWeight: 600,
-          }}
-        >
-          {p.text}
-        </a>
-      );
-    case "html":
-      return (
-        <div
-          key={b.id}
-          style={{ padding: p.padding, margin: p.margin }}
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }}
-        />
-      );
-    case "form":
-      return (
-        <div key={b.id} className="w-full my-4">
-          <FormRenderer slug={p.formSlug} id={p.formId} />
-        </div>
-      );
-    case "accordion":
-      return <AccordionWidget key={b.id} items={p.items} />;
-    case "contact-section":
-      return <ContactSectionWidget key={b.id} p={p} />;
-    case "blog-section":
-      return <BlogSectionWidget key={b.id} p={p} />;
-    default:
-      return null;
+  };
+
+  const element = getBlockElement();
+  if (!element) return null;
+
+  const style: React.CSSProperties = {};
+  if (p.fullWidth === "yes" && b.type !== "section" && b.type !== "container") {
+    style.width = "100vw";
+    style.position = "relative";
+    style.left = "50%";
+    style.right = "50%";
+    style.marginLeft = "-50vw";
+    style.marginRight = "-50vw";
+    style.maxWidth = "100vw";
   }
+  if (p.height === "fit-screen" && b.type !== "section" && b.type !== "container") {
+    style.minHeight = "100vh";
+    style.display = "flex";
+    style.flexDirection = "column";
+    style.justifyContent = "center";
+  } else if (p.height === "min-height" && p.minHeight && b.type !== "section" && b.type !== "container") {
+    style.minHeight = p.minHeight;
+    style.display = "flex";
+    style.flexDirection = "column";
+    style.justifyContent = "center";
+  }
+
+  const hasAdvancedStyles = Object.keys(style).length > 0;
+  if (hasAdvancedStyles) {
+    return (
+      <div key={b.id} style={style}>
+        {element}
+      </div>
+    );
+  }
+
+  if (React.isValidElement(element) && !element.key) {
+    return React.cloneElement(element as React.ReactElement, { key: b.id });
+  }
+  return element;
 }
 
 export default function ThemeBlocksRenderer({ blocks }: { blocks: unknown }) {

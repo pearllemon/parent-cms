@@ -47,7 +47,7 @@ const STATIC_ROUTES = [
   { path: "/blog", title: "Blog", type: "static" },
   { path: "/contact", title: "Contact", type: "static" },
   { path: "/book-a-call", title: "Book a Call", type: "static" },
-  { path: "/press", title: "Press", type: "static" },
+  { path: "/press-and-media", title: "Press", type: "static" },
   { path: "/books", title: "Books", type: "static" },
   { path: "/privacy", title: "Privacy", type: "static" },
   { path: "/terms", title: "Terms", type: "static" },

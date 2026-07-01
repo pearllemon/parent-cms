@@ -11,7 +11,7 @@
 // imported posts (scope=imported, via ?scope=imported). SEO data
 // stored in `post_seo` and best-effort mirrored to the parent posts row.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase as parent } from "@/lib/parent";
 import { supabase as cloud } from "@/integrations/supabase/client";
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
-  ChevronDown, ChevronRight, ExternalLink, Trash2, History, Upload, Image as ImageIcon, LayoutTemplate,
+  ChevronDown, ChevronRight, ExternalLink, Trash2, History, Upload, Image as ImageIcon, LayoutTemplate, Undo2, Redo2,
 } from "lucide-react";
 import RichTextEditor from "@/components/editor/RichTextEditor";
 import SeoScoreBadge, { seoColor } from "@/components/admin/seo/SeoScoreBadge";
@@ -83,12 +83,113 @@ const AdminPostEditorWP = () => {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Form>(emptyForm(initialType));
+
+  // History stacks
+  const [past, setPast] = useState<Form[]>([]);
+  const [future, setFuture] = useState<Form[]>([]);
+  const ignoreHistory = useRef(false);
+
+  useEffect(() => {
+    if (ignoreHistory.current) {
+      ignoreHistory.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPast((p) => {
+        const last = p[p.length - 1];
+        if (!last || last.body !== form.body || last.title !== form.title || last.excerpt !== form.excerpt || last.slug !== form.slug) {
+          const next = [...p, JSON.parse(JSON.stringify(form))];
+          if (next.length > 50) next.shift();
+          return next;
+        }
+        return p;
+      });
+      setFuture([]);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [form]);
+
+  const undo = () => {
+    if (past.length <= 1) return;
+    ignoreHistory.current = true;
+    const current = JSON.parse(JSON.stringify(form));
+    const previous = past[past.length - 2];
+    setForm(previous);
+    setFuture((f) => [current, ...f]);
+    setPast((p) => p.slice(0, -1));
+  };
+
+  const redo = () => {
+    if (future.length === 0) return;
+    ignoreHistory.current = true;
+    const next = future[0];
+    setForm(next);
+    setPast((p) => [...p, JSON.parse(JSON.stringify(next))]);
+    setFuture((f) => f.slice(1));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   const [seo, setSeo] = useState<PostSeo>(() => emptySeo(scope, "new"));
   const [seoOpen, setSeoOpen] = useState(false);
   const [revisionCount, setRevisionCount] = useState(0);
   const [parentPages, setParentPages] = useState<{ id: string; title: string }[]>([]);
   const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
   const [featuredPickerOpen, setFeaturedPickerOpen] = useState(false);
+
+  const [siteSettings, setSiteSettings] = useState<any>(null);
+  const [isHomepage, setIsHomepage] = useState(false);
+
+  // Fetch site settings and check if this page is the homepage
+  useEffect(() => {
+    if (!config?.site?.id || isNew) return;
+    (async () => {
+      const { data } = await cloud.from("site_settings").select("*").limit(1).maybeSingle();
+      if (data) {
+        setSiteSettings(data);
+        setIsHomepage(data.extras?.homepage_page_id === id);
+      }
+    })();
+  }, [config?.site?.id, id, isNew]);
+
+  const toggleHomepage = async (checked: boolean) => {
+    if (!config?.site?.id || isNew || !siteSettings) return;
+    setIsHomepage(checked);
+    
+    const currentExtras = siteSettings.extras || {};
+    const updatedExtras = {
+      ...currentExtras,
+      homepage_page_id: checked ? id : null
+    };
+
+    const { error } = await cloud.from("site_settings")
+      .update({
+        extras: updatedExtras,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", siteSettings.id);
+
+    if (error) {
+      toast.error("Failed to update homepage setting: " + error.message);
+      setIsHomepage(!checked);
+    } else {
+      setSiteSettings((s: any) => ({ ...s, extras: updatedExtras }));
+      toast.success(checked ? "Set as homepage" : "Removed as homepage");
+    }
+  };
 
   // Load post + seo
   useEffect(() => {
@@ -322,9 +423,6 @@ const AdminPostEditorWP = () => {
             <SeoScoreBadge score={liveScore} onClick={() => setSeoOpen(true)} />
             <Button
               variant="outline"
-              size="sm"
-              disabled={saving}
-              title="Open visual editor"
               onClick={async () => {
                 if (isNew) {
                   if (!form.title.trim()) {
@@ -339,6 +437,32 @@ const AdminPostEditorWP = () => {
             >
               <LayoutTemplate className="w-4 h-4 mr-1" /> Edit Visually
             </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (isNew) {
+                  if (!form.title.trim()) {
+                    setF("title", `Untitled ${form.type}`);
+                  }
+                  const newId = await save("draft");
+                  if (newId) nav(`/admin/edit/${newId}?mode=elementor`);
+                } else if (id) {
+                  nav(`/admin/edit/${id}?mode=elementor`);
+                }
+              }}
+            >
+              <LayoutTemplate className="w-4 h-4 mr-1" /> Elementor Editor
+            </Button>
+
+            <div className="flex gap-0.5 border rounded p-0.5 bg-muted/40">
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={undo} disabled={past.length <= 1} title="Undo (Ctrl+Z)">
+                <Undo2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Y)">
+                <Redo2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
             <Button variant="outline" disabled={saving} onClick={() => save()}>Save draft</Button>
             <Button disabled={saving} onClick={() => save("published")} className="bg-green-600 hover:bg-green-700">
               {form.status === "published" ? "Update" : "Publish"}
@@ -411,6 +535,7 @@ const AdminPostEditorWP = () => {
               <SelectContent>
                 <SelectItem value="default">Default template</SelectItem>
                 <SelectItem value="full-width">Full width</SelectItem>
+                <SelectItem value="canvas">Elementor Canvas (No Header/Footer)</SelectItem>
                 <SelectItem value="sidebar-left">Sidebar left</SelectItem>
                 <SelectItem value="sidebar-right">Sidebar right</SelectItem>
                 <SelectItem value="landing">Landing page</SelectItem>
@@ -428,6 +553,11 @@ const AdminPostEditorWP = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </Row>
+          )}
+          {!isNew && form.type === "page" && (
+            <Row label="Set as Homepage">
+              <Switch checked={isHomepage} onCheckedChange={toggleHomepage} />
             </Row>
           )}
           <Row label="Discussion">

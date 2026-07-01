@@ -250,6 +250,52 @@ const AdminShell = () => {
             </div>
           </div>
 
+          {/* Elementor */}
+          <div>
+            <div 
+              onClick={() => toggle("elementor-group")}
+              className="flex items-center justify-between py-2 px-3 rounded hover:bg-background/10 cursor-pointer text-slate-300"
+            >
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-[#e00b50]" />
+                <span className="font-semibold text-[#e00b50]">Elementor</span>
+              </div>
+              {isOpen("elementor-group") ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </div>
+            {isOpen("elementor-group") && (
+              <div className="ml-3 pl-3 border-l border-background/10 space-y-0.5 py-1">
+                <SubItem to="/admin/settings?tab=elementor" label="Settings" active={location.search === "?tab=elementor"} />
+                <SubItem to="/admin/plugins" label="Role Manager" active={location.pathname === "/admin/plugins"} />
+                <SubItem to="/admin/sync" label="Tools" active={location.pathname === "/admin/sync"} />
+                <SubItem to="/admin/activity" label="System Info" active={location.pathname === "/admin/activity"} />
+                <SubItem to="/admin/theme" label="Custom Fonts" active={location.pathname === "/admin/theme" && !location.search} />
+                <SubItem to="/admin/component-cloud" label="Custom Code" active={location.pathname === "/admin/component-cloud"} />
+              </div>
+            )}
+          </div>
+
+          {/* Templates */}
+          <div>
+            <div 
+              onClick={() => toggle("templates-group")}
+              className="flex items-center justify-between py-2 px-3 rounded hover:bg-background/10 cursor-pointer text-slate-300"
+            >
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4" />
+                <span>Templates</span>
+              </div>
+              {isOpen("templates-group") ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </div>
+            {isOpen("templates-group") && (
+              <div className="ml-3 pl-3 border-l border-background/10 space-y-0.5 py-1">
+                <SubItem to="/admin/theme?tab=saved" label="Saved Templates" active={location.search === "?tab=saved"} />
+                <SubItem to="/admin/theme" label="Theme Builder" active={location.pathname === "/admin/theme" && !location.search} />
+                <SubItem to="/admin/theme?type=popup" label="Popups" active={location.search === "?type=popup"} />
+                <SubItem to="/admin/theme?action=new" label="Add New" active={location.search === "?action=new"} />
+              </div>
+            )}
+          </div>
+
           {/* Manage */}
           <div>
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50">Manage</p>
@@ -262,6 +308,7 @@ const AdminShell = () => {
               <SidebarItem to="/admin/seo-workspace" label="SEO Workspace" Icon={Search} active={location.pathname.startsWith("/admin/seo")} />
               <SidebarItem to="/admin/activity" label="Activity Log" Icon={Activity} active={location.pathname.startsWith("/admin/activity")} />
               <SidebarItem to="/admin/management-link" label="Management Link" Icon={Plug} active={location.pathname.startsWith("/admin/management-link")} />
+              <SidebarItem to="/admin/plugins" label="Plugins" Icon={Plug} active={location.pathname.startsWith("/admin/plugins")} />
               <SidebarItem to="/admin/settings" label="Settings" Icon={Settings} active={location.pathname.startsWith("/admin/settings")} />
             </div>
           </div>

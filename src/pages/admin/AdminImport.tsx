@@ -6,8 +6,9 @@ import { useSiteConfig } from "@/providers/SiteProvider";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles, RotateCw, Package } from "lucide-react";
+import { Upload, FileCode2, CheckCircle2, AlertCircle, History, Trash2, Image as ImageIcon, Sparkles, RotateCw, Package, Download, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import JSZip from "jszip";
 import {
   collectUsedImagesFromImportedPosts,
   queueImageImportJob,
@@ -16,6 +17,8 @@ import {
 } from "@/lib/imageImport";
 import { importElementorZip, type ElementorImportResult } from "@/lib/elementorImport";
 import { importZipSite, importSingleMd, type ZipImportResult } from "@/lib/zipSiteImport";
+import { parseMediaWxr, processZipMedia, repairBrokenImages, uploadMediaFile, importMissingImagesViaWayback } from "@/lib/mediaRepair";
+import { Wrench, ImageOff, CloudDownload } from "lucide-react";
 
 type ImportHistoryRow = {
   id: string;
@@ -330,6 +333,273 @@ const AdminImport = () => {
   const [scanning, setScanning] = useState(false);
   const [rewriting, setRewriting] = useState(false);
 
+  // ---- External Image Scanner ----
+  const [detectedExternalImages, setDetectedExternalImages] = useState<any[]>([]);
+  const [scanningExternal, setScanningExternal] = useState(false);
+  const [showDomainBreakdown, setShowDomainBreakdown] = useState(false);
+
+  // ---- Media Repair States ----
+  const [wxrAttachments, setWxrAttachments] = useState<any[]>([]);
+  const [parsedAttachmentsCount, setParsedAttachmentsCount] = useState<number | null>(null);
+  const [repairProgress, setRepairProgress] = useState<string>("");
+  const [repairing, setRepairing] = useState<boolean>(false);
+  const [uploadingMedia, setUploadingMedia] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [uploadedCount, setUploadedCount] = useState<number>(0);
+  const [totalToUpload, setTotalToUpload] = useState<number>(0);
+  const [repairResult, setRepairResult] = useState<{ postsUpdated: number; urlsReplaced: number } | null>(null);
+
+  const handleMediaXmlFileChange = async (file: File) => {
+    try {
+      const text = await file.text();
+      const attachments = parseMediaWxr(text);
+      setWxrAttachments(attachments);
+      setParsedAttachmentsCount(attachments.length);
+      toast.success(`Successfully parsed ${attachments.length} attachments from Media XML!`);
+    } catch (e) {
+      console.error(e);
+      toast.error(`Failed to parse Media XML: ${(e as Error).message}`);
+    }
+  };
+
+  const handleMediaUploadAndRepair = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingMedia(true);
+    setUploadProgress("Preparing uploads...");
+    setUploadedCount(0);
+    setTotalToUpload(files.length);
+    setRepairResult(null);
+
+    try {
+      const siteId = config?.site_id || "default";
+      
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
+        setUploadProgress("Extracting and uploading ZIP archive...");
+        const res = await processZipMedia(files[0], siteId, (msg) => setUploadProgress(msg));
+        toast.success(`Successfully processed ZIP! (${res.uploaded.length} uploaded, ${res.skippedCount} skipped)`);
+        if (res.errors.length > 0) {
+          toast.warn(`Failed to upload ${res.errors.length} files from ZIP.`);
+        }
+      } else {
+        // Fetch existing filenames to avoid duplicate uploads
+        const { data: existingMedia } = await supabase
+          .from("media_library")
+          .select("file_name")
+          .eq("site_id", siteId);
+        const existingNames = new Set((existingMedia || []).map(m => m.file_name?.toLowerCase()));
+
+        setTotalToUpload(files.length);
+        let uploaded = 0;
+        let skipped = 0;
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+
+          if (existingNames.has(cleanFileName.toLowerCase())) {
+            skipped++;
+            setUploadedCount(i + 1);
+            continue;
+          }
+
+          setUploadProgress(`Uploading [${i + 1}/${files.length}]: ${file.name}...`);
+          
+          // Match with WXR XML metadata if available
+          const match = wxrAttachments.find(
+            (a) => a.filename.toLowerCase() === file.name.toLowerCase()
+          );
+          
+          await uploadMediaFile(file, file.name, siteId, {
+            originalUrl: match?.originalUrl,
+            title: match?.title,
+            altText: match?.altText
+          });
+          uploaded++;
+          setUploadedCount(i + 1);
+          existingNames.add(cleanFileName.toLowerCase());
+        }
+        toast.success(`Successfully processed ${files.length} media files! (${uploaded} uploaded, ${skipped} skipped)`);
+      }
+
+      // Automatically trigger repair matching after upload
+      setRepairing(true);
+      setRepairProgress("Matching uploaded images and repairing URLs...");
+      const repairRes = await repairBrokenImages(siteId, (msg) => setRepairProgress(msg));
+      setRepairResult(repairRes);
+      toast.success(`Repair complete! Updated ${repairRes.postsUpdated} posts and replaced ${repairRes.urlsReplaced} image URLs.`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Error: ${(err as Error).message}`);
+    } finally {
+      setUploadingMedia(false);
+      setRepairing(false);
+      setUploadProgress("");
+      setRepairProgress("");
+    }
+  };
+
+  const handleRunRepairOnly = async () => {
+    setRepairing(true);
+    setRepairProgress("Scanning database and matching images...");
+    setRepairResult(null);
+    try {
+      const siteId = config?.site_id || "default";
+      const res = await repairBrokenImages(siteId, (msg) => setRepairProgress(msg));
+      setRepairResult(res);
+      toast.success(`Repair complete! Updated ${res.postsUpdated} posts and replaced ${res.urlsReplaced} image URLs.`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Error during repair: ${(err as Error).message}`);
+    } finally {
+      setRepairing(false);
+      setRepairProgress("");
+    }
+  };
+
+  // ---- Wayback Import State & Handler ----
+  const [waybackImporting, setWaybackImporting] = useState<boolean>(false);
+  const [waybackProgress, setWaybackProgress] = useState<string>("");
+  const [waybackResult, setWaybackResult] = useState<{ processed: number; succeeded: number; failed: number } | null>(null);
+
+  const handleWaybackImport = async () => {
+    setWaybackImporting(true);
+    setWaybackProgress("Scanning database for broken image URLs...");
+    setWaybackResult(null);
+    try {
+      const siteId = config?.site_id || "default";
+      const res = await importMissingImagesViaWayback(siteId, (msg) => setWaybackProgress(msg));
+      setWaybackResult(res);
+      toast.success(`Wayback import complete! Successfully recovered and repaired ${res.succeeded} images.`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Error during Wayback recovery: ${(err as Error).message}`);
+    } finally {
+      setWaybackImporting(false);
+      setWaybackProgress("");
+    }
+  };
+
+  const scanForExternalImages = async (silent = false) => {
+    if (!silent) setScanningExternal(true);
+    try {
+      const allImages = await collectUsedImagesFromImportedPosts({ includeSiteImages: true });
+      const externalOnly = allImages.filter(img => {
+        if (!img.url) return false;
+        if (!/^https?:\/\//i.test(img.url)) return false;
+        if (img.url.includes("supabase.co") || img.url.includes("supabase.in")) return false;
+        if (img.url.startsWith("data:") || img.url.startsWith("blob:")) return false;
+        return true;
+      });
+      setDetectedExternalImages(externalOnly);
+      if (!silent) {
+        toast.success(`Scan complete! Found ${externalOnly.length} external images.`);
+      }
+    } catch (err) {
+      console.error("Scan failed:", err);
+      if (!silent) {
+        toast.error("Failed to scan for external images.");
+      }
+    } finally {
+      if (!silent) setScanningExternal(false);
+    }
+  };
+
+  // ---- Full Website Exporter ----
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState("");
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportProgress("Preparing export...");
+    try {
+      const siteId = config?.site?.id;
+      if (!siteId) throw new Error("Site ID not found");
+
+      const zip = new JSZip();
+
+      // 1. Fetch Site Settings
+      setExportProgress("Fetching site settings...");
+      const { data: settings } = await supabase.from("site_settings").select("*").eq("site_id", siteId).maybeSingle();
+      zip.file("site_settings.json", JSON.stringify(settings || {}, null, 2));
+
+      // 2. Fetch Posts & Pages
+      setExportProgress("Fetching posts and pages...");
+      const { data: posts } = await supabase.from("posts").select("*").eq("site_id", siteId);
+      zip.file("posts.json", JSON.stringify(posts || [], null, 2));
+
+      // 3. Fetch Imported Posts (WXR metadata)
+      setExportProgress("Fetching WXR imported posts...");
+      const { data: importedPosts } = await supabase.from("imported_posts").select("*").eq("site_id", siteId);
+      zip.file("imported_posts.json", JSON.stringify(importedPosts || [], null, 2));
+
+      // 4. Fetch Redirects
+      setExportProgress("Fetching redirects...");
+      const { data: redirects } = await supabase.from("redirects").select("*").eq("site_id", siteId);
+      zip.file("redirects.json", JSON.stringify(redirects || [], null, 2));
+
+      // 5. Fetch Custom Post Types
+      setExportProgress("Fetching custom post types...");
+      const { data: cpts } = await supabase.from("custom_post_types").select("*").eq("site_id", siteId);
+      zip.file("custom_post_types.json", JSON.stringify(cpts || [], null, 2));
+
+      // 6. Fetch Taxonomies
+      setExportProgress("Fetching taxonomies...");
+      const { data: taxonomies } = await supabase.from("taxonomies").select("*").eq("site_id", siteId);
+      zip.file("taxonomies.json", JSON.stringify(taxonomies || [], null, 2));
+
+      // 7. Fetch Forms
+      setExportProgress("Fetching forms...");
+      const { data: forms } = await supabase.from("forms").select("*").eq("site_id", siteId);
+      zip.file("forms.json", JSON.stringify(forms || [], null, 2));
+
+      // 8. Fetch Media Metadata
+      setExportProgress("Fetching media library metadata...");
+      const { data: mediaMeta } = await supabase.from("media_meta").select("*").eq("site_id", siteId);
+      zip.file("media_meta.json", JSON.stringify(mediaMeta || [], null, 2));
+
+      // 9. Fetch and download all media files!
+      if (mediaMeta && mediaMeta.length > 0) {
+        const mediaFolder = zip.folder("media");
+        for (let i = 0; i < mediaMeta.length; i++) {
+          const item = mediaMeta[i];
+          if (!item.url) continue;
+          setExportProgress(`Downloading media ${i + 1} of ${mediaMeta.length}: ${item.file_name || "file"}`);
+          try {
+            const res = await fetch(item.url);
+            if (res.ok) {
+              const blob = await res.blob();
+              mediaFolder?.file(item.file_name || `file-${i}`, blob);
+            }
+          } catch (err) {
+            console.warn(`Failed to download media file: ${item.url}`, err);
+          }
+        }
+      }
+
+      // Generate ZIP
+      setExportProgress("Generating ZIP package...");
+      const content = await zip.generateAsync({ type: "blob" });
+      
+      // Trigger download
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${config?.site?.slug || "website"}-full-export-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("Website exported successfully!");
+    } catch (err) {
+      console.error("Export failed:", err);
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
+      setExportProgress("");
+    }
+  };
+
   // ---- Elementor ZIP import state ----
   const [elementorImporting, setElementorImporting] = useState(false);
   const [elementorResult, setElementorResult] = useState<ElementorImportResult | null>(null);
@@ -508,6 +778,7 @@ const AdminImport = () => {
   useEffect(() => {
     loadHistory();
     loadLatestImageJob();
+    scanForExternalImages(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -673,54 +944,64 @@ const AdminImport = () => {
 
     for (let i = 0; i < toImport.length; i += BATCH) {
       const chunk = toImport.slice(i, i + BATCH);
-      const rows = chunk.map((it, idx) => ({
-        site_id,
-        title: it.title || "(untitled)",
-        slug: (it.slug || slugify(it.title) || `wp-${Date.now()}-${i}-${idx}`).slice(0, 200),
-        excerpt: it.excerpt || "",
-        body: it.content || "",
-        status:
+      const rows = chunk.map((it, idx) => {
+        let slug = (it.slug || slugify(it.title) || `wp-${Date.now()}-${i}-${idx}`).slice(0, 200);
+        let status =
           it.status === "publish"
             ? "published"
             : it.status === "draft"
               ? "draft"
               : it.status === "future"
                 ? "scheduled"
-                : "draft",
-        publish_date: it.pubDate ? new Date(it.pubDate).toISOString() : null,
-        featured_image_url: it.featuredImageUrl || null,
-        type: it.postType, // 'post' or 'page'
-        meta_title:
-          it.meta?.["_yoast_wpseo_title"] ||
-          it.meta?.["rank_math_title"] ||
-          it.meta?.["_aioseo_title"] ||
-          it.meta?.["_aioseop_title"] ||
-          it.meta?.["_seopress_titles_title"] ||
-          it.title,
-        meta_description:
-          it.meta?.["_yoast_wpseo_metadesc"] ||
-          it.meta?.["rank_math_description"] ||
-          it.meta?.["_aioseo_description"] ||
-          it.meta?.["_aioseop_description"] ||
-          it.meta?.["_seopress_titles_desc"] ||
-          it.excerpt ||
-          "",
-        canonical_url:
-          it.meta?.["_yoast_wpseo_canonical"] ||
-          it.meta?.["rank_math_canonical_url"] ||
-          it.meta?.["_aioseo_canonical_url"] ||
-          it.meta?.["_seopress_robots_canonical"] ||
-          it.link,
-        source: "wp-xml",
-        imported_by: userId,
-        raw: {
-          link: it.link,
-          author: it.author,
-          categories: it.categories,
-          tags: it.tags,
-          meta: it.meta,
-        } as unknown as never,
-      }));
+                : "draft";
+
+        if (it.postType === "page" && (slug === "" || slug === "home")) {
+          slug = "home-draft";
+          status = "draft";
+        }
+
+        return {
+          site_id,
+          title: it.title || "(untitled)",
+          slug,
+          excerpt: it.excerpt || "",
+          body: it.content || "",
+          status,
+          publish_date: it.pubDate ? new Date(it.pubDate).toISOString() : null,
+          featured_image_url: it.featuredImageUrl || null,
+          type: it.postType, // 'post' or 'page'
+          meta_title:
+            it.meta?.["_yoast_wpseo_title"] ||
+            it.meta?.["rank_math_title"] ||
+            it.meta?.["_aioseo_title"] ||
+            it.meta?.["_aioseop_title"] ||
+            it.meta?.["_seopress_titles_title"] ||
+            it.title,
+          meta_description:
+            it.meta?.["_yoast_wpseo_metadesc"] ||
+            it.meta?.["rank_math_description"] ||
+            it.meta?.["_aioseo_description"] ||
+            it.meta?.["_aioseop_description"] ||
+            it.meta?.["_seopress_titles_desc"] ||
+            it.excerpt ||
+            "",
+          canonical_url:
+            it.meta?.["_yoast_wpseo_canonical"] ||
+            it.meta?.["rank_math_canonical_url"] ||
+            it.meta?.["_aioseo_canonical_url"] ||
+            it.meta?.["_seopress_robots_canonical"] ||
+            it.link,
+          source: "wp-xml",
+          imported_by: userId,
+          raw: {
+            link: it.link,
+            author: it.author,
+            categories: it.categories,
+            tags: it.tags,
+            meta: it.meta,
+          } as unknown as never,
+        };
+      });
 
       // upsert into Lovable Cloud `imported_posts` by (site_id, slug)
       let inserted = 0;
@@ -762,19 +1043,26 @@ const AdminImport = () => {
       // public site — no manual "promote" step. We auto-detect a per-page
       // template by slug/title.
       const liveRows = chunk.map((it, idx) => {
-        const slug = (it.slug || slugify(it.title) || `wp-${Date.now()}-${i}-${idx}`).slice(0, 200);
+        let slug = (it.slug || slugify(it.title) || `wp-${Date.now()}-${i}-${idx}`).slice(0, 200);
         const type = it.postType === "page" ? "page" : "post";
+        let status =
+          it.status === "publish"
+            ? "published"
+            : it.status === "future"
+              ? "scheduled"
+              : "draft";
+
+        if (type === "page" && (slug === "" || slug === "home")) {
+          slug = "home-draft";
+          status = "draft";
+        }
+
         return {
           site_id,
           title: it.title || "(untitled)",
           slug,
           type,
-          status:
-            it.status === "publish"
-              ? "published"
-              : it.status === "future"
-                ? "scheduled"
-                : "draft",
+          status,
           excerpt: it.excerpt || "",
           body: it.content || "",
           featured_image_url: it.featuredImageUrl || null,
@@ -801,7 +1089,7 @@ const AdminImport = () => {
           tags: it.tags as unknown as never,
           publish_date: it.pubDate ? new Date(it.pubDate).toISOString() : null,
           published_at:
-            it.status === "publish" && it.pubDate ? new Date(it.pubDate).toISOString() : null,
+            status === "published" && it.pubDate ? new Date(it.pubDate).toISOString() : null,
         };
       });
       const { error: liveErr } = await supabase
@@ -1198,6 +1486,149 @@ const AdminImport = () => {
         )}
       </div>
 
+      {/* WordPress Media & Image Repair Card */}
+      <div className="bg-background border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Wrench className="w-5 h-5 text-primary" />
+          <h2 className="font-display text-xl">WordPress Media & Image Repair</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Repair broken WordPress images (e.g. <code>/wp-content/uploads/</code>) after domain disconnection. 
+          Upload your WordPress Media XML export to parse metadata, then upload your actual image files or a ZIP archive. 
+          The system will upload them to local Supabase Storage and automatically rewrite all broken image URLs in your posts/pages by matching filenames.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          {/* Left: Media XML Upload */}
+          <div className="space-y-3 p-4 border rounded-xl bg-muted/10">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <FileCode2 className="w-4 h-4 text-muted-foreground" />
+              1. Parse WordPress Media XML (Optional)
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Loads attachment metadata (titles, alt texts, original URLs) to map files accurately.
+            </p>
+            <label className="block border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:bg-muted/40 transition text-xs">
+              <Upload className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+              <span className="truncate max-w-full block">
+                {parsedAttachmentsCount !== null 
+                  ? `Parsed ${parsedAttachmentsCount} attachments` 
+                  : "Choose Media-*.xml file"}
+              </span>
+              <input
+                type="file"
+                accept=".xml"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleMediaXmlFileChange(e.target.files[0])}
+              />
+            </label>
+          </div>
+
+          {/* Right: Actual Images Upload */}
+          <div className="space-y-3 p-4 border rounded-xl bg-muted/10">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-muted-foreground" />
+              2. Upload Media ZIP or Files (Required)
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Select multiple image files or upload a single ZIP containing your exported media assets.
+            </p>
+            <label className="block border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:bg-muted/40 transition text-xs">
+              <Upload className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+              <span>
+                {uploadingMedia ? "Processing..." : "Select Images or ZIP"}
+              </span>
+              <input
+                type="file"
+                accept=".zip,image/*"
+                multiple
+                className="hidden"
+                disabled={uploadingMedia || repairing}
+                onChange={(e) => handleMediaUploadAndRepair(e.target.files)}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Progress Display */}
+        {(uploadingMedia || repairing) && (
+          <div className="space-y-2 border rounded-xl p-4 bg-muted/20 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-xs font-semibold text-foreground">
+                {uploadingMedia ? uploadProgress : repairProgress}
+              </span>
+            </div>
+            {uploadingMedia && totalToUpload > 0 && (
+              <div className="space-y-1">
+                <Progress value={Math.round((uploadedCount / totalToUpload) * 100)} className="h-1.5" />
+                <span className="text-[10px] text-muted-foreground">
+                  Uploaded {uploadedCount} of {totalToUpload} files
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Progress for Wayback Recovery */}
+        {waybackImporting && (
+          <div className="space-y-2 border rounded-xl p-4 bg-muted/20 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-xs font-semibold text-foreground">{waybackProgress}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Repair Results */}
+        {repairResult && (
+          <div className="rounded-xl border border-primary/20 bg-mint/5 p-4 text-sm text-primary-foreground flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-primary">Repair Completed Successfully!</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Rewrote <strong>{repairResult.urlsReplaced}</strong> broken image URLs across <strong>{repairResult.postsUpdated}</strong> posts/pages.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Wayback Results */}
+        {waybackResult && (
+          <div className="rounded-xl border border-primary/20 bg-mint/5 p-4 text-sm text-primary-foreground flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-primary">Wayback Recovery Completed!</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Processed <strong>{waybackResult.processed}</strong> URLs: Successfully recovered and imported <strong>{waybackResult.succeeded}</strong> images, <strong>{waybackResult.failed}</strong> failed.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2 justify-end pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRunRepairOnly}
+            disabled={uploadingMedia || repairing || waybackImporting}
+          >
+            <RotateCw className="w-3.5 h-3.5 mr-1.5" />
+            Scan & Repair Existing Media Library Images
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleWaybackImport}
+            disabled={uploadingMedia || repairing || waybackImporting}
+            className="shadow-sm"
+          >
+            <CloudDownload className="w-4 h-4 mr-1.5" />
+            Recover & Import Missing Images (Wayback Machine)
+          </Button>
+        </div>
+      </div>
+
       {/* Branding Modal */}
       {showBrandingModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -1299,39 +1730,89 @@ const AdminImport = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <ImageIcon className="w-5 h-5 text-primary" />
-            <h2 className="font-display text-xl">Import & optimize images</h2>
+            <h2 className="font-display text-xl">Import & optimize external images</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               size="sm"
               variant="outline"
-              onClick={loadLatestImageJob}
-              disabled={scanning}
+              onClick={() => scanForExternalImages(false)}
+              disabled={scanningExternal}
             >
-              Refresh
+              {scanningExternal ? "Scanning…" : "Scan for External Images"}
             </Button>
             <Button
               onClick={startImageImport}
               disabled={
                 scanning ||
+                scanningExternal ||
                 imageJob?.status === "running" ||
-                imageJob?.status === "pending"
+                imageJob?.status === "pending" ||
+                detectedExternalImages.length === 0
               }
             >
               <Sparkles className="w-4 h-4 mr-2" />
-              {scanning
-                ? "Scanning…"
-                : imageJob?.status === "running"
-                  ? "Working…"
-                  : "Start image import"}
+              {scanning ? "Starting Importer…" : "Import & Replace Images"}
             </Button>
           </div>
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Scans imported posts, pages, featured images, and site images, then stores optimized copies with SEO-friendly file names.
-          The worker continues in the background and automatically swaps old WordPress URLs to hosted optimized links when ready.
+          Scans all pages, posts, featured images, and templates, then downloads any images hosted on external servers (e.g. <code>deepakshukla.com</code>, <code>m.media-amazon.com</code>), uploads them to your local Supabase Storage, and replaces the URLs in your content.
         </p>
+
+        {/* Scan results */}
+        {detectedExternalImages.length > 0 ? (
+          <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-warning-foreground text-sm font-semibold">
+              <ShieldAlert className="w-4 h-4 text-warning" />
+              Found {detectedExternalImages.length} external images that need to be imported.
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Images hosted on external servers can cause CORS issues, slower page loading, and broken links if the external server changes.
+            </p>
+            
+            {/* Domain breakdown */}
+            <div className="space-y-1.5">
+              <button
+                onClick={() => setShowDomainBreakdown(!showDomainBreakdown)}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                {showDomainBreakdown ? "Hide domain breakdown" : "Show domain breakdown"}
+              </button>
+              {showDomainBreakdown && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {(() => {
+                    const counts: Record<string, number> = {};
+                    detectedExternalImages.forEach((img) => {
+                      try {
+                        const domain = new URL(img.url).hostname;
+                        counts[domain] = (counts[domain] || 0) + 1;
+                      } catch {
+                        counts["unknown"] = (counts["unknown"] || 0) + 1;
+                      }
+                    });
+                    return Object.entries(counts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([domain, count]) => (
+                        <div key={domain} className="flex justify-between items-center text-xs bg-background p-2 border rounded-lg">
+                          <span className="font-mono truncate max-w-[200px]">{domain}</span>
+                          <Badge variant="outline">{count} image{count === 1 ? "" : "s"}</Badge>
+                        </div>
+                      ));
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          !scanningExternal && (
+            <div className="rounded-xl border border-primary/20 bg-mint/5 p-4 text-sm text-primary-foreground flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              All images are hosted locally or on your Supabase Storage. No external images detected.
+            </div>
+          )
+        )}
 
         {imageJob && (
           <div className="space-y-3 border rounded-xl p-4 bg-muted/20">
@@ -1346,7 +1827,7 @@ const AdminImport = () => {
                         : "outline"
                   }
                 >
-                  {imageJob.status}
+                  {imageJob.status === "running" ? "Importing…" : imageJob.status}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   Started{" "}
@@ -1375,26 +1856,26 @@ const AdminImport = () => {
                   : 0
               }
             />
-            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <span>📦 {imageJob.processed} / {imageJob.total} processed</span>
-              <span className="text-primary">✅ {imageJob.succeeded} optimized</span>
-              <span>⏭ {imageJob.skipped} skipped</span>
-              <span className="text-destructive">⚠️ {imageJob.failed} failed</span>
+            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground font-semibold">
+              <span className="text-foreground">📦 Progress: {imageJob.processed} / {imageJob.total} images</span>
+              <span className="text-primary">✅ Succeeded: {imageJob.succeeded}</span>
+              <span>skip Skipped: {imageJob.skipped}</span>
+              {imageJob.failed > 0 && <span className="text-destructive">⚠️ Failed: {imageJob.failed}</span>}
               {typeof imageJob.replacements === "number" && (
-                <span>🔁 {imageJob.replacements} URLs replaced</span>
+                <span className="text-primary">🔁 URLs Replaced: {imageJob.replacements}</span>
               )}
             </div>
             {imageJob.current_url && imageJob.status === "running" && (
-              <p className="text-xs text-muted-foreground truncate">
-                Importing: <span className="font-mono">{imageJob.current_url}</span>
+              <p className="text-xs text-muted-foreground truncate bg-background p-2 border rounded font-mono">
+                Downloading: {imageJob.current_url}
               </p>
             )}
 
             {imageJob.status === "completed" && imageJob.succeeded > 0 && (
               <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2">
-                <p className="text-sm">
+                <p className="text-sm text-muted-foreground">
                   <CheckCircle2 className="w-4 h-4 text-primary inline mr-1" />
-                  Images are optimized and WordPress URLs are replaced automatically. Use this if you want to re-run the replacement pass.
+                  Images are fully optimized and WordPress URLs have been replaced.
                 </p>
                 <Button
                   size="sm"
@@ -1488,6 +1969,46 @@ const AdminImport = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Website Export (Full Backup) */}
+      <div className="bg-background border border-primary/20 rounded-2xl p-6 space-y-4 shadow-soft">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Download className="w-5 h-5 text-primary" />
+            <h2 className="font-display text-xl">Export Website (Full Backup)</h2>
+          </div>
+          <Button
+            onClick={handleExport}
+            disabled={exporting}
+            className="shadow-sm"
+          >
+            {exporting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Exporting…
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Generate Export (.zip)
+              </>
+            )}
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Create a complete backup of this website. This generates a structured ZIP file containing all pages, posts, custom post types, redirects, taxonomies, global site settings, and all uploaded media files from the media library.
+        </p>
+
+        {exporting && (
+          <div className="space-y-2 border rounded-xl p-4 bg-muted/20 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-xs font-semibold text-foreground">{exportProgress}</span>
+            </div>
+            <Progress value={exportProgress.includes("media") ? undefined : 80} className="h-1.5" />
           </div>
         )}
       </div>

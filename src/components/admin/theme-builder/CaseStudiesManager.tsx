@@ -3,6 +3,7 @@ import { supabase } from "@/lib/parent";
 import { Plus, Trash2, Edit2, Save, TrendingUp, ExternalLink, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ImagePickerField from "../ImagePickerField";
 
 interface CaseStudy {
   id: string;
@@ -95,8 +96,7 @@ const CaseStudiesManager = () => {
               <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[60px]" /></div>
             <div className="md:col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Results / Key Metrics</label>
               <textarea value={form.results} onChange={e => setForm({ ...form, results: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[60px]" placeholder="e.g. 300% increase in organic traffic..." /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Image URL</label>
-              <input value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
+            <ImagePickerField label="Image URL" value={form.image_url} onChange={url => setForm({ ...form, image_url: url })} />
             <div><label className="text-xs text-muted-foreground mb-1 block">Video URL</label>
               <input value={form.video_url} onChange={e => setForm({ ...form, video_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Visit Link</label>

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/parent";
 import { Plus, Trash2, Edit2, Save, Layers, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ImagePickerField from "../ImagePickerField";
 
 interface Service {
   id: string;
@@ -106,8 +107,7 @@ const ServicesManager = () => {
               <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div className="md:col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Description</label>
               <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[60px]" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Feature Image URL</label>
-              <input value={form.feature_image_url} onChange={e => setForm({ ...form, feature_image_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
+            <ImagePickerField label="Feature Image URL" value={form.feature_image_url} onChange={url => setForm({ ...form, feature_image_url: url })} />
             <div><label className="text-xs text-muted-foreground mb-1 block">Visit Link</label>
               <input value={form.visit_link} onChange={e => setForm({ ...form, visit_link: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Sort Order</label>

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/parent";
 import { Plus, Trash2, Edit2, Eye, Save, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ImagePickerField from "../ImagePickerField";
 
 interface ErrorPageConfig {
   id: string;
@@ -154,7 +155,7 @@ const ErrorPageBuilder = () => {
           <h3 className="text-sm font-semibold text-foreground">{editingId ? "Edit" : "Create"} 404 Config</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="text-xs text-muted-foreground mb-1 block">Name *</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="Pearl Lemon 404" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Image URL</label><input value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
+            <ImagePickerField label="Image URL" value={form.image_url} onChange={url => setForm({ ...form, image_url: url })} />
             <div><label className="text-xs text-muted-foreground mb-1 block">Heading</label><input value={form.heading} onChange={e => setForm({ ...form, heading: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Subheading</label><input value={form.subheading} onChange={e => setForm({ ...form, subheading: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div className="md:col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Description</label><textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[60px]" /></div>

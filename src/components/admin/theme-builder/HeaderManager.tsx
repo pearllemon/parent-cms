@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SiteHeader from "@/components/header/SiteHeader";
+import ImagePickerField from "../ImagePickerField";
 import MenuEditor from "./MenuEditor";
 import { supabase } from "@/lib/parent";
 import { toast } from "sonner";
@@ -879,14 +880,11 @@ const HeaderManager = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Logo URL</label>
-                    <input
-                      value={activeHeader.logo_url}
-                      onChange={(e) => updateActiveHeaderLocal({ logo_url: e.target.value })}
-                      className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                      placeholder="https://..."
-                    />
-                  </div>
+                  <ImagePickerField
+                    label="Logo URL"
+                    value={activeHeader.logo_url}
+                    onChange={(url) => updateActiveHeaderLocal({ logo_url: url })}
+                  />  </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Tagline</label>
                     <input

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/parent";
 import { Plus, Trash2, Edit2, Eye, Save, MessageCircle, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ImagePickerField from "../ImagePickerField";
 
 interface PopupConfig {
   id: string;
@@ -161,7 +162,7 @@ const PopupBuilder = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="text-xs text-muted-foreground mb-1 block">Name *</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Category</label><input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="e.g. seo, catering, digital-marketing" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Image URL (avatar)</label><input value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
+            <ImagePickerField label="Image URL (avatar)" value={form.image_url} onChange={url => setForm({ ...form, image_url: url })} />
             <div><label className="text-xs text-muted-foreground mb-1 block">CTA Link</label><input value={form.cta_link} onChange={e => setForm({ ...form, cta_link: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div className="md:col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Heading</label><input value={form.heading} onChange={e => setForm({ ...form, heading: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div className="md:col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Description</label><textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[60px]" /></div>

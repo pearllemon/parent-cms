@@ -11,7 +11,10 @@ type Props = React.ImgHTMLAttributes<HTMLImageElement> & { src: string };
 const CachedImage = ({ src, ...rest }: Props) => {
   const [resolved, setResolved] = useState<string>(src);
 
+  const [error, setError] = useState(false);
+
   useEffect(() => {
+    setError(false);
     let cancelled = false;
     let blobUrl: string | null = null;
     getCachedImageUrl(src).then((url) => {
@@ -28,7 +31,26 @@ const CachedImage = ({ src, ...rest }: Props) => {
     };
   }, [src]);
 
-  return <img src={resolved} loading="lazy" decoding="async" {...rest} />;
+  if (error || !resolved) {
+    return (
+      <div 
+        className={`w-full h-full min-h-[150px] bg-gradient-to-br from-mint/40 to-primary/10 flex items-center justify-center rounded-2xl border border-border ${rest.className || ""}`}
+        style={rest.style}
+      >
+        <span className="text-xs text-muted-foreground font-medium">Image not available</span>
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={resolved} 
+      loading="lazy" 
+      decoding="async" 
+      onError={() => setError(true)}
+      {...rest} 
+    />
+  );
 };
 
 export default CachedImage;

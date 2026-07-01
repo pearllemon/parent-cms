@@ -54,12 +54,16 @@ const bgStyle = (s: Record<string, any>): CSSProperties => {
 };
 
 const containerStyle = (s: Record<string, any>): CSSProperties => {
+  const isFullHeight = s.height === "fit" || s.height === "fit-to-screen" || s.height === "viewport";
   return {
     ...bgStyle(s),
     ...spacingStyle(s.padding, "padding"),
     ...spacingStyle(s.margin, "margin"),
     color: s.color || undefined,
-    minHeight: s.height === "min-height" ? px(s.custom_height) || undefined : undefined,
+    minHeight: isFullHeight ? "100vh" : (s.height === "min-height" ? px(s.custom_height || s.min_height) || undefined : undefined),
+    display: isFullHeight || s.height === "min-height" ? "flex" : undefined,
+    flexDirection: isFullHeight || s.height === "min-height" ? "column" : undefined,
+    justifyContent: isFullHeight || s.height === "min-height" ? (s.column_position === "middle" || s.column_position === "center" ? "center" : s.column_position === "bottom" ? "flex-end" : "flex-start") : undefined,
   };
 };
 
@@ -148,6 +152,30 @@ const getAdvancedStyles = (s: Record<string, any>): CSSProperties => {
   const delay = s.animation_delay || s._animation_delay;
   if (delay) {
     style.animationDelay = `${delay}ms`;
+  }
+
+  // Full Width Breakout Style
+  if (s.fullWidth === "yes") {
+    style.width = "100vw";
+    style.position = "relative";
+    style.left = "50%";
+    style.right = "50%";
+    style.marginLeft = "-50vw";
+    style.marginRight = "-50vw";
+    style.maxWidth = "100vw";
+  }
+
+  // Height Styling
+  if (s.height === "fit-screen") {
+    style.minHeight = "100vh";
+    style.display = "flex";
+    style.flexDirection = "column";
+    style.justifyContent = "center";
+  } else if (s.height === "min-height" && s.minHeight) {
+    style.minHeight = s.minHeight;
+    style.display = "flex";
+    style.flexDirection = "column";
+    style.justifyContent = "center";
   }
 
   return style;
@@ -715,6 +743,9 @@ function gridCols(width: any): string {
 
 function Section({ node, path }: { node: ElNode; path: Path }) {
   const s = node.settings || {};
+  const isFullWidth = s.layout === "full_width" || s.content_width === "full_width" || s.stretch_section === "yes";
+  const hasGap = s.gap !== "no";
+
   const style = {
     ...containerStyle(s),
     ...getAdvancedStyles(s)
@@ -723,10 +754,10 @@ function Section({ node, path }: { node: ElNode; path: Path }) {
     <div
       className="mx-auto w-full"
       style={{
-        maxWidth: s.content_width?.size ? `${s.content_width.size}${s.content_width.unit || "px"}` : "1200px",
+        maxWidth: isFullWidth ? "100%" : (s.content_width?.size ? `${s.content_width.size}${s.content_width.unit || "px"}` : "1200px"),
       }}
     >
-      <div className="flex flex-wrap gap-6">
+      <div className={`flex flex-wrap ${hasGap ? "gap-6" : "gap-0"}`}>
         {(node.elements || []).map((child) => (
           <ElementorNode key={child.id} node={child} path={path} />
         ))}
@@ -737,7 +768,7 @@ function Section({ node, path }: { node: ElNode; path: Path }) {
     <section
       id={s.css_id || s._css_id || undefined}
       style={style}
-      className={`relative w-full px-4 py-10 md:py-16 ${getResponsiveClasses(s)} ${getAnimationClass(s)} ${s.css_classes || s._css_classes || ""}`}
+      className={`relative w-full ${isFullWidth ? "px-0" : "px-4"} py-10 md:py-16 ${getResponsiveClasses(s)} ${getAnimationClass(s)} ${s.css_classes || s._css_classes || ""}`}
     >
       {inner}
     </section>

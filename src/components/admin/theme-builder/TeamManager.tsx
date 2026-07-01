@@ -3,6 +3,7 @@ import { supabase } from "@/lib/parent";
 import { Plus, Trash2, Edit2, Save, Users, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ImagePickerField from "../ImagePickerField";
 
 interface TeamMember {
   id: string;
@@ -97,8 +98,7 @@ const TeamManager = () => {
               <input value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="e.g. Head of Content Writing" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Department</label>
               <input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="e.g. seo, content-writing, link-building" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Image URL</label>
-              <input value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
+            <ImagePickerField label="Image URL" value={form.image_url} onChange={url => setForm({ ...form, image_url: url })} />
             <div><label className="text-xs text-muted-foreground mb-1 block">LinkedIn URL</label>
               <input value={form.linkedin_url} onChange={e => setForm({ ...form, linkedin_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Sort Order</label>

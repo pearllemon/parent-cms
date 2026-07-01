@@ -19,6 +19,7 @@ import AdminPostEditor from "./pages/admin/AdminPostEditor.tsx";
 import AdminPageEditor from "./pages/admin/AdminPageEditor.tsx";
 import AdminMedia from "./pages/admin/AdminMedia.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
+import AdminPlugins from "./pages/admin/AdminPlugins.tsx";
 import AdminImport from "./pages/admin/AdminImport.tsx";
 import AdminSyncHub from "./pages/admin/AdminSyncHub.tsx";
 import AdminSeo from "./pages/admin/AdminSeo.tsx";
@@ -97,6 +98,7 @@ const App = () => (
               <Route path="cpt" element={<AdminCPTs />} />
               <Route path="cpt/:slug/entries" element={<AdminCPTEntries />} />
               <Route path="cpt/:slug/entries/:id" element={<AdminCPTEntries />} />
+              <Route path="plugins" element={<AdminPlugins />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="theme" element={<AdminThemeDesigner />} />
               <Route path="taxonomies" element={<AdminTaxonomies />} />

@@ -3,8 +3,8 @@
 // click any element to edit it in the right-side panel, then saves back to
 // the same row in the database. Works for Elementor pages (elementor_data)
 // and plain HTML pages (body).
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { supabase as parent } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
@@ -22,10 +22,11 @@ import EditableHtml from "@/components/editor/EditableHtml";
 import SectionLibraryDropZone from "@/components/editor/SectionLibraryDropZone";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, Save, LayoutTemplate, Sparkles, Copy, Check, Terminal } from "lucide-react";
+import { ArrowLeft, ExternalLink, Save, LayoutTemplate, Sparkles, Copy, Check, Terminal, Undo2, Redo2, Upload, Monitor, Tablet, Smartphone } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 type ImportedPost = {
   id: string;
@@ -35,6 +36,7 @@ type ImportedPost = {
   body: string | null;
   elementor_data: any[] | null;
   render_mode: string | null;
+  template?: string | null;
 };
 
 type Source =
@@ -72,8 +74,192 @@ export default function AdminPageEditor() {
   const [hovered, setHovered] = useState<Path | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [loading, setLoading] = useState(true);
-  const [editorMode, setEditorMode] = useState<"elementor" | "html">("elementor");
+  const [searchParams] = useSearchParams();
+  const forcedMode = searchParams.get("mode");
+  const [editorMode, setEditorMode] = useState<"elementor" | "html">(forcedMode === "html" ? "html" : "elementor");
+
+  // History stacks
+  const [pastTrees, setPastTrees] = useState<any[][]>([]);
+  const [futureTrees, setFutureTrees] = useState<any[][]>([]);
+  const [pastBodies, setPastBodies] = useState<string[]>([]);
+  const [futureBodies, setFutureBodies] = useState<string[]>([]);
+  const ignoreHistory = useRef(false);
+
+  // Homepage status settings
+  const [isHomepage, setIsHomepage] = useState(false);
+  const [siteSettings, setSiteSettings] = useState<any>(null);
+
+  // Fetch site settings to check if this page is set as the homepage
+  useEffect(() => {
+    if (!post?.id || !source?.client) return;
+    void (async () => {
+      const client = source.client as any;
+      const { data } = await client
+        .from("site_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setSiteSettings(data);
+        const extras = data.extras || {};
+        setIsHomepage(extras.homepage_page_id === post.id);
+      }
+    })();
+  }, [post?.id, source?.client]);
+
+  // Set forced mode if query param is present
+  useEffect(() => {
+    if (forcedMode === "elementor") setEditorMode("elementor");
+    else if (forcedMode === "html") setEditorMode("html");
+  }, [forcedMode]);
+
+  // Debounced history for HTML body
+  useEffect(() => {
+    if (editorMode !== "html") return;
+    if (ignoreHistory.current) {
+      ignoreHistory.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPastBodies((p) => {
+        const last = p[p.length - 1];
+        if (last !== body) {
+          const next = [...p, body];
+          if (next.length > 50) next.shift();
+          return next;
+        }
+        return p;
+      });
+      setFutureBodies([]);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [body, editorMode]);
+
+  const undo = () => {
+    if (editorMode === "elementor") {
+      if (pastTrees.length === 0) return;
+      const prev = pastTrees[pastTrees.length - 1];
+      setFutureTrees(f => [JSON.parse(JSON.stringify(tree)), ...f]);
+      setTree(prev);
+      setPastTrees(p => p.slice(0, -1));
+    } else {
+      if (pastBodies.length <= 1) return;
+      ignoreHistory.current = true;
+      const current = body;
+      const previous = pastBodies[pastBodies.length - 2];
+      setBody(previous);
+      setFutureBodies(f => [current, ...f]);
+      setPastBodies(p => p.slice(0, -1));
+    }
+    setDirty(true);
+  };
+
+  const redo = () => {
+    if (editorMode === "elementor") {
+      if (futureTrees.length === 0) return;
+      const next = futureTrees[0];
+      setPastTrees(p => [...p, JSON.parse(JSON.stringify(tree))]);
+      setTree(next);
+      setFutureTrees(f => f.slice(1));
+    } else {
+      if (futureBodies.length === 0) return;
+      ignoreHistory.current = true;
+      const next = futureBodies[0];
+      setBody(next);
+      setPastBodies(p => [...p, next]);
+      setFutureBodies(f => f.slice(1));
+    }
+    setDirty(true);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const raw = JSON.parse(evt.target?.result as string);
+        let importedTree = null;
+        
+        if (Array.isArray(raw)) {
+          if (raw[0] && typeof raw[0] === "object" && raw[0].content) {
+            importedTree = raw[0].content;
+          } else {
+            importedTree = raw;
+          }
+        } else if (raw && typeof raw === "object") {
+          importedTree = raw.content || raw.elements || (raw.page && raw.page.content) || (raw.data && raw.data.content);
+          if (!importedTree && raw.elType) {
+            importedTree = [raw];
+          }
+        }
+
+        if (!Array.isArray(importedTree)) {
+          throw new Error("Could not find a valid Elementor element list in this JSON.");
+        }
+
+        setPastTrees((p) => [...p, JSON.parse(JSON.stringify(tree))]);
+        setFutureTrees([]);
+        setTree(importedTree);
+        setDirty(true);
+        toast.success("Elementor JSON imported successfully");
+      } catch (err: any) {
+        toast.error("Invalid Elementor JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const htmlToElementorTree = (html: string): any[] => {
+    if (!html) return [];
+    return [
+      {
+        id: "sec_" + Math.random().toString(36).substr(2, 9),
+        elType: "section",
+        settings: {
+          layout: "full-width",
+          padding: "0px",
+        },
+        elements: [
+          {
+            id: "col_" + Math.random().toString(36).substr(2, 9),
+            elType: "column",
+            settings: {
+              _column_size: 100,
+            },
+            elements: [
+              {
+                id: "wg_" + Math.random().toString(36).substr(2, 9),
+                elType: "widget",
+                widgetType: "html",
+                settings: {
+                  html: html,
+                },
+              }
+            ]
+          }
+        ]
+      }
+    ];
+  };
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -97,7 +283,7 @@ export default function AdminPageEditor() {
       try {
         // Fetch guaranteed core columns first to prevent schema errors from breaking load
         const { data: baseData, error: baseError } = await (parent.from("posts") as any)
-          .select("id,title,slug,type,body")
+          .select("id,title,slug,type,body,template")
           .eq("id", id)
           .maybeSingle();
 
@@ -110,6 +296,7 @@ export default function AdminPageEditor() {
             body: baseData.body || "",
             elementor_data: null,
             render_mode: null,
+            template: baseData.template || "default",
           };
 
           // Separately try to load elementor_data and render_mode
@@ -127,7 +314,10 @@ export default function AdminPageEditor() {
           }
 
           setPost(loadedPost);
-          const parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
+          let parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
+          if (parsedTree.length === 0 && loadedPost.body) {
+            parsedTree = htmlToElementorTree(loadedPost.body);
+          }
           setTree(parsedTree);
           setBody(loadedPost.body || "");
           setSource({ table: "posts", client: parent });
@@ -157,6 +347,7 @@ export default function AdminPageEditor() {
               body: baseData.body || "",
               elementor_data: null,
               render_mode: null,
+              template: "default",
             };
 
             // Separately try to load elementor_data and render_mode
@@ -175,7 +366,10 @@ export default function AdminPageEditor() {
             }
 
             setPost(loadedPost);
-            const parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
+            let parsedTree = Array.isArray(loadedPost.elementor_data) ? (loadedPost.elementor_data as any[]) : [];
+            if (parsedTree.length === 0 && loadedPost.body) {
+              parsedTree = htmlToElementorTree(loadedPost.body);
+            }
             setTree(parsedTree);
             setBody(loadedPost.body || "");
             setSource({ table: "imported_posts", client: supabase });
@@ -264,6 +458,8 @@ export default function AdminPageEditor() {
 
   const patchAt = useCallback((path: Path, updater: (s: any) => any) => {
     setTree((t) => {
+      setPastTrees((p) => [...p, JSON.parse(JSON.stringify(t))]);
+      setFutureTrees([]);
       const next = patchTree(t, path, updater);
       return next;
     });
@@ -273,13 +469,21 @@ export default function AdminPageEditor() {
   const getNodeAt = useCallback((p: Path) => findNode(tree, p), [tree]);
 
   const structural = useCallback((path: Path, op: StructuralOp) => {
-    setTree((t) => applyStructural(t, path, op));
+    setTree((t) => {
+      setPastTrees((p) => [...p, JSON.parse(JSON.stringify(t))]);
+      setFutureTrees([]);
+      return applyStructural(t, path, op);
+    });
     setDirty(true);
     setSelected(null);
   }, []);
 
   const insertNode = useCallback((node: any, parentPath?: Path) => {
-    setTree((t) => applyInsert(t, node, parentPath));
+    setTree((t) => {
+      setPastTrees((p) => [...p, JSON.parse(JSON.stringify(t))]);
+      setFutureTrees([]);
+      return applyInsert(t, node, parentPath);
+    });
     setDirty(true);
   }, []);
 
@@ -307,11 +511,35 @@ export default function AdminPageEditor() {
       } else {
         if (hasElementor) payload.elementor_data = tree;
         else payload.body = body;
+        
+        if (source.table === "posts") {
+          payload.template = post.template || "default";
+        }
       }
       const client = source.client as any;
       const res = await client.from(source.table).update(payload).eq("id", post.id);
       error = res.error;
     }
+
+    if (!error && siteSettings && source?.client) {
+      const client = source.client as any;
+      const nextExtras = { ...(siteSettings.extras || {}) };
+      if (isHomepage) {
+        nextExtras.homepage_page_id = post.id;
+      } else if (nextExtras.homepage_page_id === post.id) {
+        nextExtras.homepage_page_id = null;
+      }
+      const { error: settingsError } = await client
+        .from("site_settings")
+        .update({ extras: nextExtras })
+        .eq("id", siteSettings.id);
+      if (settingsError) {
+        console.error("Failed to update homepage setting:", settingsError);
+      } else {
+        setSiteSettings((prev: any) => prev ? { ...prev, extras: nextExtras } : prev);
+      }
+    }
+
     setSaving(false);
     if (error) {
       toast.error("Save failed: " + error.message);
@@ -389,6 +617,89 @@ export default function AdminPageEditor() {
             </a>
           </Button>
         )}
+
+        <div className="flex gap-0.5 border rounded p-0.5 bg-muted/40">
+          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={undo} disabled={editorMode === "elementor" ? pastTrees.length === 0 : pastBodies.length <= 1} title="Undo (Ctrl+Z)">
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={redo} disabled={editorMode === "elementor" ? futureTrees.length === 0 : futureBodies.length === 0} title="Redo (Ctrl+Y)">
+            <Redo2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {editorMode === "elementor" && (
+          <div className="flex bg-muted p-0.5 rounded-md h-8 border">
+            <Button
+              variant={device === "desktop" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setDevice("desktop")}
+              title="Desktop View"
+            >
+              <Monitor className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={device === "tablet" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setDevice("tablet")}
+              title="Tablet View"
+            >
+              <Tablet className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={device === "mobile" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setDevice("mobile")}
+              title="Mobile View"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {source?.table !== "elementor_templates" && (
+          <div className="flex items-center gap-4 border-l border-r px-3 h-9">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Hide Header & Footer</span>
+              <Switch
+                checked={post.template === "canvas"}
+                onCheckedChange={(checked) => {
+                  setPost((prev) => ({ ...prev, template: checked ? "canvas" : "default" }));
+                  setDirty(true);
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2 border-l pl-3">
+              <span className="text-xs font-medium text-muted-foreground">Make Homepage</span>
+              <Switch
+                checked={isHomepage}
+                onCheckedChange={(checked) => {
+                  setIsHomepage(checked);
+                  setDirty(true);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {editorMode === "elementor" && (
+          <div className="relative">
+            <input
+              type="file"
+              accept=".json"
+              id="elementor-json-import"
+              className="hidden"
+              onChange={handleImportJson}
+            />
+            <Button size="sm" variant="outline" asChild>
+              <label htmlFor="elementor-json-import" className="cursor-pointer flex items-center">
+                <Upload className="h-4 w-4 mr-1" /> Import JSON
+              </label>
+            </Button>
+          </div>
+        )}
         
         <AiCopilotDialog
           tree={tree}
@@ -397,8 +708,12 @@ export default function AdminPageEditor() {
           title={post.title}
           onApply={(newTree, newBody) => {
             if (editorMode === "elementor") {
+              setPastTrees((p) => [...p, JSON.parse(JSON.stringify(tree))]);
+              setFutureTrees([]);
               setTree(newTree);
             } else {
+              setPastBodies((p) => [...p, body]);
+              setFutureBodies([]);
               setBody(newBody);
             }
             setDirty(true);
@@ -412,9 +727,15 @@ export default function AdminPageEditor() {
       </header>
 
       {/* Body: canvas + side panel */}
-      <div className="flex-1 flex min-h-0">
-        <main className="flex-1 overflow-auto bg-muted/30">
-          <div className="bg-background min-h-full">
+      <div className="flex-1 flex min-h-0 bg-muted/30">
+        <main className="flex-1 overflow-auto flex justify-center p-4">
+          <div 
+            className="bg-background min-h-full shadow-lg transition-all duration-300 w-full"
+            style={{
+              width: device === "mobile" ? "375px" : device === "tablet" ? "768px" : "100%",
+              maxWidth: "100%",
+            }}
+          >
             {hasElementor ? (
               <EditorProvider
                 selected={selected}

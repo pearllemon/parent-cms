@@ -7,6 +7,7 @@ import {
   Plus, Trash2, Edit2, Save, Star, ChevronLeft, ChevronRight,
   Eye, ArrowLeft, Copy
 } from "lucide-react";
+import ImagePickerField from "../ImagePickerField";
 
 interface TestimonialConfig {
   id: string; name: string; heading: string; subheading: string;
@@ -367,8 +368,7 @@ const TestimonialsManager = () => {
               <input value={itemForm.author_name} onChange={e => setItemForm({ ...itemForm, author_name: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" /></div>
             <div><label className="text-xs text-muted-foreground mb-1 block">Role / Title</label>
               <input value={itemForm.author_role} onChange={e => setItemForm({ ...itemForm, author_role: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="e.g. Creative Director" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Avatar URL</label>
-              <input value={itemForm.author_image_url} onChange={e => setItemForm({ ...itemForm, author_image_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="https://..." /></div>
+            <ImagePickerField label="Author Image URL" value={itemForm.author_image_url} onChange={url => setItemForm({ ...itemForm, author_image_url: url })} />
           </div>
           <div><label className="text-xs text-muted-foreground mb-1 block">Rating</label>
             <div className="flex gap-1">

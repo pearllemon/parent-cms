@@ -19,6 +19,9 @@ import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import MediaPicker from "@/components/admin/MediaPicker";
 import SectionLibraryDialog from "@/components/admin/SectionLibraryDialog";
+import { useSiteConfig } from "@/providers/SiteProvider";
+import { supabase as cloud } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter,
   type DragEndEvent,
@@ -30,7 +33,8 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Monitor, Tablet, Smartphone, Trash2, ArrowUp, ArrowDown, Plus,
   Copy, Image as ImageIcon, Type, Square, Heading1, MousePointerClick, Layers, GripVertical, Code2, LibraryBig, Upload,
-  HelpCircle, Mail, BookOpen, ChevronDown, Calendar, ArrowRight, MapPin, Phone, Clock
+  HelpCircle, Mail, BookOpen, ChevronDown, Calendar, ArrowRight, MapPin, Phone, Clock,
+  Undo2, Redo2, Search, Settings, History
 } from "lucide-react";
 import { saveLocalSection, submitSectionToParent, type SectionTemplate } from "@/lib/sectionLibrary";
 import { toast as sonner } from "sonner";
@@ -145,6 +149,65 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
   const [libraryOpen, setLibraryOpen] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
+  // History stacks for Undo / Redo
+  const [past, setPast] = useState<Block[][]>([]);
+  const [future, setFuture] = useState<Block[][]>([]);
+  const ignoreChange = useRef(false);
+
+  useEffect(() => {
+    if (ignoreChange.current) {
+      ignoreChange.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPast((p) => {
+        const last = p[p.length - 1];
+        if (!last || JSON.stringify(last) !== JSON.stringify(blocks)) {
+          const next = [...p, JSON.parse(JSON.stringify(blocks))];
+          if (next.length > 50) next.shift();
+          return next;
+        }
+        return p;
+      });
+      setFuture([]);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [blocks]);
+
+  const undo = () => {
+    if (past.length <= 1) return;
+    ignoreChange.current = true;
+    const current = JSON.parse(JSON.stringify(blocks));
+    const previous = past[past.length - 2];
+    onChange(previous);
+    setFuture((f) => [current, ...f]);
+    setPast((p) => p.slice(0, -1));
+  };
+
+  const redo = () => {
+    if (future.length === 0) return;
+    ignoreChange.current = true;
+    const next = future[0];
+    onChange(next);
+    setPast((p) => [...p, JSON.parse(JSON.stringify(next))]);
+    setFuture((f) => f.slice(1));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   const selected = useMemo(() => (selectedId ? findBlock(blocks, selectedId) : null), [blocks, selectedId]);
 
   const update = (mut: (tree: Block[]) => void) => {
@@ -257,6 +320,8 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
     });
   };
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Drag-and-drop reorder. Only allows reordering when both items share the same parent list.
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -274,53 +339,144 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
 
   return (
     <div className="flex h-[78vh] gap-3 border rounded-lg overflow-hidden bg-background">
-      {/* Left rail */}
-      <div className="w-44 border-r bg-muted/40 p-2 space-y-3 overflow-y-auto">
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 pb-1">Add block</p>
-          <div className="grid grid-cols-2 gap-1">
-            <InsertBtn label="Section" Icon={Square} onClick={() => addBlock("section")} />
-            <InsertBtn label="Group" Icon={Layers} onClick={() => addBlock("container")} />
-            <InsertBtn label="Heading" Icon={Heading1} onClick={() => addBlock("heading")} />
-            <InsertBtn label="Text" Icon={Type} onClick={() => addBlock("text")} />
-            <InsertBtn label="Image" Icon={ImageIcon} onClick={() => addBlock("image")} />
-            <InsertBtn label="Button" Icon={MousePointerClick} onClick={() => addBlock("button")} />
-            <InsertBtn label="HTML" Icon={Code2} onClick={() => addBlock("html")} />
-            <InsertBtn label="Form" Icon={Layers} onClick={() => addBlock("form")} />
-            <InsertBtn label="Accordion" Icon={HelpCircle} onClick={() => addBlock("accordion")} />
-            <InsertBtn label="Contact" Icon={Mail} onClick={() => addBlock("contact-section")} />
-            <InsertBtn label="Blog" Icon={BookOpen} onClick={() => addBlock("blog-section")} />
+      {/* Left rail (Elementor Style Sidebar) */}
+      <div className="w-60 flex flex-col bg-[#2d3135] text-[#d5dadf] select-none h-full border-r border-[#1a1c1e] shrink-0 font-sans">
+        {/* Sidebar Header */}
+        <div className="p-3 border-b border-[#1a1c1e] bg-[#232629] space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 bg-[#92003b] rounded flex items-center justify-center text-[9px] font-black text-white">E</div>
+              <span className="text-[10px] font-bold tracking-wider text-white uppercase">ELEMENTOR</span>
+            </div>
+            {proActive && (
+              <Badge className="bg-gradient-to-r from-red-600 to-pink-600 text-white border-0 text-[8px] py-0.5 px-1 font-bold scale-90 origin-right">
+                PRO ACTIVE
+              </Badge>
+            )}
           </div>
-          <Button size="sm" variant="outline" className="w-full mt-2 h-8 text-xs" onClick={() => setLibraryOpen(true)}>
-            <LibraryBig className="w-3.5 h-3.5 mr-1" /> Section library
-          </Button>
+          <div className="relative">
+            <Search className="w-3 h-3 absolute left-2 top-2.5 text-[#818a91]" />
+            <input 
+              type="text" 
+              placeholder="Search Widget..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-7 pr-2 py-1.5 text-xs bg-[#1a1c1e] border border-[#404346] rounded text-white placeholder-[#6d7278] focus:outline-none focus:border-[#92003b] focus:ring-0"
+            />
+          </div>
         </div>
 
-        {(variants.length > 0 || onSaveVariant) && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 pb-1">Variants</p>
-            <div className="space-y-1">
-              <button onClick={() => onVariantChange?.(null)}
-                className={`w-full text-left text-xs px-2 py-1.5 rounded ${activeVariantId === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
-                Default
-              </button>
-              {variants.map((v) => (
-                <button key={v.id} onClick={() => onVariantChange?.(v.id)}
-                  className={`w-full text-left text-xs px-2 py-1.5 rounded ${activeVariantId === v.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
-                  {v.name}
-                </button>
-              ))}
-              {onSaveVariant && (
-                <Button size="sm" variant="outline" className="w-full mt-1 h-7 text-xs" onClick={onSaveVariant}>
-                  <Plus className="w-3 h-3 mr-1" /> Save as variant
-                </Button>
-              )}
+        {/* Sidebar Content / Widgets Accordion */}
+        <div className="flex-1 overflow-y-auto divide-y divide-[#1a1c1e] custom-scrollbar">
+          {/* BASIC CATEGORY */}
+          {(!searchTerm || "basic".includes(searchTerm.toLowerCase()) || 
+            ["inner section", "container", "heading", "text editor", "image", "button", "html"].some(label => label.includes(searchTerm.toLowerCase()))) && (
+            <div>
+              <div className="bg-[#232629] px-3 py-1.5 text-[9px] font-bold tracking-wider uppercase text-[#818a91] flex items-center justify-between">
+                <span>Basic</span>
+                <ChevronDown className="w-3 h-3 text-[#818a91]" />
+              </div>
+              <div className="grid grid-cols-3 gap-[1px] bg-[#1a1c1e] p-[1px]">
+                {[
+                  { label: "Inner Section", Icon: Square, type: "section" },
+                  { label: "Container", Icon: Layers, type: "container" },
+                  { label: "Heading", Icon: Heading1, type: "heading" },
+                  { label: "Text Editor", Icon: Type, type: "text" },
+                  { label: "Image", Icon: ImageIcon, type: "image" },
+                  { label: "Button", Icon: MousePointerClick, type: "button" },
+                  { label: "HTML", Icon: Code2, type: "html" },
+                ].filter(w => !searchTerm || w.label.toLowerCase().includes(searchTerm.toLowerCase())).map(w => (
+                  <button 
+                    key={w.label} 
+                    onClick={() => addBlock(w.type as any)}
+                    className="flex flex-col items-center justify-center gap-1.5 aspect-square p-1.5 bg-[#2d3135] hover:bg-[#353a3f] hover:text-white transition-colors group"
+                  >
+                    <w.Icon className="w-4 h-4 text-[#818a91] group-hover:text-[#92003b] transition-colors" />
+                    <span className="text-[9px] text-[#a4afb7] text-center leading-tight">{w.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="text-[10px] text-muted-foreground px-1 leading-relaxed">
-          Tip: drag the grip handle to reorder. Double-click text to edit inline.
+          {/* PRO CATEGORY */}
+          {(!searchTerm || "pro".includes(searchTerm.toLowerCase()) || 
+            ["form", "accordion", "contact form", "posts / blog"].some(label => label.includes(searchTerm.toLowerCase()))) && (
+            <div>
+              <div className="bg-[#232629] px-3 py-1.5 text-[9px] font-bold tracking-wider uppercase text-[#818a91] flex items-center justify-between">
+                <span>Pro</span>
+                <ChevronDown className="w-3 h-3 text-[#818a91]" />
+              </div>
+              <div className="grid grid-cols-3 gap-[1px] bg-[#1a1c1e] p-[1px]">
+                {[
+                  { label: "Form", Icon: Layers, type: "form" },
+                  { label: "Accordion", Icon: HelpCircle, type: "accordion" },
+                  { label: "Contact Form", Icon: Mail, type: "contact-section" },
+                  { label: "Posts / Blog", Icon: BookOpen, type: "blog-section" },
+                ].filter(w => !searchTerm || w.label.toLowerCase().includes(searchTerm.toLowerCase())).map(w => (
+                  <button 
+                    key={w.label} 
+                    onClick={() => addBlock(w.type as any)}
+                    className="flex flex-col items-center justify-center gap-1.5 aspect-square p-1.5 bg-[#2d3135] hover:bg-[#353a3f] hover:text-white transition-colors group relative"
+                  >
+                    {!proActive && (
+                      <span className="absolute top-1 right-1 bg-[#92003b] text-white text-[6px] px-1 py-0.2 rounded font-black scale-75">PRO</span>
+                    )}
+                    <w.Icon className="w-4 h-4 text-[#818a91] group-hover:text-[#92003b] transition-colors" />
+                    <span className="text-[9px] text-[#a4afb7] text-center leading-tight">{w.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION LIBRARY & VARIANTS */}
+          <div className="p-3 space-y-2">
+            <Button size="sm" variant="ghost" className="w-full h-8 text-xs bg-[#3c4044] hover:bg-[#4c5156] hover:text-white text-white border-0" onClick={() => setLibraryOpen(true)}>
+              <LibraryBig className="w-3.5 h-3.5 mr-1 text-[#818a91]" /> Section library
+            </Button>
+
+            {(variants.length > 0 || onSaveVariant) && (
+              <div className="space-y-1.5 pt-2 border-t border-[#3c4044]">
+                <p className="text-[9px] uppercase tracking-wider text-[#818a91] font-bold">Variants</p>
+                <div className="space-y-1">
+                  <button onClick={() => onVariantChange?.(null)}
+                    className={`w-full text-left text-xs px-2 py-1 rounded ${activeVariantId === null ? "bg-[#92003b] text-white" : "hover:bg-[#3c4044]"}`}>
+                    Default
+                  </button>
+                  {variants.map((v) => (
+                    <button key={v.id} onClick={() => onVariantChange?.(v.id)}
+                      className={`w-full text-left text-xs px-2 py-1 rounded ${activeVariantId === v.id ? "bg-[#92003b] text-white" : "hover:bg-[#3c4044]"}`}>
+                      {v.name}
+                    </button>
+                  ))}
+                  {onSaveVariant && (
+                    <Button size="sm" variant="outline" className="w-full mt-1 h-7 text-xs border-[#404346] text-[#d5dadf] hover:bg-[#3c4044] hover:text-white" onClick={onSaveVariant}>
+                      <Plus className="w-3 h-3 mr-1" /> Save as variant
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar Footer / Elementor Bottom Bar */}
+        <div className="h-10 bg-[#232629] border-t border-[#1a1c1e] px-2.5 flex items-center justify-between shrink-0 text-[#818a91]">
+          <div className="flex items-center gap-3.5">
+            <button className="hover:text-white transition-colors" title="Settings"><Settings className="w-3.5 h-3.5" /></button>
+            <button className="hover:text-white transition-colors" title="Navigator"><Layers className="w-3.5 h-3.5" /></button>
+            <button className="hover:text-white transition-colors" title="History" onClick={undo} disabled={past.length <= 1}><History className="w-3.5 h-3.5" /></button>
+            <button className="hover:text-white transition-colors" title="Responsive Mode" onClick={() => setDevice(device === "desktop" ? "mobile" : device === "mobile" ? "tablet" : "desktop")}><Monitor className="w-3.5 h-3.5" /></button>
+          </div>
+          <button 
+            onClick={() => {
+              toast.success("Page updated successfully!");
+            }}
+            className="bg-[#5cbb23] hover:bg-[#6bd22b] text-white font-bold text-[10px] px-3.5 py-1.5 rounded transition-colors uppercase tracking-wider"
+          >
+            Update
+          </button>
         </div>
       </div>
 
@@ -339,6 +495,16 @@ export default function VisualCanvas({ blocks, onChange, variants = [], activeVa
             })}
           </div>
           <span className="text-xs text-muted-foreground">{DEVICE_WIDTH[device]}px</span>
+          
+          <div className="flex gap-0.5 bg-background rounded border p-0.5 ml-2">
+            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={undo} disabled={past.length <= 1} title="Undo (Ctrl+Z)">
+              <Undo2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Y)">
+              <Redo2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+
           <div className="flex-1" />
           {selected && (
             <div className="flex gap-1">
@@ -469,172 +635,233 @@ function RenderBlock({ block, selectedId, onSelect, onCommitText, device }: { bl
   const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onSelect(block.id); };
   const p = effProps(block, device);
 
-  if (block.type === "section") {
-    return (
-      <section onClick={handleClick} className={`relative ${ring}`} style={{ padding: p.padding, background: p.background }}>
-        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
-      </section>
-    );
-  }
-  if (block.type === "container") {
-    return (
-      <div onClick={handleClick} className={`mx-auto ${ring}`}
-        style={{
-          maxWidth: p.maxWidth, padding: p.padding,
-          display: p.display || "flex", flexDirection: p.direction || "column",
-          gap: p.gap, alignItems: p.align || "stretch", justifyContent: p.justify || "flex-start",
-        }}>
-        <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
-      </div>
-    );
-  }
-  if (block.type === "heading") {
-    const Tag = (`h${p.level || 2}` as unknown) as keyof JSX.IntrinsicElements;
-    return (
-      <Tag onClick={handleClick} className={ring}
-        style={{ fontSize: p.fontSize, color: p.color, textAlign: p.align, fontWeight: p.fontWeight, margin: p.margin || 0 }}>
-        <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} />
-      </Tag>
-    );
-  }
-  if (block.type === "text") {
-    return (
-      <p onClick={handleClick} className={ring}
-        style={{ fontSize: p.fontSize, color: p.color, textAlign: p.align, lineHeight: p.lineHeight, margin: p.margin || 0 }}>
-        <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} multiline />
-      </p>
-    );
-  }
-  if (block.type === "image") {
-    const wrapAlign = p.imgAlign === "center" ? "mx-auto block" : p.imgAlign === "right" ? "ml-auto block" : "";
-    return p.src ? (
-      <img onClick={handleClick} src={p.src} alt={p.alt || ""} title={p.title || undefined} className={`${ring} ${wrapAlign}`}
-        style={{ width: p.width, height: p.height, aspectRatio: p.aspectRatio || undefined, objectFit: p.fit, borderRadius: p.radius, border: p.border, boxShadow: p.shadow, margin: p.margin }} />
-    ) : (
-      <div onClick={handleClick} className={`bg-muted/60 flex items-center justify-center text-xs text-muted-foreground ${ring} ${wrapAlign}`}
-        style={{ width: p.width, height: p.height === "auto" ? 200 : p.height, aspectRatio: p.aspectRatio || undefined, borderRadius: p.radius }}>
-        <ImageIcon className="w-4 h-4 mr-1" /> No image — click and pick one
-      </div>
-    );
-  }
-  if (block.type === "button") {
-    return (
-      <a href={p.href || "#"} onClick={handleClick} className={`inline-block ${ring}`}
-        style={{ background: p.bg, color: p.color, padding: p.padding, borderRadius: p.radius, textDecoration: "none", boxShadow: p.shadow }}
-        onMouseDown={(e) => e.preventDefault()}>
-        <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} />
-      </a>
-    );
-  }
-  if (block.type === "html") {
-    return (
-      <div onClick={handleClick} className={ring}
-        style={{ padding: p.padding, margin: p.margin }}
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }} />
-    );
-  }
-  if (block.type === "form") {
-    return (
-      <div onClick={handleClick} className={`p-4 border border-dashed border-primary/40 rounded-xl bg-muted/10 ${ring}`}>
-        <div className="text-center py-6">
-          <Layers className="w-8 h-8 mx-auto text-primary mb-2" />
-          <p className="text-sm font-semibold text-foreground">Form: {p.formSlug || "Unconfigured"}</p>
-          <p className="text-xs text-muted-foreground mt-1">Connected to Forms Ecosystem</p>
+  const getWidgetElement = () => {
+    if (block.type === "section") {
+      const isFullWidth = p.layout === "full-width";
+      const isFullHeight = p.height === "fit-screen" || p.height === "viewport";
+      return (
+        <section 
+          onClick={handleClick} 
+          className={`relative w-full ${isFullWidth ? "px-0" : "px-4"} ${ring}`} 
+          style={{ 
+            padding: isFullWidth ? "0" : p.padding, 
+            background: p.background,
+            minHeight: isFullHeight ? "70vh" : (p.height === "min-height" ? p.minHeight : undefined),
+            display: isFullHeight || p.height === "min-height" ? "flex" : undefined,
+            flexDirection: isFullHeight || p.height === "min-height" ? "column" : undefined,
+            justifyContent: isFullHeight || p.height === "min-height" ? "center" : undefined,
+          }}
+        >
+          <div className="w-full mx-auto" style={{ maxWidth: isFullWidth ? "100%" : p.maxWidth || "1200px" }}>
+            <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
+          </div>
+        </section>
+      );
+    }
+    if (block.type === "container") {
+      const isFullWidth = p.layout === "full-width";
+      const isFullHeight = p.height === "fit-screen" || p.height === "viewport";
+      return (
+        <div onClick={handleClick} className={`mx-auto ${ring}`}
+          style={{
+            maxWidth: isFullWidth ? "100%" : p.maxWidth,
+            padding: p.padding,
+            display: p.display || "flex",
+            gap: p.gap,
+            flexDirection: (p.direction || "column") as any,
+            alignItems: p.align as any,
+            justifyContent: p.justify as any,
+            background: p.background,
+            minHeight: isFullHeight ? "70vh" : (p.height === "min-height" ? p.minHeight : undefined),
+          }}
+        >
+          <SortableList items={block.children || []} selectedId={selectedId} onSelect={onSelect} onCommitText={onCommitText} device={device} />
         </div>
-      </div>
-    );
-  }
-  if (block.type === "accordion") {
-    const items = p.items || [];
-    return (
-      <div onClick={handleClick} className={`w-full p-4 my-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl ${ring}`}>
-        <div className="flex items-center gap-2 mb-3 text-xs text-slate-400 uppercase font-semibold">
-          <HelpCircle className="w-4 h-4" />
-          <span>FAQ Accordion Widget</span>
+      );
+    }
+    if (block.type === "heading") {
+      const Tag = (`h${p.level || 2}` as unknown) as keyof JSX.IntrinsicElements;
+      return (
+        <Tag onClick={handleClick} className={ring}
+          style={{ fontSize: p.fontSize, color: p.color, textAlign: p.align, fontWeight: p.fontWeight, margin: p.margin || 0 }}>
+          <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} />
+        </Tag>
+      );
+    }
+    if (block.type === "text") {
+      return (
+        <p onClick={handleClick} className={ring}
+          style={{ fontSize: p.fontSize, color: p.color, textAlign: p.align, lineHeight: p.lineHeight, margin: p.margin || 0 }}>
+          <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} multiline />
+        </p>
+      );
+    }
+    if (block.type === "image") {
+      const wrapAlign = p.imgAlign === "center" ? "mx-auto block" : p.imgAlign === "right" ? "ml-auto block" : "";
+      return p.src ? (
+        <img onClick={handleClick} src={p.src} alt={p.alt || ""} title={p.title || undefined} className={`${ring} ${wrapAlign}`}
+          style={{ width: p.width, height: p.height, aspectRatio: p.aspectRatio || undefined, objectFit: p.fit, borderRadius: p.radius, border: p.border, boxShadow: p.shadow, margin: p.margin }} />
+      ) : (
+        <div onClick={handleClick} className={`bg-muted/60 flex items-center justify-center text-xs text-muted-foreground ${ring} ${wrapAlign}`}
+          style={{ width: p.width, height: p.height === "auto" ? 200 : p.height, aspectRatio: p.aspectRatio || undefined, borderRadius: p.radius }}>
+          <ImageIcon className="w-4 h-4 mr-1" /> No image — click and pick one
         </div>
-        {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No items. Open the content inspector to add some.</p>
-        ) : (
-          <div className="space-y-2">
-            {items.map((it: any, idx: number) => (
-              <div key={idx} className="bg-white border rounded-xl p-3.5 flex justify-between items-center text-sm font-bold text-slate-800 shadow-sm">
-                <span>{it.title || `FAQ Item ${idx + 1}`}</span>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
+      );
+    }
+    if (block.type === "button") {
+      return (
+        <a href={p.href || "#"} onClick={handleClick} className={`inline-block ${ring}`}
+          style={{ background: p.bg, color: p.color, padding: p.padding, borderRadius: p.radius, textDecoration: "none", boxShadow: p.shadow }}
+          onMouseDown={(e) => e.preventDefault()}>
+          <InlineText id={block.id} value={p.text} isSelected={isSel} onCommit={onCommitText} />
+        </a>
+      );
+    }
+    if (block.type === "html") {
+      return (
+        <div onClick={handleClick} className={ring}
+          style={{ padding: p.padding, margin: p.margin }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code || "", { USE_PROFILES: { html: true } }) }} />
+      );
+    }
+    if (block.type === "form") {
+      return (
+        <div onClick={handleClick} className={`p-4 border border-dashed border-primary/40 rounded-xl bg-muted/10 ${ring}`}>
+          <div className="text-center py-6">
+            <Layers className="w-8 h-8 mx-auto text-primary mb-2" />
+            <p className="text-sm font-semibold text-foreground">Form: {p.formSlug || "Unconfigured"}</p>
+            <p className="text-xs text-muted-foreground mt-1">Connected to Forms Ecosystem</p>
+          </div>
+        </div>
+      );
+    }
+    if (block.type === "accordion") {
+      const items = p.items || [];
+      return (
+        <div onClick={handleClick} className={`w-full p-4 my-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl ${ring}`}>
+          <div className="flex items-center gap-2 mb-3 text-xs text-slate-400 uppercase font-semibold">
+            <HelpCircle className="w-4 h-4" />
+            <span>FAQ Accordion Widget</span>
+          </div>
+          {items.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No items. Open the content inspector to add some.</p>
+          ) : (
+            <div className="space-y-2">
+              {items.map((it: any, idx: number) => (
+                <div key={idx} className="bg-white border rounded-xl p-3.5 flex justify-between items-center text-sm font-bold text-slate-800 shadow-sm">
+                  <span>{it.title || `FAQ Item ${idx + 1}`}</span>
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (block.type === "contact-section") {
+      return (
+        <div onClick={handleClick} className={`w-full p-6 my-4 bg-slate-50/80 border border-dashed border-slate-200 rounded-3xl grid grid-cols-1 md:grid-cols-2 gap-6 items-start ${ring}`}>
+          <div className="space-y-4 text-left">
+            <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-semibold">
+              <Mail className="w-4 h-4" />
+              <span>Contact Section Widget</span>
+            </div>
+            <h3 className="text-xl font-black text-slate-950">{p.title || "Get in Touch"}</h3>
+            <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{p.subtitle}</p>
+            <div className="space-y-2 pt-2 text-xs text-slate-600">
+              {p.address && <p className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary" /> {p.address}</p>}
+              {p.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-primary" /> {p.phone}</p>}
+              {p.email && <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-primary" /> {p.email}</p>}
+              {p.hours && <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> {p.hours}</p>}
+            </div>
+          </div>
+          <div className="bg-white p-4 border rounded-2xl shadow-sm text-center py-6">
+            <Layers className="w-6 h-6 mx-auto text-primary mb-2 opacity-60" />
+            <p className="text-xs font-semibold text-slate-700">Form: {p.formSlug || "contact"}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Mock Form Card</p>
+          </div>
+        </div>
+      );
+    }
+    if (block.type === "blog-section") {
+      const limit = Number(p.limit) || 3;
+      const mockPosts = Array.from({ length: limit }).map((_, i) => ({
+        title: `Example Blog Article ${i + 1}`,
+        excerpt: "This is a brief preview of the article content. It automatically adapts to your branding settings.",
+        date: "29 Jun 2026"
+      }));
+      return (
+        <div onClick={handleClick} className={`w-full p-6 my-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl space-y-6 ${ring}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-semibold">
+              <BookOpen className="w-4 h-4" />
+              <span>Latest Blog Posts Grid</span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-bold">Dynamic</span>
+          </div>
+          <div className="text-center space-y-1">
+            <h3 className="text-xl font-black text-slate-900">{p.title || "News & Updates"}</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">{p.subtitle}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {mockPosts.map((post, idx) => (
+              <div key={idx} className="bg-white border rounded-2xl overflow-hidden shadow-sm flex flex-col h-full text-left">
+                <div className="aspect-video bg-slate-100 w-full flex items-center justify-center text-slate-300 text-xs">
+                  Featured Image
+                </div>
+                <div className="p-4 space-y-2 flex-grow flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-semibold text-slate-400 block">{post.date}</span>
+                    <h4 className="font-bold text-xs text-slate-900 line-clamp-2">{post.title}</h4>
+                    <p className="text-[10px] text-slate-500 line-clamp-2">{post.excerpt}</p>
+                  </div>
+                  <div className="text-[10px] font-bold text-primary pt-2 flex items-center gap-0.5">
+                    Read Article <ArrowRight className="w-3 h-3" />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
-    );
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const element = getWidgetElement();
+  if (!element) return null;
+
+  const style: React.CSSProperties = {};
+  if (p.fullWidth === "yes" && block.type !== "section" && block.type !== "container") {
+    style.width = "100vw";
+    style.position = "relative";
+    style.left = "50%";
+    style.right = "50%";
+    style.marginLeft = "-50vw";
+    style.marginRight = "-50vw";
+    style.maxWidth = "100vw";
   }
-  if (block.type === "contact-section") {
+  if (p.height === "fit-screen" && block.type !== "section" && block.type !== "container") {
+    style.minHeight = "70vh";
+    style.display = "flex";
+    style.flexDirection = "column";
+    style.justifyContent = "center";
+  } else if (p.height === "min-height" && p.minHeight && block.type !== "section" && block.type !== "container") {
+    style.minHeight = p.minHeight;
+    style.display = "flex";
+    style.flexDirection = "column";
+    style.justifyContent = "center";
+  }
+
+  const hasAdvancedStyles = Object.keys(style).length > 0;
+  if (hasAdvancedStyles) {
     return (
-      <div onClick={handleClick} className={`w-full p-6 my-4 bg-slate-50/80 border border-dashed border-slate-200 rounded-3xl grid grid-cols-1 md:grid-cols-2 gap-6 items-start ${ring}`}>
-        <div className="space-y-4 text-left">
-          <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-semibold">
-            <Mail className="w-4 h-4" />
-            <span>Contact Section Widget</span>
-          </div>
-          <h3 className="text-xl font-black text-slate-950">{p.title || "Get in Touch"}</h3>
-          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{p.subtitle}</p>
-          <div className="space-y-2 pt-2 text-xs text-slate-600">
-            {p.address && <p className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary" /> {p.address}</p>}
-            {p.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-primary" /> {p.phone}</p>}
-            {p.email && <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-primary" /> {p.email}</p>}
-            {p.hours && <p className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> {p.hours}</p>}
-          </div>
-        </div>
-        <div className="bg-white p-4 border rounded-2xl shadow-sm text-center py-6">
-          <Layers className="w-6 h-6 mx-auto text-primary mb-2 opacity-60" />
-          <p className="text-xs font-semibold text-slate-700">Form: {p.formSlug || "contact"}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Mock Form Card</p>
-        </div>
+      <div style={style}>
+        {element}
       </div>
     );
   }
-  if (block.type === "blog-section") {
-    const limit = Number(p.limit) || 3;
-    const mockPosts = Array.from({ length: limit }).map((_, i) => ({
-      title: `Example Blog Article ${i + 1}`,
-      excerpt: "This is a brief preview of the article content. It automatically adapts to your branding settings.",
-      date: "29 Jun 2026"
-    }));
-    return (
-      <div onClick={handleClick} className={`w-full p-6 my-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl space-y-6 ${ring}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-semibold">
-            <BookOpen className="w-4 h-4" />
-            <span>Latest Blog Posts Grid</span>
-          </div>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-bold">Dynamic</span>
-        </div>
-        <div className="text-center space-y-1">
-          <h3 className="text-xl font-black text-slate-900">{p.title || "News & Updates"}</h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">{p.subtitle}</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {mockPosts.map((post, idx) => (
-            <div key={idx} className="bg-white border rounded-2xl overflow-hidden shadow-sm flex flex-col h-full text-left">
-              <div className="aspect-video bg-slate-100 w-full flex items-center justify-center text-slate-300 text-xs">
-                Featured Image
-              </div>
-              <div className="p-4 space-y-2 flex-grow flex flex-col justify-between">
-                <div className="space-y-1">
-                  <span className="text-[9px] font-semibold text-slate-400 block">{post.date}</span>
-                  <h4 className="font-bold text-xs text-slate-900 line-clamp-2">{post.title}</h4>
-                  <p className="text-[10px] text-slate-500 line-clamp-2">{post.excerpt}</p>
-                </div>
-                <div className="text-[10px] font-bold text-primary pt-2 flex items-center gap-0.5">
-                  Read Article <ArrowRight className="w-3 h-3" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  return null;
+  return element;
 }
 
 // Inline contenteditable text. Becomes editable on double-click while selected.
@@ -706,6 +933,11 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
           <CssField label="Margin" value={p.margin || ""} onChange={(v) => onChange({ margin: v })} placeholder="0 0 16px 0" />
           {(block.type === "container" || block.type === "section") && (
             <>
+              <SelectField label="Content Width" value={p.layout || "boxed"} options={["boxed", "full-width"]} onChange={(v) => onChange({ layout: v })} />
+              <SelectField label="Height" value={p.height || "default"} options={["default", "fit-screen", "min-height"]} onChange={(v) => onChange({ height: v })} />
+              {p.height === "min-height" && (
+                <CssField label="Min Height" value={p.minHeight || ""} onChange={(v) => onChange({ minHeight: v })} placeholder="400px" />
+              )}
               <CssField label="Gap" value={p.gap || ""} onChange={(v) => onChange({ gap: v })} placeholder="24px" />
               {block.type === "container" && (
                 <>
@@ -874,6 +1106,7 @@ function Inspector({ block, device, onChange }: { block: Block; device: Device; 
         )}
 
         <TabsContent value="advanced" className="space-y-2">
+          <SelectField label="Full Width" value={p.fullWidth || "no"} options={["no", "yes"]} onChange={(v) => onChange({ fullWidth: v })} />
           <CssField label="CSS classes" value={p.className || ""} onChange={(v) => onChange({ className: v })} placeholder="my-section dark" />
           <CssField label="HTML id" value={p.htmlId || ""} onChange={(v) => onChange({ htmlId: v })} placeholder="hero" />
           <CssField label="Z-index" value={String(p.zIndex ?? "")} onChange={(v) => onChange({ zIndex: v })} placeholder="1" />

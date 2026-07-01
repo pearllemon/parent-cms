@@ -32,6 +32,7 @@ export default function AdminSettings() {
   const { config, refresh } = useSiteConfig();
   const siteId = config?.site?.id;
   const [s, setS] = useState<Settings>({});
+  const [pages, setPages] = useState<{ id: string; title: string; slug: string }[]>([]);
   const [perm, setPerm] = useState("/%postname%/");
   const [cacheTtl, setCacheTtl] = useState(3600);
   const [saving, setSaving] = useState(false);
@@ -44,21 +45,45 @@ export default function AdminSettings() {
   useEffect(() => {
     if (!siteId) return;
     void (async () => {
-      const { data } = await T("site_settings").select("*").eq("site_id", siteId).maybeSingle();
-      setS((data as Settings) || { site_id: siteId });
+      const { data } = await T("site_settings").select("*").limit(1).maybeSingle();
+      setS((data as Settings) || {});
       const { data: pl } = await P("permalink_settings").select("pattern").eq("site_id", siteId).maybeSingle();
       if (pl?.pattern) setPerm(pl.pattern);
       const { data: cs } = await P("site_cache_settings").select("cache_ttl_seconds").eq("site_id", siteId).maybeSingle();
       if (cs?.cache_ttl_seconds) setCacheTtl(cs.cache_ttl_seconds);
+
+      // Fetch pages of type "page"
+      try {
+        const { data: parentPg } = await P("posts")
+          .select("id,title,slug")
+          .eq("site_id", siteId)
+          .eq("type", "page");
+        
+        const { data: localPg } = await T("imported_posts")
+          .select("id,title,slug")
+          .eq("type", "page");
+
+        const merged = [...(parentPg || []), ...(localPg || [])];
+        const seen = new Set<string>();
+        const unique = merged.filter((p) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+        unique.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+        setPages(unique);
+      } catch (e) {
+        console.warn("Failed to fetch pages:", e);
+      }
     })();
     void getCacheStats().then(setStats);
   }, [siteId]);
 
   const save = async () => {
-    if (!siteId) return;
+    if (!siteId || !s.id) return;
     setSaving(true);
     try {
-      await T("site_settings").upsert({ ...s, site_id: siteId }, { onConflict: "site_id" });
+      await T("site_settings").update(s).eq("id", s.id);
       await P("permalink_settings").upsert({ site_id: siteId, pattern: perm }, { onConflict: "site_id" });
       await P("site_cache_settings").upsert({ site_id: siteId, cache_ttl_seconds: cacheTtl }, { onConflict: "site_id" });
       toast.success("Settings saved");
@@ -143,7 +168,31 @@ export default function AdminSettings() {
         <TabsContent value="general" className="mt-0"><Card className="p-5 space-y-3">
           <div><Label>Site name</Label><Input value={s.site_name || ""} onChange={(e) => set("site_name", e.target.value)} /></div>
           <div><Label>Tagline</Label><Input value={s.tagline || ""} onChange={(e) => set("tagline", e.target.value)} placeholder="Short description for headers, social cards" /></div>
-          <div className="text-xs text-muted-foreground">Site ID: <code className="font-mono">{siteId}</code> · Domain: <code>{config?.site?.domain?.toString()}</code></div>
+          
+          <div>
+            <Label>Select Homepage Page</Label>
+            <Select
+              value={extras.homepage_page_id || "default"}
+              onValueChange={(val) => setExtra(["homepage_page_id"], val === "default" ? null : val)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Default (Matches home/index slug)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default (Matches home/index slug)</SelectItem>
+                {pages.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title || `Untitled Page (${p.slug})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Choose a page to show when users visit the root URL of the site.
+            </p>
+          </div>
+
+          <div className="text-xs text-muted-foreground pt-2">Site ID: <code className="font-mono">{siteId}</code> · Domain: <code>{config?.site?.domain?.toString()}</code></div>
         </Card></TabsContent>
 
         <TabsContent value="branding" className="mt-0"><Card className="p-5 space-y-3">

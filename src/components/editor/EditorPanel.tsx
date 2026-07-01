@@ -32,6 +32,7 @@ import {
   MessageSquare,
   Share2,
   LayoutGrid,
+  Mail,
   Plus,
   ArrowUp,
   ArrowDown
@@ -1113,6 +1114,42 @@ function AdvancedFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => v
 
       <hr className="my-2" />
 
+      {/* Full Width & Height Options */}
+      <div className="space-y-3 pt-1">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-medium text-muted-foreground">Full Width</Label>
+          <Switch
+            checked={s.fullWidth === "yes"}
+            onCheckedChange={(checked) => patch((p) => ({ ...p, fullWidth: checked ? "yes" : "no" }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Height</Label>
+          <select
+            value={s.height || "default"}
+            onChange={(e) => patch((p) => ({ ...p, height: e.target.value }))}
+            className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+          >
+            <option value="default">Default</option>
+            <option value="fit-screen">Fit to Screen (100vh)</option>
+            <option value="min-height">Min Height</option>
+          </select>
+        </div>
+        {s.height === "min-height" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Min Height</Label>
+            <Input
+              value={s.minHeight || ""}
+              placeholder="400px"
+              onChange={(e) => patch((p) => ({ ...p, minHeight: e.target.value }))}
+              className="h-8 text-xs"
+            />
+          </div>
+        )}
+      </div>
+
+      <hr className="my-2" />
+
       {/* Responsive Visibility */}
       <div className="space-y-2">
         <Label className="text-xs font-medium text-muted-foreground">Responsive Visibility</Label>
@@ -1146,6 +1183,50 @@ function AdvancedFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => v
 
 // ----- Dispatchers per widget type ---------------------------------------
 
+function ContactSectionFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => void }) {
+  return (
+    <div className="space-y-4">
+      <Field label="Section Title">
+        <TextInput value={s.title || ""} onChange={(v) => patch((p) => ({ ...p, title: v }))} />
+      </Field>
+      <Field label="Subtitle">
+        <Textarea value={s.subtitle || ""} onChange={(e) => patch((p) => ({ ...p, subtitle: e.target.value }))} className="text-xs" />
+      </Field>
+      <Field label="Address">
+        <TextInput value={s.address || ""} onChange={(v) => patch((p) => ({ ...p, address: v }))} />
+      </Field>
+      <Field label="Phone Number">
+        <TextInput value={s.phone || ""} onChange={(v) => patch((p) => ({ ...p, phone: v }))} />
+      </Field>
+      <Field label="Email Address">
+        <TextInput value={s.email || ""} onChange={(v) => patch((p) => ({ ...p, email: v }))} />
+      </Field>
+      <Field label="Working Hours">
+        <TextInput value={s.hours || ""} onChange={(v) => patch((p) => ({ ...p, hours: v }))} />
+      </Field>
+      <Field label="Form Slug">
+        <TextInput value={s.formSlug || ""} onChange={(v) => patch((p) => ({ ...p, formSlug: v }))} placeholder="e.g. contact" />
+      </Field>
+    </div>
+  );
+}
+
+function BlogSectionFields({ s, patch }: { s: any; patch: (u: (s: any) => any) => void }) {
+  return (
+    <div className="space-y-4">
+      <Field label="Section Title">
+        <TextInput value={s.title || ""} onChange={(v) => patch((p) => ({ ...p, title: v }))} />
+      </Field>
+      <Field label="Subtitle">
+        <Textarea value={s.subtitle || ""} onChange={(e) => patch((p) => ({ ...p, subtitle: e.target.value }))} className="text-xs" />
+      </Field>
+      <Field label="Posts Limit">
+        <Input type="number" value={s.limit ?? 3} onChange={(e) => patch((p) => ({ ...p, limit: Number(e.target.value) }))} className="h-8 text-xs" />
+      </Field>
+    </div>
+  );
+}
+
 function FieldsForWidget({ widgetType, s, patch }: { widgetType: string; s: any; patch: (u: (s: any) => any) => void }) {
   switch (widgetType) {
     case "heading": return <HeadingFields s={s} patch={patch} />;
@@ -1165,6 +1246,8 @@ function FieldsForWidget({ widgetType, s, patch }: { widgetType: string; s: any;
     case "html": return <HtmlFields s={s} patch={patch} />;
     case "accordion": return <AccordionFields s={s} patch={patch} />;
     case "carousel": return <CarouselFields s={s} patch={patch} />;
+    case "contact-section": return <ContactSectionFields s={s} patch={patch} />;
+    case "blog-section": return <BlogSectionFields s={s} patch={patch} />;
     default: return <GenericTextFields s={s} patch={patch} />;
   }
 }
@@ -1212,6 +1295,8 @@ const WIDGETS_LIST: WidgetDef[] = [
   { type: "social-icons", name: "Social Icons", icon: Share2, description: "Links to social networks", category: "general" },
   { type: "accordion", name: "Accordion", icon: List, description: "Collapsible tabs or FAQs", category: "general" },
   { type: "carousel", name: "Carousel", icon: Layout, description: "Slider with images and buttons", category: "general" },
+  { type: "contact-section", name: "Contact Section", icon: Mail, description: "Two-column contact info and form", category: "general" },
+  { type: "blog-section", name: "Blog Section", icon: LayoutGrid, description: "Grid of latest blog posts", category: "general" },
 ];
 
 const createWidgetNode = (type: string) => {
@@ -1294,6 +1379,24 @@ const createWidgetNode = (type: string) => {
             button_url: "#"
           }
         ]
+      };
+      break;
+    case "contact-section":
+      base.settings = {
+        title: "Get in Touch",
+        subtitle: "Reach out to us today for expert BREEAM assessment services.",
+        address: "2nd Floor, 123 Victoria St, London SW1E 6DE",
+        phone: "+44 207 183 3436",
+        email: "info@breeamassessment.co.uk",
+        hours: "Monday to Friday (9-5)",
+        formSlug: "contact"
+      };
+      break;
+    case "blog-section":
+      base.settings = {
+        title: "Latest News & Insights",
+        subtitle: "Stay updated with our recent announcements and sustainability tips.",
+        limit: 3
       };
       break;
   }

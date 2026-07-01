@@ -3,6 +3,7 @@ import { Plus, Trash2, GripVertical, Save, Eye, Code2, Upload, Copy, MapPin, Lin
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/parent";
 import { toast } from "sonner";
+import ImagePickerField from "../ImagePickerField";
 
 interface FooterConfig {
   id: string;
@@ -322,10 +323,7 @@ const FooterBuilder = () => {
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Logo Alt Text</label>
                   <input value={active.logo_alt} onChange={e => updateConfig({ logo_alt: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Logo URL</label>
-                  <input value={active.logo_url} onChange={e => updateConfig({ logo_url: e.target.value })} className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="https://..." />
-                </div>
+                <ImagePickerField label="Logo URL" value={active.logo_url} onChange={url => updateConfig({ logo_url: url })} />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Description</label>

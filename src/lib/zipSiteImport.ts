@@ -1918,15 +1918,19 @@ export async function importZipSite(
         return `<h2>${s.title}</h2>\n${sectionContentHtml}`;
       }).join("\n");
 
+      const isHomepage = page.type === "page" && (page.slug === "" || page.slug === "home");
+      const targetSlug = isHomepage ? "home-draft" : page.slug;
+      const targetStatus = isHomepage ? "draft" : "published";
+
       const row = {
         site_id,
         title: page.title,
-        slug: page.slug,
+        slug: targetSlug,
         excerpt: page.metaDescription || `Discover details about ${page.title}.`,
         body: fullHtml,
         elementor_data: visualTree as unknown as never,
         render_mode: page.type === "post" ? "template" : "elementor",
-        status: "published",
+        status: targetStatus,
         publish_date: new Date().toISOString(),
         featured_image_url: featuredImage,
         type: page.type,
@@ -1954,13 +1958,13 @@ export async function importZipSite(
           const liveRow = {
             site_id,
             title: page.title,
-            slug: page.slug,
+            slug: targetSlug,
             type: page.type,
-            status: "published",
+            status: targetStatus,
             excerpt: page.metaDescription || `Discover details about ${page.title}.`,
             body: fullHtml,
             featured_image_url: featuredImage,
-            template: page.type === "post" ? "blog" : (page.slug === "" || page.slug === "home" ? "home" : "default"),
+            template: page.type === "post" ? "blog" : (targetSlug === "" || targetSlug === "home" ? "home" : "default"),
             render_mode: page.type === "post" ? "template" : "elementor",
             elementor_data: visualTree as unknown as never,
             meta_title: page.metaTitle || page.title,
@@ -2035,15 +2039,19 @@ export async function importSingleMd(
       return `<h2>${s.title}</h2>\n${sectionContentHtml}`;
     }).join("\n");
 
+    const isHomepage = parsedPage.type === "page" && (parsedPage.slug === "" || parsedPage.slug === "home");
+    const targetSlug = isHomepage ? "home-draft" : parsedPage.slug;
+    const targetStatus = isHomepage ? "draft" : "published";
+
     const row = {
       site_id,
       title: parsedPage.title,
-      slug: parsedPage.slug,
+      slug: targetSlug,
       excerpt: parsedPage.metaDescription || `Discover details about ${parsedPage.title}.`,
       body: fullHtml,
       elementor_data: visualTree as unknown as never,
       render_mode: parsedPage.type === "post" ? "template" : "elementor",
-      status: "published",
+      status: targetStatus,
       publish_date: new Date().toISOString(),
       featured_image_url: featuredImage,
       type: parsedPage.type,
@@ -2072,13 +2080,13 @@ export async function importSingleMd(
         const liveRow = {
           site_id,
           title: parsedPage.title,
-          slug: parsedPage.slug,
+          slug: targetSlug,
           type: parsedPage.type,
-          status: "published",
+          status: targetStatus,
           excerpt: parsedPage.metaDescription || `Discover details about ${parsedPage.title}.`,
           body: fullHtml,
           featured_image_url: featuredImage,
-          template: parsedPage.type === "post" ? "blog" : (parsedPage.slug === "" || parsedPage.slug === "home" ? "home" : "default"),
+          template: parsedPage.type === "post" ? "blog" : (targetSlug === "" || targetSlug === "home" ? "home" : "default"),
           render_mode: parsedPage.type === "post" ? "template" : "elementor",
           elementor_data: visualTree as unknown as never,
           meta_title: parsedPage.metaTitle || parsedPage.title,

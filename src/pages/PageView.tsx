@@ -3,8 +3,17 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { supabase as parent } from "@/lib/parent";
 import ElementorRenderer from "@/components/elementor/ElementorRenderer";
+import ServicePageTemplate from "@/components/service/ServicePageTemplate";
 import DOMPurify from 'dompurify';
 import FormRenderer from "@/components/site/FormRenderer";
+
+const sanitizeHtml = (html: string) => {
+  return DOMPurify.sanitize(html || "", {
+    ADD_TAGS: ["style", "iframe", "script", "link"],
+    ADD_ATTR: ["target", "scrolling", "frameborder", "allow", "allowfullscreen", "rel", "href"],
+    FORCE_BODY: true
+  });
+};
 import { Button } from "@/components/ui/button";
 import HtmlEmbedSection from "./HtmlEmbedSection";
 import { Input } from "@/components/ui/input";
@@ -36,6 +45,7 @@ type PageData = {
   featured_image_url: string | null;
   elementor_data: any[] | null;
   render_mode: string | null;
+  template: string | null;
 };
 
 const TEAM_MEMBERS = [
@@ -106,6 +116,9 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
     return s.includes("call") || s.includes("book") || s.includes("booking") || s.includes("schedule") || s.includes("appointment");
   }, [targetSlug]);
 
+  // Detect service pages (e.g., breeam-*)
+  const isServicePage = useMemo(() => targetSlug.toLowerCase().startsWith('breeam-'), [targetSlug]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -127,10 +140,12 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
       }
 
       // Fetch site settings for contact details
+      let loadedSettings: any = null;
       try {
         const { data: settings } = await supabase.from("site_settings").select("*").limit(1).maybeSingle();
         if (settings) {
           setSiteSettings(settings);
+          loadedSettings = settings;
         }
       } catch (e) {
         console.warn("Failed to load site settings:", e);
@@ -198,38 +213,73 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
       }
 
       let foundPage: PageData | null = null;
-      // Map homepage or empty slug to common homepage alias names
-      const slugOptions = homepage || targetSlug === "" || targetSlug === "home" || targetSlug === "homepage" 
-        ? ["", "home", "homepage", "index"] 
-        : [targetSlug];
+      const isHomepageRequest = homepage || targetSlug === "" || targetSlug === "home" || targetSlug === "homepage";
+      const homepageId = isHomepageRequest ? loadedSettings?.extras?.homepage_page_id : null;
 
-      // 2. Fetch from live posts table via parent client
-      try {
-        const { data } = await parent
-          .from("posts")
-          .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url")
-          .eq("type", targetType)
-          .in("slug", slugOptions)
-          .order("publish_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data) {
-          foundPage = data as PageData;
+      // 2. Fetch page (by ID if homepage ID is set, otherwise by slug)
+      if (homepageId) {
+        try {
+          const { data } = await parent
+            .from("posts")
+            .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url,template")
+            .eq("id", homepageId)
+            .maybeSingle();
+          if (data) {
+            foundPage = data as PageData;
+          }
+        } catch (e) {
+          console.warn("Failed to fetch homepage by ID from parent posts:", e);
         }
-      } catch (e) {
-        console.warn("Failed to fetch from parent posts:", e);
+
+        if (!foundPage) {
+          try {
+            const { data } = await supabase
+              .from("imported_posts")
+              .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url,template")
+              .eq("id", homepageId)
+              .maybeSingle();
+            if (data) {
+              foundPage = data as PageData;
+            }
+          } catch (e) {
+            console.warn("Failed to fetch homepage by ID from imported_posts:", e);
+          }
+        }
       }
 
-      // 3. Fallback to imported_posts via cloud client
+      // If no page has been found yet (either not a homepage request, homepage ID not configured, or page not found by ID), fetch by slug
       if (!foundPage) {
+        const slugOptions = isHomepageRequest
+          ? ["", "home", "homepage", "index"] 
+          : [targetSlug];
+
+        // Fetch from live posts table via parent client
         try {
-          const { data } = await supabase
-            .from("imported_posts")
-            .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url")
+          const { data } = await parent
+            .from("posts")
+            .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url,template")
             .eq("type", targetType)
             .in("slug", slugOptions)
+            .order("publish_date", { ascending: false })
             .limit(1)
             .maybeSingle();
+          if (data) {
+            foundPage = data as PageData;
+          }
+        } catch (e) {
+          console.warn("Failed to fetch from parent posts:", e);
+        }
+
+        // Fallback to imported_posts via cloud client
+        if (!foundPage) {
+          try {
+            const { data } = await supabase
+              .from("imported_posts")
+              .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url,template")
+              .eq("type", targetType)
+              .in("slug", slugOptions)
+              .limit(1)
+              .maybeSingle();
           if (data) {
             foundPage = data as PageData;
           }
@@ -237,13 +287,14 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
           console.warn("Failed to fetch from imported_posts:", e);
         }
       }
+    }
 
       // 4. Fallback to matching by slug only
       if (!foundPage && !homepage && targetSlug) {
         try {
           const { data } = await supabase
             .from("imported_posts")
-            .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url")
+            .select("id,title,slug,type,body,elementor_data,render_mode,featured_image_url,template")
             .eq("slug", targetSlug)
             .limit(1)
             .maybeSingle();
@@ -254,6 +305,7 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
       }
 
       setPage(foundPage);
+    const cleanedBody = (foundPage?.body || '').replace(/Generated by Content Snapshot Pro[\s\S]*?\)/g, '');
 
       // 5. Load Global Header and Footer templates from elementor_templates
       try {
@@ -284,7 +336,17 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
     );
   }
 
-  const isElementor = page && page.render_mode === "elementor" && Array.isArray(page.elementor_data) && page.elementor_data.length > 0;
+  const isElementor = page && page.render_mode === "elementor" && Array.isArray(page.elementor_data);
+  const isCanvas = page && ((page as any).template === "canvas" || (page as any).template === "elementor_canvas");
+
+  if (isCanvas && page && page.render_mode === "html") {
+    return (
+      <div 
+        className="w-full min-h-screen"
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.body || "") }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground font-sans relative">
@@ -340,22 +402,24 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
       )}
 
       {/* 1. RENDER HEADER */}
-      {headerTree ? (
-        <ElementorRenderer data={headerTree} />
-      ) : (
-        <header className="py-4 px-6 border-b flex items-center justify-between bg-white shadow-sm shrink-0">
-          <Link to="/" className="font-bold text-xl tracking-tight text-slate-900 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-slate-950" style={{ backgroundColor: branding.primary }}>P</span>
-            <span>Pearl Lemon</span>
-          </Link>
-          <nav className="flex gap-6 text-sm font-bold text-slate-600">
-            <Link to="/" className="hover:text-slate-900 transition-colors">Home</Link>
-            <Link to="/services" className="hover:text-slate-900 transition-colors">Services</Link>
-            <Link to="/about" className="hover:text-slate-900 transition-colors">About</Link>
-            <Link to="/blog" className="hover:text-slate-900 transition-colors">Blog</Link>
-            <Link to="/contact" className="hover:text-slate-900 transition-colors">Contact</Link>
-          </nav>
-        </header>
+      {!isCanvas && (
+        headerTree ? (
+          <ElementorRenderer data={headerTree} />
+        ) : (
+          <header className="py-4 px-6 border-b flex items-center justify-between bg-white shadow-sm shrink-0">
+            <Link to="/" className="font-bold text-xl tracking-tight text-slate-900 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-slate-950" style={{ backgroundColor: branding.primary }}>P</span>
+              <span>Pearl Lemon</span>
+            </Link>
+            <nav className="flex gap-6 text-sm font-bold text-slate-600">
+              <Link to="/" className="hover:text-slate-900 transition-colors">Home</Link>
+              <Link to="/services" className="hover:text-slate-900 transition-colors">Services</Link>
+              <Link to="/about" className="hover:text-slate-900 transition-colors">About</Link>
+              <Link to="/blog" className="hover:text-slate-900 transition-colors">Blog</Link>
+              <Link to="/contact" className="hover:text-slate-900 transition-colors">Contact</Link>
+            </nav>
+          </header>
+        )
       )}
 
       {/* 2. RENDER MAIN CONTENT */}
@@ -368,6 +432,8 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
           <BlogIndexPage posts={posts} branding={branding} />
         ) : isContactPage && page ? (
           <ContactPageView page={page} branding={branding} siteSettings={siteSettings} />
+        ) : isServicePage ? (
+          <ServicePageTemplate page={page} branding={branding} />
         ) : (
           <div className="w-full">
             {isBookingPage && (
@@ -375,65 +441,74 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
                 <BookingCalendar branding={branding} />
               </div>
             )}
-            <HtmlEmbedSection branding={branding} html={page?.body || ""} />
+            <HtmlEmbedSection branding={branding} html={cleanedBody} />
 
             {isElementor && page ? (
               <ElementorRenderer data={page.elementor_data!} />
             ) : page ? (
               <div className="w-full">
-                {/* Fallback Hero Section */}
-                <section className="bg-slate-50 text-slate-900 py-16 px-6 border-b">
-                  <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-8 items-center justify-between">
-                    <div className="flex-1 space-y-4">
-                      <span className="text-xs font-bold uppercase tracking-widest" style={{ color: branding.primary }}>
-                        {page.type === "post" ? "Blog Post" : "Article"}
-                      </span>
-                      <h1 className="text-4xl md:text-5xl font-extrabold font-display leading-tight tracking-tight">
-                        {page.title}
-                      </h1>
-                      <p className="text-xs text-muted-foreground">
-                        Published &bull; 5 min read
-                      </p>
-                    </div>
-                    {page.featured_image_url && (
-                      <div className="w-full md:w-[320px] shrink-0">
-                        <img
-                          src={page.featured_image_url}
-                          alt={page.title}
-                          className="w-full rounded-2xl object-cover aspect-video shadow-md border"
-                        />
+                {!(page as any).template || (page as any).template === "default" ? (
+                  <>
+                    {/* Fallback Hero Section */}
+                    <section className="bg-slate-50 text-slate-900 py-16 px-6 border-b">
+                      <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-8 items-center justify-between">
+                        <div className="flex-1 space-y-4">
+                          <span className="text-xs font-bold uppercase tracking-widest" style={{ color: branding.primary }}>
+                            {page.type === "post" ? "Blog Post" : "Article"}
+                          </span>
+                          <h1 className="text-4xl md:text-5xl font-extrabold font-display leading-tight tracking-tight">
+                            {page.title}
+                          </h1>
+                          <p className="text-xs text-muted-foreground">
+                            Published &bull; 5 min read
+                          </p>
+                        </div>
+                        {page.featured_image_url && (
+                          <div className="w-full md:w-[320px] shrink-0">
+                            <img
+                              src={page.featured_image_url}
+                              alt={page.title}
+                              className="w-full rounded-2xl object-cover aspect-video shadow-md border"
+                            />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </section>
+                    </section>
 
-                {/* Content Section */}
-                <section className="py-12 px-6 max-w-5xl mx-auto">
-                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-12">
-                    <div
-                      className="prose max-w-none prose-slate font-sans text-slate-800 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.body || "") }}
-                    />
-                    
-                    <aside className="space-y-6">
-                      <div className="bg-slate-50 p-6 rounded-2xl border space-y-3 shadow-sm">
-                        <h4 className="font-extrabold text-sm text-slate-900">About Pearl Lemon</h4>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Pearl Lemon is a multi-award-winning digital consulting agency. We build high-performance organic marketing systems that rank brands on Page 1 and double search leads.
-                        </p>
+                    {/* Content Section */}
+                    <section className="py-12 px-6 max-w-5xl mx-auto">
+                      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-12">
+                        <div
+                          className="prose max-w-none prose-slate font-sans text-slate-800 leading-relaxed"
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.body || "") }}
+                        />
+                        
+                        <aside className="space-y-6">
+                          <div className="bg-slate-50 p-6 rounded-2xl border space-y-3 shadow-sm">
+                            <h4 className="font-extrabold text-sm text-slate-900">About Pearl Lemon</h4>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                              Pearl Lemon is a multi-award-winning digital consulting agency. We build high-performance organic marketing systems that rank brands on Page 1 and double search leads.
+                            </p>
+                          </div>
+                          <div className="bg-slate-950 text-white p-6 rounded-2xl space-y-4 shadow-md">
+                            <h4 className="font-extrabold text-sm" style={{ color: branding.primary }}>Ready to Scale?</h4>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              Book a strategy consultation with our senior consultants today to audit your current search bottlenecks.
+                            </p>
+                            <Button asChild className="w-full font-bold text-xs h-9 active:scale-95" style={{ backgroundColor: branding.primary, color: "#111" }}>
+                              <Link to="/book-a-call">Book a Call</Link>
+                            </Button>
+                          </div>
+                        </aside>
                       </div>
-                      <div className="bg-slate-950 text-white p-6 rounded-2xl space-y-4 shadow-md">
-                        <h4 className="font-extrabold text-sm" style={{ color: branding.primary }}>Ready to Scale?</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Book a strategy consultation with our senior consultants today to audit your current search bottlenecks.
-                        </p>
-                        <Button asChild className="w-full font-bold text-xs h-9 active:scale-95" style={{ backgroundColor: branding.primary, color: "#111" }}>
-                          <Link to="/book-a-call">Book a Call</Link>
-                        </Button>
-                      </div>
-                    </aside>
-                  </div>
-                </section>
+                    </section>
+                  </>
+                ) : (
+                  <div 
+                    className="w-full"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.body || "") }}
+                  />
+                )}
               </div>
             ) : null}
 
@@ -489,20 +564,22 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
       </main>
 
       {/* 4. RENDER FOOTER */}
-      {footerTree ? (
-        <ElementorRenderer data={footerTree} />
-      ) : (
-        <footer className="bg-slate-950 text-slate-400 py-12 px-6 text-center text-xs border-t border-slate-900 shrink-0">
-          <div className="max-w-4xl mx-auto space-y-4">
-            <p className="font-bold text-slate-200">Pearl Lemon Group</p>
-            <p className="text-slate-500 max-w-md mx-auto leading-relaxed">
-              London-based growth specialists. SEO, Lead Generation, PR, Web Development, and Business Advisory.
-            </p>
-            <div className="pt-4 border-t border-slate-900 text-slate-600">
-              &copy; {new Date().getFullYear()} Pearl Lemon. All rights reserved.
+      {!isCanvas && !(window as any).isServicePage && (
+        footerTree ? (
+          <ElementorRenderer data={footerTree} />
+        ) : (
+          <footer className="bg-slate-950 text-slate-400 py-12 px-6 text-center text-xs border-t border-slate-900 shrink-0">
+            <div className="max-w-4xl mx-auto space-y-4">
+              <p className="font-bold text-slate-200">Pearl Lemon Group</p>
+              <p className="text-slate-500 max-w-md mx-auto leading-relaxed">
+                London-based growth specialists. SEO, Lead Generation, PR, Web Development, and Business Advisory.
+              </p>
+              <div className="pt-4 border-t border-slate-900 text-slate-600">
+                &copy; {new Date().getFullYear()} Pearl Lemon. All rights reserved.
+              </div>
             </div>
-          </div>
-        </footer>
+          </footer>
+        )
       )}
     </div>
   );
