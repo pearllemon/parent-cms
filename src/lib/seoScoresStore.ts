@@ -29,7 +29,7 @@ const STATIC_ROUTES = [
   { path: "/about", title: "About" },
   { path: "/blog", title: "Blog" },
   { path: "/contact", title: "Contact" },
-  { path: "/book-a-call", title: "Book a Call" },
+  { path: "/call", title: "Book a Call" },
   { path: "/press", title: "Press" },
   { path: "/books", title: "Books" },
   { path: "/privacy", title: "Privacy" },
