@@ -23,11 +23,13 @@ if (Test-Path $EnvFile) {
 }
 if (-not $GithubPat -and (Test-Path $RootEnvFile)) {
     Get-Content $RootEnvFile | ForEach-Object {
-        if ($_ -match "GITHUB_PAT\s*=\s*(.*)") {
-            $GithubPat = $Matches[1].Trim().Trim('"').Trim("'")
+        if ($_ -match "^GITHUB_PAT\s*=\s*(.*)") {
+            $val = $Matches[1].Trim().Trim('"').Trim("'")
+            if ($val) { $GithubPat = $val }
         }
-        elseif ($_ -match "GITHUB_CLASSIC_TOKEN\s*=\s*(.*)") {
-            $GithubPat = $Matches[1].Trim().Trim('"').Trim("'")
+        elseif (-not $GithubPat -and ($_ -match "^GITHUB_CLASSIC_TOKEN\s*=\s*(.*)")) {
+            $val = $Matches[1].Trim().Trim('"').Trim("'")
+            if ($val) { $GithubPat = $val }
         }
     }
 }
@@ -45,26 +47,24 @@ if ($GithubPat) {
 
 # Child Repos list
 $ChildRepos = @(
-    "real-estate-investment-advisor.co.uk",
-    "personalinjurynycity.com",
-    "trailrunningtours.co.uk",
-    "thecoldemailagency.co.uk",
-    "robloxgamedevelopment.uk",
-    "bubbleteacatering.uk",
-    "plcommercialcleaningservices.co.uk",
-    "troncmasterservices.co.uk",
-    "emailmarketingagency.uk",
-    "event-management-company.uk",
-    "lifeinsuranceleadgenagency.co.uk",
-    "financialleadgenerationagency.co.uk",
-    "plumbingleadgenerationagency.co.uk",
-    "pl-commission-closers.com",
-    "landlordslawyeruk",
-    "realestatepropertymanagement.co.uk",
-    "corporatecateringlondon.uk",
-    "theleadgenerationagency.uk",
-    "deepak-shukla",
-    "breeamassessment"
+    "payperleadservicesagency",
+    "pearl-lemon-adventures",
+    "reputation-management-agency",
+    "pearl-lemon-brokerage",
+    "pearl-lemon-cleaners",
+    "pearl-lemon-traders",
+    "pearl-lemon-jets",
+    "pl-commercial-cleaning-services-co-uk",
+    "pearl-lemon-running",
+    "pearl-lemon-events",
+    "pearl-lemon-events-co-uk",
+    "pearl-lemon-events-com",
+    "pl-car-finance-co-uk",
+    "pearl-lemon-cleaning",
+    "dandeeconsulting",
+    "corporate-removal-group",
+    "crypto-tax-accountant-uk",
+    "pearl-lemon-voice-co-uk"
 )
 
 if ($RepoName) {
@@ -157,7 +157,7 @@ foreach ($repoName in $ChildRepos) {
     # Synchronize WordPress Plugins (Elementor, Elementor Pro)
     $srcPluginsDir = "F:/MCP For Pearl Lemon/Lovable Project/Plugins"
     $destPluginsDir = Join-Path $repoPath "Plugins"
-    if (Test-Path $srcPluginsDir) {
+    if ($false -and (Test-Path $srcPluginsDir)) { # Skipped at user request
         Write-Log "Syncing WordPress Plugins..."
         if (-Not (Test-Path $destPluginsDir)) {
             New-Item -ItemType Directory -Path $destPluginsDir | Out-Null
