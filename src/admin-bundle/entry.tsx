@@ -5,7 +5,7 @@
 // The child wizard dynamically imports this module, calls configure(), then
 // renders <AdminApp /> inside its existing <BrowserRouter><Route path="/admin/*">.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -54,9 +54,8 @@ export const BUNDLE_VERSION: string = (typeof __ADMIN_BUNDLE_VERSION__ !== "unde
 const qc = new QueryClient();
 
 /**
- * AdminApp — renders the full admin under whatever parent route the child
- * mounts it at. The parent route MUST be `path="/admin/*"`; routes here are
- * relative to that.
+ * AdminApp — renders the full admin inside the TanStack /admin routes.
+ * Keep route paths rooted at /admin because admin pages use absolute links.
  */
 export function AdminApp() {
   return (
@@ -66,8 +65,9 @@ export function AdminApp() {
         <Sonner position="top-center" richColors />
         <SiteProvider>
           <Routes>
-            <Route path="login" element={<AdminLogin />} />
-            <Route path="/" element={<AdminShell />}>
+            <Route path="/admin/admin/*" element={<AdminDoublePrefixRedirect />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminShell />}>
               <Route index element={<AdminDashboard />} />
               <Route path="posts" element={<AdminPosts />} />
               <Route path="posts/:id" element={<AdminPostEditor />} />
@@ -110,6 +110,12 @@ export function AdminApp() {
       </TooltipProvider>
     </QueryClientProvider>
   );
+}
+
+function AdminDoublePrefixRedirect() {
+  const location = useLocation();
+  const normalizedPath = location.pathname.replace(/^\/admin\/admin(?=\/|$)/, "/admin");
+  return <Navigate to={`${normalizedPath}${location.search}${location.hash}`} replace />;
 }
 
 // Type stub for the build-time constant.

@@ -1,173 +1,109 @@
-import { useState, useEffect } from "react";
-import { Phone, Mail, ChevronDown, Menu } from "lucide-react";
-import { HeaderConfig, defaultHeaderConfig } from "./types";
-import ScrollProgressBar from "./ScrollProgressBar";
-import MegaMenu from "./MegaMenu";
-import MobileMenu from "./MobileMenu";
-import MobileBottomBar from "./MobileBottomBar";
+import React from "react";
+import type { HeaderConfig } from "./types";
+import { defaultHeaderConfig } from "./types";
 
 interface SiteHeaderProps {
   config?: HeaderConfig;
+  preview?: boolean;
 }
 
-const SiteHeader = ({ config = defaultHeaderConfig }: SiteHeaderProps) => {
-  const [scrolled, setScrolled] = useState(false);
-  const [activeMegaMenu, setActiveMegaMenu] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const { theme, contactSet, navItems, ctaText, ctaLink, logoAlt, tagline, contentMaxWidth, showProgressBar, transparentMode } = config;
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const isTransparent = transparentMode && !scrolled;
+/**
+ * Presentational header used by the admin Header Manager preview and by
+ * sites that render a configurable header.
+ */
+export default function SiteHeader({ config = defaultHeaderConfig }: SiteHeaderProps) {
+  const { theme, contactSet, navItems } = config;
 
   return (
-    <>
-      <header
-        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-        onMouseLeave={() => setActiveMegaMenu(null)}
-      >
-        {/* Progress Bar */}
-        {showProgressBar && (
-          <ScrollProgressBar color={`hsl(${theme.accentColor})`} />
-        )}
+    <header
+      className="w-full overflow-hidden"
+      style={{ position: config.stickyHeader ? "sticky" : "relative", top: 0, zIndex: 30 }}
+    >
+      {config.showProgressBar && (
+        <div style={{ height: 3, background: theme.accentColor, width: "35%" }} />
+      )}
 
-        {/* Top Bar - hidden on mobile, hidden when transparent & not scrolled */}
+      <div style={{ background: theme.topBarBg, color: theme.topBarText }} className="text-xs">
         <div
-          className={`hidden md:block transition-all duration-300 ${isTransparent ? "max-h-0 overflow-hidden opacity-0" : "max-h-12 opacity-100"}`}
-          style={{
-            backgroundColor: `hsl(${theme.topBarBg})`,
-            color: `hsl(${theme.topBarText})`,
-          }}
+          className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-2"
+          style={{ maxWidth: config.contentMaxWidth }}
         >
-          <div className="mx-auto flex items-center justify-center gap-6 py-2 px-6 text-xs" style={{ maxWidth: contentMaxWidth }}>
-            {contactSet.phones.map((phone) => (
-              <a key={phone.id} href={`tel:${phone.number}`} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-                <Phone className="w-3 h-3" style={{ color: `hsl(${theme.accentColor})` }} />
-                <span className="text-muted-foreground/60">{phone.label}:</span>
-                <span>{phone.number}</span>
+          <span>{config.tagline}</span>
+          <span className="flex flex-wrap items-center gap-3">
+            {contactSet?.email && <a href={`mailto:${contactSet.email}`}>{contactSet.email}</a>}
+            {(contactSet?.phones || []).map((phone) => (
+              <a key={phone.id} href={`tel:${phone.dialCode}${phone.number}`}>
+                {phone.label}: {phone.dialCode} {phone.number}
               </a>
             ))}
-            <a href={`mailto:${contactSet.email}`} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-              <Mail className="w-3 h-3" style={{ color: `hsl(${theme.accentColor})` }} />
-              <span>{contactSet.email}</span>
-            </a>
-          </div>
+          </span>
         </div>
+      </div>
 
-        {/* Main Nav */}
+      <div
+        style={{
+          background: config.transparentMode ? "transparent" : theme.navBg,
+          color: theme.navText,
+        }}
+      >
         <div
-          className="transition-all duration-300 border-b"
-          style={{
-            backgroundColor: isTransparent ? "transparent" : `hsl(${theme.navBg})`,
-            borderColor: isTransparent ? "transparent" : `hsl(var(--border))`,
-          }}
+          className="mx-auto flex items-center justify-between gap-6 px-4 py-3"
+          style={{ maxWidth: config.contentMaxWidth }}
         >
-          <div className="mx-auto flex items-center justify-between px-6 h-16" style={{ maxWidth: contentMaxWidth }}>
-            {/* Logo */}
-            <div className="flex items-center gap-2.5">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: `hsl(${isTransparent ? theme.topBarText : theme.logoBg})` }}
-              >
-                <span className="text-base">🍋</span>
-              </div>
-              <div>
-                <p
-                  className="text-base font-bold leading-tight"
-                  style={{ color: isTransparent ? `hsl(${theme.topBarText})` : `hsl(${theme.navText})`, fontStyle: "italic" }}
-                >
-                  {logoAlt}
-                </p>
-                <p
-                  className="text-[8px] uppercase tracking-[0.15em] font-medium"
-                  style={{ color: isTransparent ? `hsl(${theme.topBarText} / 0.7)` : `hsl(var(--muted-foreground))` }}
-                >
-                  {tagline}
-                </p>
-              </div>
-            </div>
-
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => {
-                const hasMega = item.hasDropdown && item.megaMenu && item.megaMenu.length > 0;
-                return (
-                  <div
-                    key={item.id}
-                    className="relative"
-                    onMouseEnter={() => hasMega && setActiveMegaMenu(item.id)}
-                  >
-                    <button
-                      className="flex items-center gap-1 px-3 py-2 text-sm font-medium transition-colors rounded-md hover:bg-muted/50"
-                      style={{ color: isTransparent ? `hsl(${theme.topBarText})` : `hsl(${theme.navText})` }}
-                    >
-                      {item.label}
-                      {hasMega && <ChevronDown className="w-3 h-3" />}
-                    </button>
-                  </div>
-                );
-              })}
-            </nav>
-
-            {/* CTA + Hamburger */}
-            <div className="flex items-center gap-3">
-              <a
-                href={ctaLink}
-                className="hidden md:inline-flex items-center px-5 py-2 text-sm font-bold uppercase tracking-wider transition-all hover:opacity-90"
-                style={{
-                  backgroundColor: `hsl(${theme.ctaBg})`,
-                  color: `hsl(${theme.ctaText})`,
-                  borderRadius: theme.ctaBorderRadius,
-                }}
-              >
-                {ctaText}
-              </a>
-
-              {/* Mobile hamburger */}
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden p-2"
-                style={{ color: isTransparent ? `hsl(${theme.topBarText})` : `hsl(${theme.navText})` }}
-              >
-                <Menu className="w-6 h-6" />
-              </button>
-            </div>
+          <div
+            className="flex items-center gap-2 rounded px-2 py-1"
+            style={{ background: theme.logoBg, color: theme.logoText }}
+          >
+            {config.logoUrl ? (
+              <img src={config.logoUrl} alt={config.logoAlt} className="h-8 w-auto object-contain" />
+            ) : (
+              <span className="font-semibold">{config.logoAlt || config.name}</span>
+            )}
           </div>
+
+          <nav className="hidden items-center gap-5 text-sm md:flex">
+            {navItems.map((item) => (
+              <div key={item.id} className="group relative">
+                <a href={item.href} className="hover:opacity-70">
+                  {item.label}
+                </a>
+                {item.hasDropdown && (item.megaMenu?.length ?? 0) > 0 && (
+                  <div className="pointer-events-none absolute left-0 top-full z-40 hidden min-w-[420px] gap-6 rounded-md border bg-white p-4 text-slate-900 shadow-lg group-hover:grid group-hover:grid-cols-2">
+                    {item.megaMenu!.map((column) => (
+                      <div key={column.id}>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-60">
+                          {column.heading}
+                        </p>
+                        <ul className="space-y-1">
+                          {column.items.map((link) => (
+                            <li key={link.id}>
+                              <a href={link.href} className="text-sm hover:underline">
+                                {link.label}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </nav>
+
+          <a
+            href={config.ctaLink}
+            className="px-4 py-2 text-sm font-medium"
+            style={{
+              background: theme.ctaBg,
+              color: theme.ctaText,
+              borderRadius: theme.ctaBorderRadius,
+            }}
+          >
+            {config.ctaText}
+          </a>
         </div>
-
-        {/* Mega Menu */}
-        {activeMegaMenu && (() => {
-          const item = navItems.find((n) => n.id === activeMegaMenu);
-          if (!item?.megaMenu?.length) return null;
-          return <MegaMenu columns={item.megaMenu} maxWidth={contentMaxWidth} />;
-        })()}
-      </header>
-
-      {/* Mobile Menu */}
-      <MobileMenu
-        isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        navItems={navItems}
-        logoAlt={logoAlt}
-        tagline={tagline}
-        accentColor={theme.accentColor}
-      />
-
-      {/* Mobile Bottom Bar */}
-      <MobileBottomBar
-        contactSet={contactSet}
-        ctaText={ctaText}
-        ctaLink={ctaLink}
-        ctaBg={theme.ctaBg}
-        ctaTextColor={theme.ctaText}
-      />
-    </>
+      </div>
+    </header>
   );
-};
-
-export default SiteHeader;
+}

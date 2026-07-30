@@ -41,12 +41,15 @@ Deno.serve(async (req) => {
   const action = url.searchParams.get("action") || "config";
   const sb = admin();
 
-  // Actions that mutate management data or expose unfiltered content require auth.
-  const AUTHED_ACTIONS = new Set(["heartbeat", "config", "siteConfig", "dynamic_page"]);
+  // Public site bootstrap (config, heartbeat, dynamic_page) must work for
+  // anonymous visitors — the child site calls these before any user signs in.
+  // Only management/mutating actions stay behind auth.
+  const AUTHED_ACTIONS = new Set<string>([]);
   if (AUTHED_ACTIONS.has(action)) {
     const unauthorized = await requireAuth(req);
     if (unauthorized) return unauthorized;
   }
+
 
   try {
     // 1. Heartbeat - Auto-detect and register child site
