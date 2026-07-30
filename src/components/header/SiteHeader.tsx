@@ -11,7 +11,7 @@ interface SiteHeaderProps {
  * Presentational header used by the admin Header Manager preview and by
  * sites that render a configurable header.
  */
-export default function SiteHeader({ config = defaultHeaderConfig }: SiteHeaderProps) {
+function SiteHeader({ config = defaultHeaderConfig }: SiteHeaderProps) {
   const { theme, contactSet, navItems } = config;
 
   return (
@@ -107,3 +107,8 @@ export default function SiteHeader({ config = defaultHeaderConfig }: SiteHeaderP
     </header>
   );
 }
+
+export { SiteHeader };
+
+export default SiteHeader;
+
