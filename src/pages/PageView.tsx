@@ -7,6 +7,7 @@ import ServicePageTemplate from "@/components/service/ServicePageTemplate";
 import DOMPurify from 'dompurify';
 import FormRenderer from "@/components/site/FormRenderer";
 import { OnboardingFormDesign } from "@/components/site/onboarding/OnboardingFormDesign";
+import { OnboardingDirectoryHub } from "@/components/site/onboarding/OnboardingDirectoryHub";
 
 const sanitizeHtml = (html: string) => {
   return DOMPurify.sanitize(html || "", {
@@ -116,9 +117,13 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
     const s = targetSlug.toLowerCase();
     return s.includes("call") || s.includes("book") || s.includes("booking") || s.includes("schedule") || s.includes("appointment");
   }, [targetSlug]);
-  const isOnboardingPage = useMemo(() => {
+  const isOnboardingHub = useMemo(() => {
     const s = targetSlug.toLowerCase();
-    return s.includes("onboarding") || s.includes("lead-generation-form") || s === "onboarding-form";
+    return s === "onboarding-form" || s === "onboarding" || s === "onboarding-forms" || s === "client-onboarding";
+  }, [targetSlug]);
+  const isOnboardingForm = useMemo(() => {
+    const s = targetSlug.toLowerCase();
+    return s.includes("onboarding") || s.includes("lead-generation-form") || s.includes("-intake");
   }, [targetSlug]);
 
   // Detect service pages (e.g., breeam-*)
@@ -437,7 +442,9 @@ export default function PageView({ type: propType, homepage = false }: { type?: 
           <BlogIndexPage posts={posts} branding={branding} />
         ) : isContactPage && page ? (
           <ContactPageView page={page} branding={branding} siteSettings={siteSettings} />
-        ) : isOnboardingPage ? (
+        ) : isOnboardingHub ? (
+          <OnboardingDirectoryHub branding={branding} />
+        ) : isOnboardingForm ? (
           <OnboardingFormDesign page={page} branding={branding} />
         ) : isServicePage ? (
           <ServicePageTemplate page={page} branding={branding} />
