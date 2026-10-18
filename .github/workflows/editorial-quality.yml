@@ -1,0 +1,97 @@
+name: Pearl Lemon Editorial OS
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'pages/**'
+      - 'content/**'
+      - 'posts/**'
+      - 'blogs/**'
+      - 'sites/**'
+      - 'template/**'
+      - 'public/**'
+      - '*.md'
+      - '*.mdx'
+      - '*.astro'
+      - '*.html'
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'pages/**'
+      - 'content/**'
+      - 'posts/**'
+      - 'blogs/**'
+      - 'sites/**'
+      - 'template/**'
+      - 'public/**'
+      - '*.md'
+      - '*.mdx'
+      - '*.astro'
+      - '*.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  editorial-os:
+    name: editorial-os
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check newly introduced copy (mechanical only)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          #!/usr/bin/env python3
+          """No-cost website content change reminder + unfinished-copy guard. Not an AI detector."""
+          from pathlib import Path
+          import os, re, subprocess, sys
+          
+          CONTENT_EXT={'.astro','.html','.md','.mdx','.tsx','.jsx','.ts','.js','.json'}
+          CONTENT_PARTS={'src','content','pages','posts','blog','sites','template'}
+          PLACEHOLDER=re.compile(r'\blorem ipsum\b|\b(?:insert|replace) (?:this )?(?:text|copy|content) here\b',re.I)
+          CLICHES=[re.compile(x,re.I) for x in (
+            r"in today's ever[- ]changing landscape", r"look no further",
+            r"unlock your potential", r"at the end of the day"
+          )]
+          base=os.environ.get('BASE_SHA','')
+          head=os.environ.get('HEAD_SHA','HEAD')
+          if not base:
+              try: base=subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()
+              except subprocess.CalledProcessError:
+                  print('::warning::No diff baseline. Editorial review not mechanically verified.')
+                  sys.exit(0)
+          r=subprocess.run(['git','diff','--unified=0',base,head,'--'],capture_output=True,text=True)
+          if r.returncode:
+              print('::warning::Diff unavailable; agent must manually inspect copy changes.')
+              sys.exit(0)
+          current=''; inspected=0; warnings=0; errors=0; words=[]
+          for line in r.stdout.splitlines():
+              if line.startswith('+++ b/'):
+                  current=line[6:]; continue
+              if not line.startswith('+') or line.startswith('+++'): continue
+              p=Path(current)
+              if not (p.suffix in CONTENT_EXT and any(seg in CONTENT_PARTS for seg in p.parts)): continue
+              text=line[1:]
+              if not text.strip():continue
+              inspected+=1
+              if PLACEHOLDER.search(text):
+                  print(f'::error file={current}::Unfinished placeholder in newly added website text')
+                  errors+=1
+              if sum(bool(q.search(text)) for q in CLICHES)>0:
+                  words.append(current)
+          if inspected:
+              print(f'::notice::Editorial OS review required for changed copy. {inspected} changed content/code lines detected. Apply site AGENTS.md writing rules and check rendered text.')
+          else:
+              print('::notice::No changed content/code lines detected (or files outside scan scope).')
+          if words:
+              print('::warning::Possibly formulaic writing in: '+', '.join(sorted(set(words))[:12]))
+          print('Mechanical check only: cannot verify facts, authenticity, or whether editorial skill was invoked.')
+          sys.exit(1 if errors else 0)
+          PY
